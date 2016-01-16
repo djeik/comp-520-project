@@ -144,12 +144,12 @@ data Literal
     deriving (Eq, Read, Show)
 
 -- | Identifiers are just strings.
-type Ident = Text
+type Ident = String
 
 type GoInt = Int
 type GoFloat = Double
 type GoRune = Char
-type GoString = Text
+type GoString = String
 
 keywords :: IsString a => [a]
 keywords =
