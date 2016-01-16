@@ -43,7 +43,7 @@ hex_lit = do try (symbol "0x") <|> symbol "0X"
 int_lit :: Parser Int
 int_lit = decimal_lit <|> octal_lit <|> hex_lit
 
-float_lit :: Parser Float
+float_lit :: Parser Double
 float_lit = d1 <|> d2
         where
             d1 = do i <- some digitChar
