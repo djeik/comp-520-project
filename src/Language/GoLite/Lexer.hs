@@ -1,4 +1,4 @@
-module Lexer where
+module Language.GoLite.Lexer where
 
 import Text.Megaparsec
 import Text.Megaparsec.String -- Parsing a string
