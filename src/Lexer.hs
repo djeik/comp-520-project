@@ -31,7 +31,14 @@ decimal_lit = d1 <|> d2
                     return $ read (h:t)
                     
 octal_lit :: Parser Int
-octal_lit = fmap (unDigits 8 . map (\x -> ord x - ord '0')) (char '0' >> many octDigitChar)
+octal_lit = do char '0'
+               t <- many octDigitChar
+               return $ read ("0o0" ++ t)
+
+hex_lit :: Parser Int
+hex_lit = do try (symbol "0x") <|> symbol "0X"
+             t <- some hexDigitChar
+             return $ read ("0x" ++ t)
 
 int_lit :: Parser Int
-int_lit = decimal_lit <|> octal_lit
+int_lit = decimal_lit <|> octal_lit <|> hex_lit
