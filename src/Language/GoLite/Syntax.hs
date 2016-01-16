@@ -89,7 +89,7 @@ data Expr
 
 data BinaryOp
     = LogicalOr | LogicalAnd
-    | Equal | LessThan | LessThanEqual | GreaterThan | GreaterThanEqual
+    | Equal | NotEqual | LessThan | LessThanEqual | GreaterThan | GreaterThanEqual
     | Plus | Minus | BitwiseOr | BitwiseXor
     | Times | Divide | Modulo
     | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseAndNot

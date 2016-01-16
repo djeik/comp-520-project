@@ -75,3 +75,4 @@ raw_string = between_c "`" (many $ optional (char '\r') >> noneOf "`")
 interp_string :: Parser String
 interp_string = char '"' >> manyTill L.charLiteral (char '"')
 
+string_lit = interp_string <|> raw_string
