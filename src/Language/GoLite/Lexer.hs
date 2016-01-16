@@ -53,13 +53,25 @@ float_lit = d1 <|> d2
             d2 = do char '.'
                     d <- many digitChar
                     return $ read ("0." ++ d)
-                    
-escape :: Parser String
-escape = foldr ((<|>) . try . symbol) (symbol "\\\\")
-        ["\\a", "\\b", "\\f", "\\n", "\\r", "\\t", "\\v", "\\'"]
 
-rune_lit :: Parser String
-rune_lit = between (symbol "'") (symbol "'") (escape <|> fmap (:[]) (noneOf "\n'"))
 
-raw_string :: Parser String
-raw_string = between (symbol "`") (symbol "`") (many $ optional (char '\r') >> noneOf "`")
+between_c c = between (symbol c) (symbol c)
+
+try_all xs  = foldr ((<|>) . try . symbol) (symbol $ head xs) (tail xs)
+
+-- TODO Re-arrange the escape support
+
+common_escapes = ["\\a", "\\b", "\\f", "\\n", "\\r", "\\t", "\\v", "\\\\"]
+
+escape_runes = try_all ("\\'":common_escapes)
+escape_string = try_all ("\\\"":common_escapes)
+
+rune_lit :: Parser Char
+rune_lit = between_c "'"  (L.charLiteral <|> noneOf "\n'")
+
+raw_string = between_c "`" (many $ optional (char '\r') >> noneOf "`")
+
+-- TODO Should disallow \n in a string
+interp_string :: Parser String
+interp_string = char '"' >> manyTill L.charLiteral (char '"')
+
