@@ -15,21 +15,21 @@ sc = L.space (void spaceChar) lineComment blockComment
 
 symbol = L.symbol sc
 lexeme = L.lexeme sc
-        
+
 kw :: Parser String
 kw =    symbol "goto"
     <|> symbol "return" -- ...
-    
+
 decimal_lit :: Parser Int
-decimal_lit = d1 <|> d2 
-        where 
+decimal_lit = d1 <|> d2
+        where
             d1 = do char '0'
                     lookAhead spaceChar
                     return 0
-            d2 = do h <- oneOf "123456789" 
+            d2 = do h <- oneOf "123456789"
                     t <- many digitChar
                     return $ read (h:t)
-                    
+
 octal_lit :: Parser Int
 octal_lit = do char '0'
                t <- many octDigitChar
