@@ -4,7 +4,6 @@ import Language.GoLite.Syntax
 import Language.GoLite.Lexer
 
 import Control.Monad ( mzero )
-import Data.String ( IsString, fromString )
 import Text.Megaparsec
 import Text.Megaparsec.String
 import Text.Megaparsec.Expr
@@ -69,24 +68,6 @@ table =
             . Operand
             . ExprOp
 
-identifier :: IsString a => Parser a
-identifier = do
-    c <- letterChar
-    cs <- many alphaNumChar
-    return $ fromString (c:cs)
-
-type_ :: Parser Type
-type_ = sliceType <|> arrayType <|> namedType where
-    sliceType
-        = SliceType
-        <$> (symbol "[" *> symbol "]" *> type_)
-    arrayType
-        = ArrayType
-        <$> (symbol "[" *> lexeme int_lit <* symbol "]")
-        <*> type_
-    namedType
-        = NamedType <$> lexeme identifier
-
 selector = do
     char '.'
     id <- identifier
@@ -136,10 +117,11 @@ call = do
 
 term = operand <|> (UnaryExpr . PrimaryExpr <$> conversion)
 
-operand = fmap wrap literal <|> fmap wrap operandName <|> parens expr
-    where wrap = UnaryExpr . PrimaryExpr . Operand
-
-parens = between (symbol "(") (symbol ")")
+operand
+    = (wrap . LiteralOp <$> literal)
+    <|> fmap wrap operandName
+    <|> parens expr where
+        wrap = UnaryExpr . PrimaryExpr . Operand
 
 operandName = OperandNameOp <$> identifier
 
@@ -149,11 +131,3 @@ conversion = do
     e <- expr
     symbol ")"
     return (Conversion t e)
-
-literal = fmap LiteralOp lit where
-    lit = choice
-        [ fmap IntLit int_lit
-        , fmap FloatLit float_lit
-        , fmap RuneLit rune_lit
-        , fmap StringLit string_lit
-        ]

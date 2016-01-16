@@ -1,11 +1,11 @@
 module Language.GoLite.Lexer where
 
+import Language.GoLite.Syntax
+
+import Control.Monad (void)
+import Data.String ( IsString, fromString )
 import Text.Megaparsec
 import Text.Megaparsec.String -- Parsing a string
-import Control.Monad (void)
-import Data.Digits
-import Data.Char (ord)
-
 import qualified Text.Megaparsec.Lexer as L
 
 sc :: Parser ()
@@ -76,3 +76,30 @@ interp_string :: Parser String
 interp_string = char '"' >> manyTill L.charLiteral (char '"')
 
 string_lit = interp_string <|> raw_string
+
+identifier :: IsString a => Parser a
+identifier = do
+    c <- letterChar
+    cs <- many alphaNumChar
+    return $ fromString (c:cs)
+
+type_ :: Parser Type
+type_ = sliceType <|> arrayType <|> namedType where
+    sliceType
+        = SliceType
+        <$> (symbol "[" *> symbol "]" *> type_)
+    arrayType
+        = ArrayType
+        <$> (symbol "[" *> lexeme int_lit <* symbol "]")
+        <*> type_
+    namedType
+        = NamedType <$> lexeme identifier
+
+parens = between (symbol "(") (symbol ")")
+
+literal = choice
+    [ fmap IntLit int_lit
+    , fmap FloatLit float_lit
+    , fmap RuneLit rune_lit
+    , fmap StringLit string_lit
+    ]
