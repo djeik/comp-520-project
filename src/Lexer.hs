@@ -53,3 +53,13 @@ float_lit = d1 <|> d2
             d2 = do char '.'
                     d <- many digitChar
                     return $ read ("0." ++ d)
+                    
+escape :: Parser String
+escape = foldr ((<|>) . try . symbol) (symbol "\\\\")
+        ["\\a", "\\b", "\\f", "\\n", "\\r", "\\t", "\\v", "\\'"]
+
+rune_lit :: Parser String
+rune_lit = between (symbol "'") (symbol "'") (escape <|> fmap (:[]) (noneOf "\n'"))
+
+raw_string :: Parser String
+raw_string = between (symbol "`") (symbol "`") (many $ optional (char '\r') >> noneOf "`")
