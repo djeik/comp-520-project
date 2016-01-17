@@ -8,15 +8,14 @@ import Text.Megaparsec
 import Text.Megaparsec.String
 import Text.Megaparsec.Expr
 
+-- | Parses an expression.
 expr :: Parser Expr
 expr = makeExprParser term table
 
+term = operand <|> (UnaryExpr . PrimaryExpr <$> conversion)
+
 table =
-    [ [ Postfix (fmap (primaryExpr .) selector)
-      , Postfix (fmap (primaryExpr .) index)
-      , Postfix (fmap (primaryExpr .) sliceE)
-      , Postfix (fmap (primaryExpr .) typeAssertion)
-      , Postfix (fmap (primaryExpr .) call)
+    [ [ postfix (selector <|> index <|> sliceE <|> typeAssertion <|> call)
       ]
     , [ prefix "+" (unary Positive)
       , prefix "-" (unary Negative)
@@ -50,56 +49,80 @@ table =
       ]
     , [ binary "||" (BinaryExpr LogicalOr)
       ]
-    ] where 
-        primaryExpr 
-            = UnaryExpr
-            . PrimaryExpr
-
+    ] where
         binary name f
             = InfixL (symbol name >> return f)
 
         prefix name f
             = Prefix (symbol name >> return f)
 
-        unary op 
+        unary op e = UnaryExpr . UnaryOp op $ case e of
+            UnaryExpr u -> u
+            t -> PrimaryExpr . Operand . ExprOp $ t
+
+        postfix
+            = Postfix
+            . fmap (foldr1 (flip (.)))
+            . some
+            . fmap (primaryExpr .)
+
+        primaryExpr
             = UnaryExpr
-            . UnaryOp op
             . PrimaryExpr
-            . Operand
-            . ExprOp
+
+operand
+    = (wrap . LiteralOp <$> lexeme literal)
+    <|> fmap wrap operandName
+    <|> parens expr where
+        wrap = UnaryExpr . PrimaryExpr . Operand
+
+operandName = OperandNameOp <$> identifier
+
+conversion = do
+    t <- try $ do
+        t <- type_
+        symbol "("
+        return t
+    e <- expr
+    symbol ")"
+    return (Conversion t e)
 
 selector = do
-    char '.'
+    try $ symbol "."
     id <- identifier
     return $ \e -> Selector e id
 
 index = do
-    char '['
-    e' <- expr
-    char ']'
+    e' <- try $ squareBrackets expr
     return $ \e -> Index e e'
 
 sliceE = do
-    s <- slice
+    s <- sliceBody
     return $ \e -> Slice e s
 
-slice = symbol "[" *> (s1 <|> s2) <* symbol "]" where
-    s1 = do
-        e1 <- optional expr
-        symbol ":"
+sliceBody = squareBrackets (fromToStep <|> fromTo) where
+    fromTo = do
+        e1 <- try $ do
+            e1 <- optional expr
+            symbol ":"
+            return e1
         e2 <- optional expr
         return (SliceFromTo e1 e2)
-    s2 = do
-        e1 <- optional expr
-        symbol ":"
-        e2 <- expr
-        symbol ":"
+    fromToStep = do
+        (e1, e2) <- try $ do
+            e1 <- optional expr
+            symbol ":"
+            e2 <- expr
+            symbol ":"
+            return (e1, e2)
+
         e3 <- expr
         return (SliceFromToStep e1 e2 e3)
 
 typeAssertion = do
-    symbol "."
-    symbol "("
+    try $ do
+        symbol "."
+        symbol "("
     t <- type_
     symbol ")"
     return (\e -> TypeAssertion e t)
@@ -110,24 +133,7 @@ arguments = normalArgs <|> typeArgs where
     exprs = expr `sepBy` symbol ","
 
 call = do
-    symbol "("
+    try $ symbol "("
     args <- arguments
     symbol ")"
     return $ \e -> Call e args
-
-term = operand <|> (UnaryExpr . PrimaryExpr <$> conversion)
-
-operand
-    = (wrap . LiteralOp <$> literal)
-    <|> fmap wrap operandName
-    <|> parens expr where
-        wrap = UnaryExpr . PrimaryExpr . Operand
-
-operandName = OperandNameOp <$> identifier
-
-conversion = do
-    t <- type_
-    symbol "("
-    e <- expr
-    symbol ")"
-    return (Conversion t e)
