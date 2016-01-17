@@ -113,6 +113,7 @@ type_ = label "type" $ sliceType <|> arrayType <|> namedType where
         <$> lexeme identifier
 
 parens = between (symbol "(") (symbol ")")
+squareBrackets = between (symbol "[") (symbol "]")
 
 literal
     = label "literal"
