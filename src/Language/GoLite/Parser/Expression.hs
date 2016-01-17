@@ -1,4 +1,6 @@
-module Language.GoLite.Parser.Expression where
+module Language.GoLite.Parser.Expression
+( expr
+) where
 
 import Language.GoLite.Syntax
 import Language.GoLite.Lexer
