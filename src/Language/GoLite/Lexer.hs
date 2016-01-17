@@ -21,7 +21,7 @@ kw =    symbol "goto"
     <|> symbol "return" -- ...
 
 decimal_lit :: Parser Int
-decimal_lit = d1 <|> d2
+decimal_lit = label "decimal integer literal" $ d1 <|> d2
         where
             d1 = do char '0'
                     lookAhead spaceChar
@@ -31,20 +31,24 @@ decimal_lit = d1 <|> d2
                     return $ read (h:t)
 
 octal_lit :: Parser Int
-octal_lit = do char '0'
-               t <- many octDigitChar
-               return $ read ("0o0" ++ t)
+octal_lit = label "octal integer literal" $ do
+    char '0'
+    t <- many octDigitChar
+    return $ read ("0o0" ++ t)
 
 hex_lit :: Parser Int
-hex_lit = do try (symbol "0x") <|> symbol "0X"
-             t <- some hexDigitChar
-             return $ read ("0x" ++ t)
+hex_lit = label "hexadecimal integer literal" $ do
+    try (symbol "0x") <|> symbol "0X"
+    t <- some hexDigitChar
+    return $ read ("0x" ++ t)
 
 int_lit :: Parser Int
-int_lit = decimal_lit <|> octal_lit <|> hex_lit
+int_lit
+    = label "integer literal"
+    $ decimal_lit <|> octal_lit <|> hex_lit
 
 float_lit :: Parser Double
-float_lit = d1 <|> d2
+float_lit = label "float literal" (d1 <|> d2)
         where
             d1 = do i <- some digitChar
                     char '.'
@@ -67,39 +71,54 @@ escape_runes = try_all ("\\'":common_escapes)
 escape_string = try_all ("\\\"":common_escapes)
 
 rune_lit :: Parser Char
-rune_lit = between_c "'"  (L.charLiteral <|> noneOf "\n'")
+rune_lit
+    = label "rune literal"
+    $ between_c "'"  (L.charLiteral <|> noneOf "\n'")
 
-raw_string = between_c "`" (many $ optional (char '\r') >> noneOf "`")
+raw_string
+    = label "raw string literal"
+    $ between_c "`" (many $ optional (char '\r') >> noneOf "`")
 
 -- TODO Should disallow \n in a string
 interp_string :: Parser String
-interp_string = char '"' >> manyTill L.charLiteral (char '"')
+interp_string
+    = label "interpreted string literal"
+    $ char '"' >> manyTill L.charLiteral (char '"')
 
-string_lit = interp_string <|> raw_string
+string_lit
+    = label "string literal"
+    $ interp_string <|> raw_string
 
 identifier :: IsString a => Parser a
-identifier = do
-    c <- letterChar
-    cs <- many alphaNumChar
-    return $ fromString (c:cs)
+identifier = p <?> "identifier" where
+    p = do
+        c <- letterChar
+        cs <- many alphaNumChar
+        return $ fromString (c:cs)
 
 type_ :: Parser Type
-type_ = sliceType <|> arrayType <|> namedType where
+type_ = label "type" $ sliceType <|> arrayType <|> namedType where
     sliceType
-        = SliceType
+        = label "slice type"
+        $ SliceType
         <$> (symbol "[" *> symbol "]" *> type_)
     arrayType
-        = ArrayType
+        = label "array type"
+        $ ArrayType
         <$> (symbol "[" *> lexeme int_lit <* symbol "]")
         <*> type_
     namedType
-        = NamedType <$> lexeme identifier
+        = label "named type"
+        $ NamedType
+        <$> lexeme identifier
 
 parens = between (symbol "(") (symbol ")")
 
-literal = choice
-    [ fmap IntLit int_lit
-    , fmap FloatLit float_lit
-    , fmap RuneLit rune_lit
-    , fmap StringLit string_lit
-    ]
+literal
+    = label "literal"
+    $ choice
+        [ fmap IntLit int_lit
+        , fmap FloatLit float_lit
+        , fmap RuneLit rune_lit
+        , fmap StringLit string_lit
+        ]
