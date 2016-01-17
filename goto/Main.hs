@@ -1,7 +1,4 @@
 module Main where
 
-import Language.GoLite
-
-import Text.Megaparsec
-
+main :: IO ()
 main = putStrLn "Hello world!"

@@ -3,8 +3,6 @@
 module Language.GoLite.Syntax where
 
 import Data.String ( IsString )
-import Data.Text ( Text )
-import qualified Data.Text as T
 
 data Package
     = Package Ident [TopLevelDecl]
