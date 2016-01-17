@@ -18,26 +18,26 @@ goLite = describe "Language.GoLite" $ do
 
 lexer :: SpecWith ()
 lexer = describe "Lexer" $ do
-    describe "octal_lit" $ do
+    describe "octalLiteral" $ do
         it "parses an octal integer literal" $ do
-            parseOnly octal_lit "054321" `shouldBe` Right 0o54321
+            parseOnly octalLiteral "054321" `shouldBe` Right 0o54321
 
         prop "parses an arbitrary number of zeroes" $ do
             forAll (choose (1, 100)) $ \n ->
-               isRight . parseOnly octal_lit . replicate n $ '0'
+               isRight . parseOnly octalLiteral . replicate n $ '0'
 
         prop "cannot parse strings beginning with a nonzero digit" $ do
             forAll (choose ('1', '7'))
-                   (isLeft . parseOnly octal_lit . (:"53421"))
+                   (isLeft . parseOnly octalLiteral . (:"53421"))
 
-    describe "hex_lit" $ do
+    describe "hexLiteral" $ do
         prop "parses hexadecimal integer literals" $ do
             forAll (resize 8 hexGenLower) $ \s ->
-                parseOnly hex_lit s == Right (read s :: Int)
+                parseOnly hexLiteral s == Right (read s :: Int)
 
         prop "doesn't care about letter-digit case"$ do
             forAll (resize 8 hexGenMixedCase) $ \s ->
-                parseOnly hex_lit s == Right (read s :: Int)
+                parseOnly hexLiteral s == Right (read s :: Int)
 
 hexGenLower :: Gen String
 hexGenLower = ("0x" ++) <$> mkDigits where

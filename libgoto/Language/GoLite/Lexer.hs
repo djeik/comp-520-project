@@ -37,8 +37,8 @@ lexeme = L.lexeme sc
 -- A decimal integer literal begins with one of `1` through `9` and continues
 -- with digits `0` through `9`. Notice that as such that `00` is not a decimal
 -- integer literal, but rather an octal integer literal.
-decimal_lit :: Parser Int
-decimal_lit = label "decimal integer literal" $ d1 <|> d2
+decimalLiteral :: Parser Int
+decimalLiteral = label "decimal integer literal" $ d1 <|> d2
         where
             d1 = do char '0'
                     lookAhead spaceChar
@@ -51,8 +51,8 @@ decimal_lit = label "decimal integer literal" $ d1 <|> d2
 --
 -- An octal integer literal begins with `0` and continues with digits `0`
 -- through `7`.
-octal_lit :: Parser Int
-octal_lit = label "octal integer literal" $ do
+octalLiteral :: Parser Int
+octalLiteral = label "octal integer literal" $ do
     char '0'
     t <- many octDigitChar
     return $ read ("0o0" ++ t)
@@ -61,22 +61,22 @@ octal_lit = label "octal integer literal" $ do
 --
 -- A hexadecimal integer literal begins with either `0x` or `0X` and continues
 -- with at least one of digits `0` through `f` (case-insensitive)
-hex_lit :: Parser Int
-hex_lit = label "hexadecimal integer literal" $ do
+hexLiteral :: Parser Int
+hexLiteral = label "hexadecimal integer literal" $ do
     try (symbol "0x") <|> symbol "0X"
     t <- some hexDigitChar
     return $ read ("0x" ++ t)
 
--- | Parses an integer literal by trying "decimal_lit", "octal_lit", and
--- "hex_lit".
-int_lit :: Parser Int
-int_lit
+-- | Parses an integer literal by trying "decimalLiteral", "octalLiteral", and
+-- "hexLiteral".
+integerLiteral :: Parser Int
+integerLiteral
     = label "integer literal"
-    $ decimal_lit <|> octal_lit <|> hex_lit
+    $ decimalLiteral <|> octalLiteral <|> hexLiteral
 
 -- | Parses a floating point literal.
-float_lit :: Parser Double
-float_lit = label "float literal" (d1 <|> d2)
+floatLiteral :: Parser Double
+floatLiteral = label "float literal" (d1 <|> d2)
         where
             d1 = do i <- some digitChar
                     char '.'
@@ -91,40 +91,40 @@ surroundingWith :: Char -> Parser a -> Parser a
 surroundingWith c = between (char c) (char c)
 
 -- | Tries to parse any of the given strings as symbols.
-try_all :: [String] -> Parser String
-try_all xs  = foldr ((<|>) . try . symbol) (symbol $ head xs) (tail xs)
+tryAll :: [String] -> Parser String
+tryAll xs  = foldr ((<|>) . try . symbol) (symbol $ head xs) (tail xs)
 
 -- TODO Re-arrange the escape support
 
-common_escapes :: [String]
-common_escapes = ["\\a", "\\b", "\\f", "\\n", "\\r", "\\t", "\\v", "\\\\"]
+commonEscapes :: [String]
+commonEscapes = ["\\a", "\\b", "\\f", "\\n", "\\r", "\\t", "\\v", "\\\\"]
 
-escape_runes :: Parser String
-escape_runes = try_all ("\\'":common_escapes)
+escapesRunes :: Parser String
+escapesRunes = tryAll ("\\'":commonEscapes)
 
-escape_string :: Parser String
-escape_string = try_all ("\\\"":common_escapes)
+escapesStrings :: Parser String
+escapesStrings = tryAll ("\\\"":commonEscapes)
 
-rune_lit :: Parser Char
-rune_lit
+runeLiteral :: Parser Char
+runeLiteral
     = label "rune literal"
     $ surroundingWith '\''  (L.charLiteral <|> noneOf "\n'")
 
-raw_string :: Parser String
-raw_string
+rawStringLiteral :: Parser String
+rawStringLiteral
     = label "raw string literal"
     $ surroundingWith '`' (many $ optional (char '\r') >> noneOf "`")
 
 -- TODO Should disallow \n in a string
-interp_string :: Parser String
-interp_string
+interpStringLiteral :: Parser String
+interpStringLiteral
     = label "interpreted string literal"
     $ char '"' >> manyTill L.charLiteral (char '"')
 
-string_lit :: Parser String
-string_lit
+stringLiteral :: Parser String
+stringLiteral
     = label "string literal"
-    $ interp_string <|> raw_string
+    $ interpStringLiteral <|> rawStringLiteral
 
 identifier :: IsString a => Parser a
 identifier = p <?> "identifier" where
@@ -142,7 +142,7 @@ type_ = label "type" $ sliceType <|> arrayType <|> namedType where
     arrayType
         = label "array type"
         $ ArrayType
-        <$> (symbol "[" *> lexeme int_lit <* symbol "]")
+        <$> (symbol "[" *> lexeme integerLiteral <* symbol "]")
         <*> type_
     namedType
         = label "named type"
@@ -164,8 +164,8 @@ literal :: Parser Literal
 literal
     = label "literal"
     $ choice
-        [ fmap IntLit int_lit
-        , fmap FloatLit float_lit
-        , fmap RuneLit rune_lit
-        , fmap StringLit string_lit
+        [ fmap IntLit integerLiteral
+        , fmap FloatLit floatLiteral
+        , fmap RuneLit runeLiteral
+        , fmap StringLit stringLiteral
         ]
