@@ -60,7 +60,7 @@ octal_lit = label "octal integer literal" $ do
 -- | Parses a hexadecimal integer literal.
 --
 -- A hexadecimal integer literal begins with either `0x` or `0X` and continues
--- with digits `0` through `f`. The case of the letter-digits is ignored.
+-- with at least one of digits `0` through `f` (case-insensitive)
 hex_lit :: Parser Int
 hex_lit = label "hexadecimal integer literal" $ do
     try (symbol "0x") <|> symbol "0X"
@@ -83,7 +83,7 @@ float_lit = label "float literal" (d1 <|> d2)
                     d <- many digitChar
                     return $ read (i ++ "." ++ d ++ "0")
             d2 = do char '.'
-                    d <- many digitChar
+                    d <- some digitChar
                     return $ read ("0." ++ d)
 
 -- | Requires a parse of a given character around a provided arbitrary parser.
