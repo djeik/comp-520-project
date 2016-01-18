@@ -60,7 +60,7 @@ octalLiteral = label "octal integer literal" $ do
 -- with at least one of digits `0` through `f` (case-insensitive)
 hexLiteral :: Parser Int
 hexLiteral = label "hexadecimal integer literal" $ do
-    try (symbol "0x") <|> symbol "0X"
+    try (symbol "0x") <|> try (symbol "0X")
     t <- some hexDigitChar
     return $ read ("0x" ++ t)
 
@@ -69,7 +69,7 @@ hexLiteral = label "hexadecimal integer literal" $ do
 integerLiteral :: Parser Int
 integerLiteral
     = label "integer literal"
-    $ decimalLiteral <|> octalLiteral <|> hexLiteral
+    $ decimalLiteral <|> hexLiteral <|> octalLiteral
 
 -- | Parses a floating point literal.
 --
