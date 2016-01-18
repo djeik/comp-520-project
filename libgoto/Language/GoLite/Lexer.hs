@@ -4,6 +4,7 @@ import Language.GoLite.Syntax
 
 import Control.Monad (void)
 import Data.String ( IsString, fromString )
+import qualified Data.Map.Strict as Map
 import Text.Megaparsec
 import Text.Megaparsec.String -- Parsing a string
 import qualified Text.Megaparsec.Lexer as L
@@ -35,15 +36,11 @@ lexeme = L.lexeme sc
 -- | Parses a decimal integer literal.
 --
 -- A decimal integer literal begins with one of `1` through `9` and continues
--- with digits `0` through `9`. Notice that as such that `00` is not a decimal
--- integer literal, but rather an octal integer literal.
+-- with digits `0` through `9`. Notice that as such that `0`, `00`, etc. are not
+-- decimal integer literals, but rather octal integer literals.
 decimalLiteral :: Parser Int
-decimalLiteral = label "decimal integer literal" $ d1 <|> d2
-        where
-            d1 = do char '0'
-                    lookAhead spaceChar
-                    return 0
-            d2 = do h <- oneOf "123456789"
+decimalLiteral = label "decimal integer literal" $ do
+                    h <- oneOf "123456789"
                     t <- many digitChar
                     return $ read (h:t)
 
@@ -75,6 +72,11 @@ integerLiteral
     $ decimalLiteral <|> octalLiteral <|> hexLiteral
 
 -- | Parses a floating point literal.
+--
+-- A floating point literal has an integral and decimal part, at least one of
+-- which must be present. The two parts are separated by a mandatory dot, and
+-- may only contain decimal digits, including 0. Therefore, `0.0`, `0.`, and
+-- `.0` are all valid floating point literals. `.` is invalid.
 floatLiteral :: Parser Double
 floatLiteral = label "float literal" (d1 <|> d2)
         where
@@ -86,51 +88,74 @@ floatLiteral = label "float literal" (d1 <|> d2)
                     d <- some digitChar
                     return $ read ("0." ++ d)
 
--- | Requires a parse of a given character around a provided arbitrary parser.
-surroundingWith :: Char -> Parser a -> Parser a
-surroundingWith c = between (char c) (char c)
+-- | List of escape codes that are valid in intepreted strings and runes.
+commonEscapes :: [Char]
+commonEscapes = "abfnrtv\\"
 
--- | Tries to parse any of the given strings as symbols.
-tryAll :: [String] -> Parser String
-tryAll xs  = foldr ((<|>) . try . symbol) (symbol $ head xs) (tail xs)
+-- | Map of escape characters to their escaped value (e.g. 'a' maps to '\a')
+escapedChars :: Map.Map Char Char
+escapedChars = Map.fromList [('a', '\a'), ('b', '\b'), ('f', '\f'), ('n', '\n'),
+                             ('r', '\r'), ('t', '\t'), ('v', '\v'), ('"', '\"'),
+                             ('\'', '\''), ('\\', '\\')]
 
--- TODO Re-arrange the escape support
+-- | Parses an escape code, succeeding when it is part of the provided list.
+-- The escaped value is returned (e.g. parsing the string `\n` results in a
+-- single newline character being returned).
+--
+-- An escape code is a backslash (`\`) followed by a character. The argument
+-- `codes` provides a list of valid escape characters.
+escapeCode :: [Char] -> Parser Char
+escapeCode codes = label "escape code" $ do
+                    char '\\'
+                    code <- oneOf codes
+                    return $ escapedChars Map.! code
 
-commonEscapes :: [String]
-commonEscapes = ["\\a", "\\b", "\\f", "\\n", "\\r", "\\t", "\\v", "\\\\"]
-
-escapesRunes :: Parser String
-escapesRunes = tryAll ("\\'":commonEscapes)
-
-escapesStrings :: Parser String
-escapesStrings = tryAll ("\\\"":commonEscapes)
-
+-- | Parses a rune literal.
+--
+-- A rune literal is either a character or a valid escape code enclosed in
+-- single quotes. The new line (\n) and single quote (') characters are not
+-- allowed inside a rune literal.
 runeLiteral :: Parser Char
 runeLiteral
     = label "rune literal"
-    $ surroundingWith '\''  (L.charLiteral <|> noneOf "\n'")
+    $ surroundingWith '\'' (escapeCode ('\'':commonEscapes) <|> noneOf "\n'")
 
+-- | Parses a raw string literal
+--
+-- A raw string literal is surrounded by back-ticks (`) and may contain any
+-- character, including new lines. Escape sequences are not interpreted. Any
+-- carriage return character (\r) in the string is dropped.
 rawStringLiteral :: Parser String
 rawStringLiteral
     = label "raw string literal"
     $ surroundingWith '`' (many $ optional (char '\r') >> noneOf "`")
 
--- TODO Should disallow \n in a string
+-- | Parses an interpreted string literal
+--
+-- An interpreted string literal is surrounded by double quotes ("). Escape
+-- sequences are interpreted. The new line character (\n) is not allowed inside
+-- an interpreted string literal.
 interpStringLiteral :: Parser String
 interpStringLiteral
     = label "interpreted string literal"
-    $ char '"' >> manyTill L.charLiteral (char '"')
+    $ surroundingWith '"'
+        $ many (escapeCode ('\"':commonEscapes) <|> noneOf "\n\"")
 
+-- | Parses a string literal by trying "interpStringLiteral" and
+-- "rawStringLiteral".
 stringLiteral :: Parser String
 stringLiteral
     = label "string literal"
     $ interpStringLiteral <|> rawStringLiteral
 
-identifier :: IsString a => Parser a
+-- | Parses an identifier
+-- An identifier starts with an letter, followed by any number of alphanumeric
+-- characters. `_` is considered a letter.
+identifier :: Parser String
 identifier = p <?> "identifier" where
     p = do
-        c <- letterChar
-        cs <- many alphaNumChar
+        c <- char '_' <|> letterChar
+        cs <- many $ char '_' <|> alphaNumChar
         return $ fromString (c:cs)
 
 type_ :: Parser Type
@@ -158,6 +183,14 @@ parens = between (symbol_ "(") (symbol_ ")")
 -- bracket "symbol_"s.
 squareBrackets :: Parser a -> Parser a
 squareBrackets = between (symbol_ "[") (symbol_ "]")
+
+-- | Tries to parse any of the given strings as symbols.
+tryAll :: [String] -> Parser String
+tryAll xs  = foldr ((<|>) . try . symbol) (symbol $ head xs) (tail xs)
+
+-- | Requires a parse of a given character around a provided arbitrary parser.
+surroundingWith :: Char -> Parser a -> Parser a
+surroundingWith c = between (char c) (char c)
 
 -- | Parses a literal.
 literal :: Parser Literal
