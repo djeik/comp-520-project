@@ -9,6 +9,8 @@ import Test.QuickCheck
 import Text.Megaparsec
 import Text.Megaparsec.String
 
+import qualified Text.Megaparsec.Lexer as L (charLiteral)
+
 main :: IO ()
 main = hspec goLite
 
@@ -50,7 +52,7 @@ lexer = describe "Lexer" $ do
             forAll (resize 8 hexGenMixedCase) $ \s ->
                 parseOnly hexLiteral s == Right (read s :: Int)
 
-        it "cannot parse just the string \"0x\" or \"0X\"" $ do
+        it "cannot parse just the string `0x` or `0X`" $ do
             parseOnly hexLiteral "0x" `shouldSatisfy` isLeft
             parseOnly hexLiteral "0X" `shouldSatisfy` isLeft
 
@@ -58,8 +60,14 @@ lexer = describe "Lexer" $ do
             forAll (resize 8 intGen) $ \s ->
                 isLeft $ parseOnly hexLiteral s
 
+    describe "integerLiteral" $ do
+        it "parses all kinds of integer literals (decimal, octal, hex" $ do
+            parseOnly decimalLiteral "123" `shouldBe` Right 123
+            parseOnly octalLiteral "012" `shouldBe` Right 0o12
+            parseOnly hexLiteral "0x8F" `shouldBe` Right  0x8F
+
     describe "floatLiteral" $ do
-        it "parses \"0.0\", \"0.\" and \".0\"" $ do
+        it "parses `0.0`, `0.` and `.0`" $ do
             parseOnly floatLiteral "0.0" `shouldBe` Right 0
             parseOnly floatLiteral "0." `shouldBe` Right 0
             parseOnly floatLiteral ".0" `shouldBe` Right 0
@@ -79,6 +87,85 @@ lexer = describe "Lexer" $ do
         prop "cannot parse numbers without a decimal point" $ do
             forAll (resize 8 intGen) $ \s ->
                 isLeft $ parseOnly floatLiteral s
+
+        it "cannot parse the string `.`" $ do
+            parseOnly floatLiteral "." `shouldSatisfy` isLeft
+
+    describe "escapeCode" $ do
+        it "parses legal escape codes (e.g. `\\b`)" $ do
+            forAll (elements commonEscapes) $ \c ->
+                -- Use charLiteral as our reference
+                parseOnly (escapeCode commonEscapes) ('\\':[c])
+                ==  parseOnly L.charLiteral ('\\':[c])
+
+        it "cannot parse illegal escape codes (e.g. `\\x`)" $ do
+            parseOnly (escapeCode commonEscapes) "\\x" `shouldSatisfy` isLeft
+
+        it "cannot parse a character that is not an escape code (e.g. `a`)" $ do
+            -- This test doesn't depend on which escapes are legal, hence []
+            parseOnly (escapeCode []) "a" `shouldSatisfy` isLeft
+
+        it "cannot parse just a backslash (i.e. `\\`)" $ do
+            parseOnly (escapeCode []) "\\" `shouldSatisfy` isLeft
+
+    describe "runeLiteral" $ do
+        it "parses a single character or escape code in single quotes" $ do
+            parseOnly runeLiteral "'a'" `shouldBe` Right 'a'
+            parseOnly runeLiteral "'\\a'" `shouldBe` Right '\a'
+
+        it "cannot parse an empty pair of single quotes" $ do
+            parseOnly runeLiteral "''" `shouldSatisfy` isLeft
+
+        it "cannot parse a rune containing a newline, `\\\"`, or `'`" $ do
+            parseOnly runeLiteral "'\\\"'" `shouldSatisfy` isLeft
+            parseOnly runeLiteral "'\n'" `shouldSatisfy` isLeft
+            parseOnly runeLiteral "'''" `shouldSatisfy` isLeft
+
+    describe "rawString" $ do
+        it "parses a string of characters enclosed in backticks (`)" $ do
+            parseOnly rawStringLiteral "`abcd`" `shouldBe` Right "abcd"
+            parseOnly rawStringLiteral "``" `shouldBe` Right ""
+
+        it "does not perform escape code interpretation" $ do
+            parseOnly rawStringLiteral "`a\\tb`" `shouldBe` Right "a\\tb"
+
+        it "parses a literal containing newlines" $ do
+            parseOnly rawStringLiteral "`a\nb`" `shouldBe` Right "a\nb"
+
+        it "gobbles carriage return characters (`\\r`)" $ do
+            parseOnly rawStringLiteral "`ab\rcd`" `shouldBe` Right "abcd"
+
+        it "cannot parse a raw string literal containing a backtick" $ do
+            parseOnly rawStringLiteral "`ab`cd`" `shouldSatisfy` isLeft
+
+    describe "interpretedString" $ do
+        it "parses a string of characters in double-quotes" $ do
+            parseOnly interpStringLiteral "\"abc\"" `shouldBe` Right "abc"
+            parseOnly interpStringLiteral "\"\"" `shouldBe` Right ""
+
+        it "performs escape code interpretation" $ do
+            parseOnly interpStringLiteral "\"\\t\"" `shouldBe` Right "\t"
+
+        it "cannot parse a literal containing newlines, `\\\'` or `\"`" $ do
+            parseOnly interpStringLiteral "\"\a\n\"" `shouldSatisfy` isLeft
+            parseOnly interpStringLiteral "\"\\\'\"" `shouldSatisfy` isLeft
+            parseOnly interpStringLiteral "\"\"\"" `shouldSatisfy` isLeft
+
+    describe "identifier" $ do
+        it "parses an alphanumeric string starting with a letter" $ do
+            parseOnly identifier "abc12" `shouldBe` Right "abc12"
+            parseOnly identifier "a" `shouldBe` Right "a"
+
+        it "parses a string containing or starting with underscores" $ do
+            parseOnly identifier "a_b" `shouldBe` Right "a_b"
+            parseOnly identifier "_ab" `shouldBe` Right "_ab"
+            parseOnly identifier "___" `shouldBe` Right "___"
+
+        it "does not parse a string starting with a number" $ do
+            parseOnly identifier "0_or_1" `shouldSatisfy` isLeft
+            parseOnly identifier "0xAF" `shouldSatisfy` isLeft
+
+-- TODO Should have generators for runes and strings
 
 intGen :: Gen String
 intGen = sized . flip replicateM . elements $ ['0'..'9']
