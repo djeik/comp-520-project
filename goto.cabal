@@ -62,4 +62,5 @@ executable goto
   build-depends:
     base >=4.8 && <4.10,
     megaparsec >= 4.2 && <4.4,
+    pretty-show >=1.6 && <1.7,
     goto
