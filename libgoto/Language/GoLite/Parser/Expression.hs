@@ -16,44 +16,44 @@ expr = makeExprParser term table
 -- | Parses a basic term of an expression, sufficiently wrapped so as to act as
 -- an "Expr" in its own right.
 term :: Parser Expr
-term = operand <|> (UnaryExpr . PrimaryExpr <$> conversion)
+term = operand <|> conversion
 
 -- | The operator precedence table for expressions.
 table :: [[Operator Parser Expr]]
 table =
     [ [ postfix (selector <|> index <|> sliceE <|> typeAssertion <|> call)
       ]
-    , [ prefix "+" (unary Positive)
-      , prefix "-" (unary Negative)
-      , prefix "!" (unary LogicalNot)
-      , prefix "^" (unary BitwiseNot)
-      , prefix "*" (unary Dereference)
-      , prefix "&" (unary Reference)
-      , prefix "<-" (unary Receive)
+    , [ prefix "+" (UnaryOp Positive)
+      , prefix "-" (UnaryOp Negative)
+      , prefix "!" (UnaryOp LogicalNot)
+      , prefix "^" (UnaryOp BitwiseNot)
+      , prefix "*" (UnaryOp Dereference)
+      , prefix "&" (UnaryOp Reference)
+      , prefix "<-" (UnaryOp Receive)
       ]
-    , [ binary "*" (BinaryExpr Times)
-      , binary "/" (BinaryExpr Divide)
-      , binary "%" (BinaryExpr Modulo)
-      , binary "<<" (BinaryExpr ShiftLeft)
-      , binary ">>" (BinaryExpr ShiftRight)
-      , binary "&" (BinaryExpr BitwiseAnd)
-      , binary "&^" (BinaryExpr BitwiseAndNot)
+    , [ binary "*" (BinaryOp Times)
+      , binary "/" (BinaryOp Divide)
+      , binary "%" (BinaryOp Modulo)
+      , binary "<<" (BinaryOp ShiftLeft)
+      , binary ">>" (BinaryOp ShiftRight)
+      , binary "&" (BinaryOp BitwiseAnd)
+      , binary "&^" (BinaryOp BitwiseAndNot)
       ]
-    , [ binary "+" (BinaryExpr Plus)
-      , binary "-" (BinaryExpr Minus)
-      , binary "|" (BinaryExpr BitwiseOr)
-      , binary "^" (BinaryExpr BitwiseXor)
+    , [ binary "+" (BinaryOp Plus)
+      , binary "-" (BinaryOp Minus)
+      , binary "|" (BinaryOp BitwiseOr)
+      , binary "^" (BinaryOp BitwiseXor)
       ]
-    , [ binary "==" (BinaryExpr Equal)
-      , binary "!=" (BinaryExpr NotEqual)
-      , binary "<" (BinaryExpr LessThan)
-      , binary "<=" (BinaryExpr LessThanEqual)
-      , binary ">" (BinaryExpr GreaterThan)
-      , binary ">=" (BinaryExpr GreaterThanEqual)
+    , [ binary "==" (BinaryOp Equal)
+      , binary "!=" (BinaryOp NotEqual)
+      , binary "<" (BinaryOp LessThan)
+      , binary "<=" (BinaryOp LessThanEqual)
+      , binary ">" (BinaryOp GreaterThan)
+      , binary ">=" (BinaryOp GreaterThanEqual)
       ]
-    , [ binary "&&" (BinaryExpr LogicalAnd)
+    , [ binary "&&" (BinaryOp LogicalAnd)
       ]
-    , [ binary "||" (BinaryExpr LogicalOr)
+    , [ binary "||" (BinaryOp LogicalOr)
       ]
     ] where
         binary name f
@@ -62,38 +62,24 @@ table =
         prefix name f
             = Prefix (symbol name >> return f)
 
-        unary op e = UnaryExpr . UnaryOp op $ case e of
-            UnaryExpr u -> u
-            t -> PrimaryExpr . Operand . ExprOp $ t
-
         postfix
             = Postfix
             . fmap (foldr1 (flip (.)))
             . some
-            . fmap (primaryExpr .)
-
-        primaryExpr
-            = UnaryExpr
-            . PrimaryExpr
 
 -- | Parses an operand, sufficiently wrapped so as to act as an expression in
 -- its own right.
 operand :: Parser Expr
 operand
-    = (wrap . LiteralOp <$> lexeme literal)
-    <|> fmap wrap operandName
-    <|> parens expr where
-        wrap = UnaryExpr . PrimaryExpr . Operand
-
--- | Parses a named operand in the form of an "OperandNameOp".
-operandName :: Parser Operand
-operandName = OperandNameOp <$> identifier
+    = (Literal <$> lexeme literal)
+    <|> (Variable <$> lexeme identifier)
+    <|> parens expr
 
 -- | Parses a cast expression.
 --
 -- This parser can be backtracked from until it parses a "type_" followed by an
 -- "expr".
-conversion :: Parser PrimaryExpr
+conversion :: Parser Expr
 conversion = do
     t <- try $ do
         t <- type_
@@ -106,7 +92,7 @@ conversion = do
 -- | Parses a primary expression in the form of a "Selector".
 --
 -- This parser can be backtracked from until it parses a dot \".\".
-selector :: Parser (Expr -> PrimaryExpr)
+selector :: Parser (Expr -> Expr)
 selector = do
     try $ symbol "."
     ident <- identifier
@@ -116,12 +102,12 @@ selector = do
 --
 -- This parser can be backtracked from until the closing square bracket is
 -- parsed.
-index :: Parser (Expr -> PrimaryExpr)
+index :: Parser (Expr -> Expr)
 index = do
     e' <- try $ squareBrackets expr
     return $ \e -> Index e e'
 
-sliceE :: Parser (Expr -> PrimaryExpr)
+sliceE :: Parser (Expr -> Expr)
 sliceE = do
     s <- sliceBody
     return $ \e -> Slice e s
@@ -156,7 +142,7 @@ sliceBody = try $ squareBrackets (fromToStep <|> fromTo) where
 --
 -- This function can be backtracked from until both a dot (\".\") and an
 -- opening parenthesis (\"(\") are parsed.
-typeAssertion :: Parser (Expr -> PrimaryExpr)
+typeAssertion :: Parser (Expr -> Expr)
 typeAssertion = do
     try $ do
         symbol "."
@@ -176,7 +162,7 @@ arguments = normalArgs <|> typeArgs where
 --
 -- This parser can be backtracked from until the opening parenthesis (\"(\") of
 -- the argument list is parsed.
-call :: Parser (Expr -> PrimaryExpr)
+call :: Parser (Expr -> Expr)
 call = do
     try $ symbol "("
     args <- arguments

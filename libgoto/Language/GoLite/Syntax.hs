@@ -81,8 +81,16 @@ data Declaration
     deriving (Eq, Read, Show)
 
 data Expr
-    = UnaryExpr UnaryExpr
-    | BinaryExpr BinaryOp Expr Expr
+    = BinaryOp BinaryOp Expr Expr
+    | UnaryOp UnaryOp Expr
+    | Conversion Type Expr
+    | Selector Expr Ident
+    | Index Expr Expr
+    | Slice Expr Slice
+    | TypeAssertion Expr Type
+    | Call Expr Arguments
+    | Literal Literal
+    | Variable Ident
     deriving (Eq, Read, Show)
 
 data BinaryOp
@@ -91,11 +99,6 @@ data BinaryOp
     | Plus | Minus | BitwiseOr | BitwiseXor
     | Times | Divide | Modulo
     | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseAndNot
-    deriving (Eq, Read, Show)
-
-data UnaryExpr
-    = PrimaryExpr PrimaryExpr
-    | UnaryOp UnaryOp UnaryExpr
     deriving (Eq, Read, Show)
 
 data UnaryOp
@@ -108,16 +111,6 @@ data UnaryOp
     | Receive
     deriving (Eq, Read, Show)
 
-data PrimaryExpr
-    = Operand Operand
-    | Conversion Type Expr
-    | Selector Expr Ident
-    | Index Expr Expr
-    | Slice Expr Slice
-    | TypeAssertion Expr Type
-    | Call Expr Arguments
-    deriving (Eq, Read, Show)
-
 data Arguments
     = NormalArguments [Expr]
     | TypeArguments Type [Expr]
@@ -126,12 +119,6 @@ data Arguments
 data Slice
     = SliceFromTo (Maybe Expr) (Maybe Expr)
     | SliceFromToStep (Maybe Expr) Expr Expr
-    deriving (Eq, Read, Show)
-
-data Operand
-    = LiteralOp Literal
-    | OperandNameOp Ident
-    | ExprOp Expr
     deriving (Eq, Read, Show)
 
 data Literal
