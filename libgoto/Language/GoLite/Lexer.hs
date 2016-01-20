@@ -184,9 +184,9 @@ parens = between (symbol_ "(") (symbol_ ")")
 squareBrackets :: Parser a -> Parser a
 squareBrackets = between (symbol_ "[") (symbol_ "]")
 
--- | Tries to parse any of the given strings as symbols.
+-- | Tries to parse any of the given strings.
 tryAll :: [String] -> Parser String
-tryAll xs  = foldr ((<|>) . try . symbol) (symbol $ head xs) (tail xs)
+tryAll xs  = foldr ((<|>) . try . string) (string $ head xs) (tail xs)
 
 -- | Requires a parse of a given character around a provided arbitrary parser.
 surroundingWith :: Char -> Parser a -> Parser a
