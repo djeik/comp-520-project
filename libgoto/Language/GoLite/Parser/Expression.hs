@@ -10,16 +10,16 @@ import Text.Megaparsec.String
 import Text.Megaparsec.Expr
 
 -- | Parses an expression.
-expr :: Parser Expr
+expr :: Parser (Semi Expr)
 expr = makeExprParser term table
 
 -- | Parses a basic term of an expression, sufficiently wrapped so as to act as
 -- an "Expr" in its own right.
-term :: Parser Expr
+term :: Parser (Semi Expr)
 term = operand <|> conversion
 
 -- | The operator precedence table for expressions.
-table :: [[Operator Parser Expr]]
+table :: [[Operator Parser (Semi Expr)]]
 table =
     [ [ postfix (selector <|> index <|> sliceE <|> typeAssertion <|> call)
       ]
@@ -56,61 +56,90 @@ table =
     , [ binary "||" (BinaryOp LogicalOr)
       ]
     ] where
+        binary :: String -> (Expr -> Expr -> Expr) -> Operator Parser (Semi Expr)
         binary name f
-            = InfixL (symbol name >> return f)
+            = InfixL $ do
+                symbol_ name
+                pure $ \e1 e2 -> do
+                    x <- e1
+                    noSemi
+                    y <- e2
+                    pure $ f x y
 
+        prefix :: String -> (Expr -> Expr) -> Operator Parser (Semi Expr)
         prefix name f
-            = Prefix (symbol name >> return f)
+            = Prefix $ do
+                symbol_ name
+                pure $ \e -> f <$> e
 
-        postfix
-            = Postfix
-            . fmap (foldr1 (flip (.)))
-            . some
+        postfix :: Parser (Semi Expr -> Semi Expr)
+                -> Operator Parser (Semi Expr)
+        postfix p
+            = Postfix $ do
+                qs <- some p :: Parser [Semi Expr -> Semi Expr]
+                pure $ foldr1 (\a b -> \c -> do
+                    b' <- b c :: Semi Expr
+                    noSemi
+                    a (pure b')) qs
 
 -- | Parses an operand, sufficiently wrapped so as to act as an expression in
 -- its own right.
-operand :: Parser Expr
+operand :: Parser (Semi Expr)
 operand
-    = (Literal <$> lexeme literal)
-    <|> (Variable <$> lexeme identifier)
-    <|> parens expr
+    = (fmap Literal <$> lexeme literal)
+    <|> (fmap Variable <$> lexeme identifier)
+    <|> parens (expr >>= noSemiP)
 
 -- | Parses a cast expression.
 --
 -- This parser can be backtracked from until it parses a "type_" followed by an
 -- "expr".
-conversion :: Parser Expr
+conversion :: Parser (Semi Expr)
 conversion = do
     t <- try $ do
-        t <- type_
+        t <- type_ >>= noSemiP
         symbol "("
         return t
-    e <- expr
-    symbol ")"
-    return (Conversion t e)
+    e <- expr >>= noSemiP
+    s <- closeParen
+    pure $ do
+        s
+        pure $ Conversion t e
 
 -- | Parses a primary expression in the form of a "Selector".
 --
 -- This parser can be backtracked from until it parses a dot \".\".
-selector :: Parser (Expr -> Expr)
+selector :: Parser (Semi Expr -> Semi Expr)
 selector = do
     try $ symbol "."
     ident <- identifier
-    return $ \e -> Selector e ident
+    pure $ \e -> do
+        x <- e
+        noSemi
+        i <- ident
+        pure $ Selector x i
 
 -- | Parses a primary expression in the form of an "Index".
 --
 -- This parser can be backtracked from until the closing square bracket is
 -- parsed.
-index :: Parser (Expr -> Expr)
+index :: Parser (Semi Expr -> Semi Expr)
 index = do
-    e' <- try $ squareBrackets expr
-    return $ \e -> Index e e'
+    e' <- try $ squareBrackets (expr >>= noSemiP)
+    pure $ \e -> do
+        x <- e
+        noSemi
+        y <- e'
+        pure $ Index x y
 
-sliceE :: Parser (Expr -> Expr)
+sliceE :: Parser (Semi Expr -> Semi Expr)
 sliceE = do
     s <- sliceBody
-    return $ \e -> Slice e s
+    pure $ \e -> do
+        y <- e
+        noSemi
+        x <- s
+        pure $ Slice y x
 
 -- | Parses the body of a slice operator, specifically the part between the
 -- square brackets.
@@ -118,53 +147,60 @@ sliceE = do
 -- The reason this function exists separately from "sliceE" is that there are
 -- two alternatives for "Slice"s, namely "SliceFromTo" and "SliceFromToStep",
 -- both of which can be produced by this parser.
-sliceBody :: Parser Slice
+sliceBody :: Parser (Semi Slice)
 sliceBody = try $ squareBrackets (fromToStep <|> fromTo) where
     fromTo = do
         e1 <- try $ do
-            e1 <- optional expr
+            e1 <- optional (expr >>= noSemiP)
             symbol ":"
             return e1
-        e2 <- optional expr
+        e2 <- optional (expr >>= noSemiP)
         return (SliceFromTo e1 e2)
     fromToStep = do
         (e1, e2) <- try $ do
-            e1 <- optional expr
+            e1 <- optional (expr >>= noSemiP)
             symbol ":"
-            e2 <- expr
+            e2 <- expr >>= noSemiP
             symbol ":"
             return (e1, e2)
 
-        e3 <- expr
+        e3 <- expr >>= noSemiP
         return (SliceFromToStep e1 e2 e3)
 
 -- | Parses a type assertion.
 --
 -- This function can be backtracked from until both a dot (\".\") and an
 -- opening parenthesis (\"(\") are parsed.
-typeAssertion :: Parser (Expr -> Expr)
+typeAssertion :: Parser (Semi Expr -> Semi Expr)
 typeAssertion = do
     try $ do
         symbol "."
         symbol "("
     t <- type_
-    symbol ")"
-    return (\e -> TypeAssertion e t)
+    _ <- closeParen
+    pure $ \e -> do
+        y <- e
+        noSemi 
+        x <- t
+        pure $ TypeAssertion y x
 
 -- | Parses a function call argument list.
 arguments :: Parser Arguments
 arguments = normalArgs <|> typeArgs where
     normalArgs = NormalArguments <$> exprs
-    typeArgs = TypeArguments <$> type_ <*> exprs
-    exprs = expr `sepBy` symbol ","
+    typeArgs = TypeArguments <$> (type_ >>= noSemiP) <*> exprs
+    exprs = (expr >>= noSemiP) `sepBy` symbol ","
 
 -- | Parses the function call postfix operator.
 --
 -- This parser can be backtracked from until the opening parenthesis (\"(\") of
 -- the argument list is parsed.
-call :: Parser (Expr -> Expr)
+call :: Parser (Semi Expr -> Semi Expr)
 call = do
     try $ symbol "("
     args <- arguments
-    symbol ")"
-    return $ \e -> Call e args
+    _ <- closeParen
+    pure $ \e -> do
+        y <- e
+        noSemi
+        pure $ Call y args
