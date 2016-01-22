@@ -36,7 +36,10 @@ library
     Language.GoLite.Lexer
     Language.GoLite.Parser
     Language.GoLite.Parser.Expression
+    Language.GoLite.Pretty
     Language.GoLite.Syntax
+  other-modules:
+    Language.GoLite.Precedence
 
 test-suite spec
   type:                exitcode-stdio-1.0

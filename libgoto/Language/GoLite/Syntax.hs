@@ -2,6 +2,9 @@
 
 module Language.GoLite.Syntax where
 
+import Language.GoLite.Precedence
+import Language.GoLite.Pretty
+
 import Data.String ( IsString )
 
 data Package
@@ -225,3 +228,87 @@ operators =
     , "."
     , ":"
     ]
+
+instance HasPrecedence BinaryOp where
+    precedence o = case o of
+        LogicalOr -> 0
+        LogicalAnd -> 1
+        GreaterThanEqual -> 2
+        GreaterThan -> 2
+        LessThanEqual -> 2
+        LessThan -> 2
+        NotEqual -> 2
+        Equal -> 2
+        BitwiseXor -> 3
+        BitwiseOr -> 3
+        Minus -> 3
+        Plus -> 3
+        BitwiseAndNot -> 4
+        BitwiseAnd -> 4
+        ShiftLeft -> 4
+        ShiftRight -> 4
+        Modulo -> 4
+        Divide -> 4
+        Times -> 4
+
+instance HasPrecedence UnaryOp where
+    precedence o = case o of
+        Receive -> 5
+        Reference -> 5
+        Dereference -> 5
+        BitwiseNot -> 5
+        LogicalNot -> 5
+        Negative -> 5
+        Positive -> 5
+
+instance Pretty BinaryOp where
+    pretty o = case o of
+        LogicalOr -> "||"
+        LogicalAnd -> "&&"
+        Equal -> "=="
+        NotEqual -> "!="
+        LessThan -> "<"
+        LessThanEqual -> "<="
+        GreaterThan -> ">"
+        GreaterThanEqual -> ">="
+        Plus -> "+"
+        Minus -> "-"
+        BitwiseOr -> "|"
+        BitwiseXor -> "^"
+        Times -> "*"
+        Divide -> "/"
+        Modulo -> "%"
+        ShiftLeft -> "<<"
+        ShiftRight -> ">>"
+        BitwiseAnd -> "&"
+        BitwiseAndNot -> "&^"
+
+instance Pretty UnaryOp where
+    pretty o = case o of
+        Positive -> "+"
+        Negative -> "-"
+        LogicalNot -> "!"
+        BitwiseNot -> "^"
+        Dereference -> "*"
+        Reference -> "&"
+        Receive -> "<-"
+
+instance Pretty Literal where
+    pretty l = case l of
+        IntLit x -> show x
+        FloatLit x -> show x
+        StringLit x -> show x
+        RuneLit x -> show x
+
+instance Pretty Char where
+    pretty c = show c
+    prettyList s = showString s
+
+instance Pretty Expr where
+    prettysPrec d e = case e of
+        BinaryOp op l r -> showParen (d > precedence op) $ prettyInfix op l r
+        UnaryOp op p -> showParen (d > precedence op) $ prettyPrefix op p
+        -- never have to show parens around a literal or a variable
+        Literal l -> prettysPrec d l
+        Variable x -> showString x
+        _ -> error "unknown"
