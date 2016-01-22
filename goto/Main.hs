@@ -3,8 +3,6 @@ module Main where
 import Language.GoLite
 import Language.GoLite.Pretty
 
-import Text.Megaparsec
-import Text.Megaparsec.String
 import Text.Show.Pretty
 
 parseOnly :: Parser a -> String -> String -> Either ParseError a

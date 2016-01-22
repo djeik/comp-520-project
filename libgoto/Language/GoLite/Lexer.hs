@@ -1,6 +1,73 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Language.GoLite.Lexer where
+{-|
+Module      : Language.GoLite.Lexer
+Description : Lexer combinators for the GoLite language.
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2013
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+
+
+-}
+
+module Language.GoLite.Lexer
+( -- * Basic lexers
+  sc
+, symbol
+, symbol_
+, lexeme
+, parens
+, squareBrackets
+  -- * Literal lexers
+, literal
+, identifier
+, type_
+, decimalLiteral
+, octalLiteral
+, hexLiteral
+, integerLiteral
+, floatLiteral
+, runeLiteral
+, rawStringLiteral
+, interpStringLiteral
+, stringLiteral
+  -- ** Escape code handling
+, commonEscapes
+, escapedChars
+, escapeCode
+  -- * Semicolon handling
+, Semi() -- abstract !
+, SemiError(..)
+  -- ** Semi introduction
+, withDetectSemicolon
+  -- ** Semi elimination
+, requireSemi
+, requireSemiP
+, noSemiP
+, noSemi
+, unSemi
+, unSemiP
+  -- * Keywords and symbols
+, Keyword
+, kwBreak
+, kwReturn
+, kwContinue
+, kwFallthrough
+, kwPrint
+, kwPrintLn
+, kwRead
+, opIncrement
+, opDecrement
+, semicolon
+, comma
+, closeParen
+, closeBracket
+, closeBrace
+  -- * Reexports for convenience
+, module Text.Megaparsec
+, module Text.Megaparsec.String
+) where
 
 import Language.GoLite.Syntax
 
@@ -10,7 +77,7 @@ import Data.Maybe ( fromMaybe )
 import Data.String ( fromString )
 import qualified Data.Map.Strict as Map
 import Text.Megaparsec hiding ( State )
-import Text.Megaparsec.String -- Parsing a string
+import Text.Megaparsec.String
 import qualified Text.Megaparsec.Lexer as L
 
 ($>) :: Functor f => f a -> b -> f b
@@ -20,12 +87,13 @@ type Keyword = String
 
 data SemiError
     = UnexpectedSemicolon
+    | ExpectedSemicolon
     | NoSemicolonDetection
 
 -- | Represent explicit or implicit semicolons.
 --
 -- Parsers that parse values wrapped in "Semi" will detect implicit or explicit
--- semicolons.
+-- semicolons. They do so with the `withDetectSemicolon` combinator.
 newtype Semi a
     = Semi { runSemi :: StateT (Maybe Bool) (Except SemiError) a }
     deriving
@@ -36,22 +104,51 @@ newtype Semi a
         , MonadError SemiError
         )
 
-requireSemi :: Semi a -> Parser a
-requireSemi s = case runExcept $ runStateT (runSemi s) Nothing of
+-- | Runs a computation in the "Semi" monad, requiring that there be a
+-- semicolon. Exceptions from the "Semi" monad are reinterpreted as parse
+-- errors, and the presence of a semicolon will cause an \"expected ; or
+-- newline\" parser failure.
+requireSemiP :: Semi a -> Parser a
+requireSemiP s = case runExcept $ runStateT (runSemi s) Nothing of
     Left UnexpectedSemicolon ->
-        failure [Unexpected "asdf ;"]
+        failure [Unexpected ";", Unexpected "newline"]
+
+    Left ExpectedSemicolon ->
+        failure [Expected ";", Expected "newline"]
+
     Left NoSemicolonDetection ->
         failure [Message "No semicolon detection performed!"]
+
     Right e -> case e of
         (_, Nothing) -> failure [Message "No semicolon detection performed!"]
         (x, Just True) -> pure x
         (_, Just False) -> failure [Expected ";", Expected "newline"]
 
+-- | Analyzes the current state of the "Semi" monad and throws errors if no
+-- semicolon is present.
+requireSemi :: Semi ()
+requireSemi = do
+    isSemiM <- get
+    case isSemiM of
+        Nothing -> throwError NoSemicolonDetection
+        Just True -> pure ()
+        Just False -> throwError ExpectedSemicolon
+
+-- | Runs a computation in the "Semi" monad, requiring that there be no
+-- semicolon. Exceptions from the "Semi" monad are reinterpreted as parse
+-- errors, and the presence of a semicolon will cause an \"unexpected ; or
+-- newline\" parser failure.
 noSemiP :: Semi a -> Parser a
 noSemiP s = case runExcept $ runStateT (runSemi s) Nothing of
-    Left UnexpectedSemicolon -> failure [Unexpected "lololol ;"]
+    Left UnexpectedSemicolon ->
+        failure [Unexpected ";", Unexpected "newline"]
+
+    Left ExpectedSemicolon ->
+        failure [Expected ";", Expected "newline"]
+
     Left NoSemicolonDetection ->
         failure [Message "No semicolon detection performed!"]
+
     Right e -> case e of
         (_, Nothing) -> failure [Message "No semicolon detection performed!"]
         (x, Just False) -> pure x
@@ -67,20 +164,31 @@ noSemi = do
         Just True -> throwError UnexpectedSemicolon
         Just False -> pure ()
 
-unSemiP :: Semi a -> Parser a
-unSemiP s = case runExcept $ evalStateT (runSemi s) Nothing of
-    Left UnexpectedSemicolon -> failure [Unexpected "lololol ;"]
-    Left NoSemicolonDetection ->
-        failure [Message "No semicolon detection performed!"]
-    Right x -> pure x
-
+-- | Runs a computation in the "Semi" monad, extracting the parse result or the
+-- error if any.
 unSemi :: Semi a -> Either SemiError a
 unSemi s = runExcept $ evalStateT (runSemi s) Nothing
+
+-- | Runs a computation in the "Semi" monad, returning the parse result in the
+-- "Parser" monad or reinterpreting the error as a parse error if any.
+unSemiP :: Semi a -> Parser a
+unSemiP s = case unSemi s of
+    Left UnexpectedSemicolon ->
+        failure [Unexpected ";", Unexpected "newline"]
+
+    Left ExpectedSemicolon ->
+        failure [Expected ";", Expected "newline"]
+
+    Left NoSemicolonDetection ->
+        failure [Message "No semicolon detection performed!"]
+
+    Right x -> pure x
 
 -- | Consumes whitespace until reaching the end of line/file.
 eventuallyEol :: Parser ()
 eventuallyEol = hidden $ void $ manyTill spaceChar (void eol <|> eof)
 
+-- | Consumes whitespace and comments.
 sc :: Parser ()
 sc = L.space (void spaceChar) lineComment blockComment
   where lineComment  = L.skipLineComment "//"
@@ -287,10 +395,6 @@ squareBrackets p = do
     s <- closeBracket
     pure (s $> q)
 
--- | Tries to parse any of the given strings.
-tryAll :: [String] -> Parser String
-tryAll xs  = foldr ((<|>) . try . string) (string $ head xs) (tail xs)
-
 -- | Requires a parse of a given character around a provided arbitrary parser.
 surroundingWith :: Char -> Parser a -> Parser a
 surroundingWith c = between (char c) (char c)
@@ -305,33 +409,60 @@ literal = withDetectSemicolon $ do
         , fmap StringLit stringLiteral
         ]
 
-
+-- | Parses a semicolon symbol \";\".
 semicolon :: Parser ()
-semicolon = void $ symbol ";"
+semicolon = symbol_ ";"
 
+comma :: Parser () -- | Parses a comma symbol \",\".
+comma = symbol_ ","
+
+semisym :: String -> Parser (Semi Keyword)
+semisym = withDetectSemicolon . symbol
+
+-- | Parses the \"break\" keyword, checking for a semicolon.
 kwBreak :: Parser (Semi Keyword)
-kwBreak = withDetectSemicolon $ symbol "break"
+kwBreak = semisym "break"
 
+-- | Parses the \"return\" keyword, checking for a semicolon.
 kwReturn :: Parser (Semi Keyword)
-kwReturn = withDetectSemicolon $ symbol "return"
+kwReturn = semisym "return"
 
+-- | Parses the \"continue\" keyword, checking for a semicolon.
 kwContinue :: Parser (Semi Keyword)
-kwContinue = withDetectSemicolon $ symbol "continue"
+kwContinue = semisym "continue"
 
+-- | Parses the \"fallthrough\" keyword, checking for a semicolon.
 kwFallthrough :: Parser (Semi Keyword)
-kwFallthrough = withDetectSemicolon $ symbol "fallthrough"
+kwFallthrough = semisym "fallthrough"
 
+-- | Parses the \"print\" keyword, checking for a semicolon.
+kwPrint :: Parser (Semi Keyword)
+kwPrint = semisym "print"
+
+-- | Parses the \"println\" keyword, checking for a semicolon.
+kwPrintLn :: Parser (Semi Keyword)
+kwPrintLn = semisym "println"
+
+-- | Parses the \"read\" keyword, checking for a semicolon.
+kwRead :: Parser (Semi Keyword)
+kwRead = semisym "read"
+
+-- | Parses the increment symbol \"++\", checking for a semicolon.
 opIncrement :: Parser (Semi String)
-opIncrement = withDetectSemicolon $ symbol "++"
+opIncrement = semisym "++"
 
+-- | Parses the decrement symbol \"--\", checking for a semicolon.
 opDecrement :: Parser (Semi String)
-opDecrement = withDetectSemicolon $ symbol "--"
+opDecrement = semisym "--"
 
+-- | Parses a closing parenthesis \")\", checking for a semicolon.
 closeParen :: Parser (Semi String)
-closeParen = withDetectSemicolon $ symbol ")"
+closeParen = semisym ")"
 
+-- | Parses a closing bracket \"]\", checking for a semicolon.
 closeBracket :: Parser (Semi String)
-closeBracket = withDetectSemicolon $ symbol "]"
+closeBracket = semisym "]"
 
+-- | Parses a closing brace \"}\", checking for a semicolon.
 closeBrace :: Parser (Semi String)
-closeBrace = withDetectSemicolon $ symbol "}"
+closeBrace = semisym "}"

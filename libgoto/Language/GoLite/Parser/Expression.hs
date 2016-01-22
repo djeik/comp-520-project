@@ -5,8 +5,6 @@ module Language.GoLite.Parser.Expression
 import Language.GoLite.Syntax
 import Language.GoLite.Lexer
 
-import Text.Megaparsec
-import Text.Megaparsec.String
 import Text.Megaparsec.Expr
 
 -- | Parses an expression.
