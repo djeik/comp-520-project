@@ -1,3 +1,12 @@
+{-|
+Module      : Language.GoLite.Syntax
+Description : GoLite syntax definitions
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language.GoLite.Syntax where
@@ -29,25 +38,39 @@ data TypeDecl
     = TypeDecls [TypeDeclBody]
     deriving (Eq, Read, Show)
 
+-- | A body for a type declaration.
 data TypeDeclBody
     = TypeAlias Ident Type
     | StructDecl [FieldDecl]
     deriving (Eq, Read, Show)
 
+-- | A field in a struct.
 data FieldDecl
     = FieldDecl [Ident] Type
     deriving (Eq, Read, Show)
 
+-- | A function declaration.
 data FunDecl
     = FunDecl Ident [FunParam] (Maybe Type) Block
     deriving (Eq, Read, Show)
 
+-- | A single parameter declaration group for a function.
+--
+-- A parameter declaration group consists of one or more identifiers given the
+-- same type.
 type FunParam = ([Ident], Type)
 
+-- | A type.
 data Type
     = SliceType Type
+    -- ^ A slice is a compound type, and represent a resizable array of
+    -- elements of some other type.
     | ArrayType GoInt Type
+    -- ^ An arrays is a compound type, and represents a statically-sized array
+    -- of elements of some other type.
     | NamedType Ident
+    -- ^ A named type is the category into which all other types fall. It is
+    -- simply an identifier.
     deriving (Eq, Read, Show)
 
 -- | GoLite statements. These make up the bodies of functions.
@@ -58,24 +81,57 @@ data Statement
     -- ^ Print a list of expressions to standard out, optionally with a
     -- newline.
     | ExprStmt Expr
+    -- ^ Certain expressions are allowed as statements.
     | ReturnStmt (Maybe Expr)
-    | IfStmt (Maybe Statement) Expr Block (Maybe Statement)
+    -- ^ A return statement may optionally return a value.
+    | IfStmt (Maybe Statement) Expr Block (Maybe Block)
+    -- ^ An if-statement consists of an optional initializer, followed by an
+    -- expression and a sequence of statements acting as the then-body.
+    -- An optional sequence of statements can follow, acting as the else-body.
+    -- The else-if construct is simply represented as a nesting of
+    -- if-statements within the else-block of another if-statement.
     | SwitchStmt (Maybe Statement) (Maybe Expr) [(CaseHead, [Statement])]
+    -- ^ A switch statement consists of an optional initializer and an optional
+    -- expression whose value is matched against by the expressions in the
+    -- "CaseHead"s in the list of cases.
     | ForStmt ForHead Block
+    -- ^ All loops are represented as for-loops. Different constructors of
+    -- "ForHead" give different loop semantics.
     | BreakStmt
+    -- ^ Break out of a loop.
     | ContinueStmt
+    -- ^ Jump to the beginning of a loop.
     deriving (Eq, Read, Show)
 
+-- | The head of a for-loop determines its semantics.
 data ForHead
     = ForCondition Expr
+    -- ^ A condition-based for-loop executes its body while the expression
+    -- evaluates true.
     | ForClause (Maybe Statement) (Maybe Expr) (Maybe Statement)
+    -- ^ An iteration-based for-loop executes its initializer, if any, and
+    -- executes its body followed by its iteration-statement while its
+    -- condition-expression evaluates true.
     deriving (Eq, Read, Show)
 
+-- | The head of a case.
 data CaseHead
     = CaseDefault
+    -- ^ The default case's body is executed if no other case is matched. There
+    -- can be at most one default case in any given switch.
     | CaseExpr [Expr]
+    -- ^ A case's semantics are different according to whether its
+    -- corresponding switch has an expression to match against.
+    --
+    -- If there is an expression to match against, then the expressions given
+    -- in the list of the case head are compared for equality against the
+    -- switch expression.
+    --
+    -- Otherwise, if any of the given expressions evaluates true, then the case
+    -- is matched and its body is executed.
     deriving (Eq, Read, Show)
 
+-- | A block is simply a list of statements.
 type Block = [Statement]
 
 data Declaration

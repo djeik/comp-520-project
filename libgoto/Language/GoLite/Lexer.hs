@@ -3,12 +3,10 @@
 {-|
 Module      : Language.GoLite.Lexer
 Description : Lexer combinators for the GoLite language.
-Copyright   : (c) Jacob Errington and Frederic Lafrance, 2013
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
 License     : MIT
 Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
-
-
 -}
 
 module Language.GoLite.Lexer
@@ -414,9 +412,11 @@ literal = withDetectSemicolon $ do
 semicolon :: Parser ()
 semicolon = symbol_ ";"
 
-comma :: Parser () -- | Parses a comma symbol \",\".
+-- | Parses a comma symbol \",\".
+comma :: Parser ()
 comma = symbol_ ","
 
+-- | Parses a string and performs semicolon detection.
 semisym :: String -> Parser (Semi Keyword)
 semisym = withDetectSemicolon . symbol
 
