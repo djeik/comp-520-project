@@ -268,6 +268,7 @@ floatLiteral = label "float literal" (d1 <|> d2)
         where
             d1 = do i <- some digitChar
                     char '.'
+                    notFollowedBy identifier
                     d <- many digitChar
                     return $ read (i ++ "." ++ d ++ "0")
             d2 = do char '.'
@@ -403,8 +404,8 @@ surroundingWith c = between (char c) (char c)
 literal :: Parser (Semi Literal)
 literal = withDetectSemicolon $ do
     label "literal" $ choice
-        [ fmap IntLit integerLiteral
-        , fmap FloatLit floatLiteral
+        [ fmap FloatLit (try floatLiteral)
+        , fmap IntLit integerLiteral
         , fmap RuneLit runeLiteral
         , fmap StringLit stringLiteral
         ]
