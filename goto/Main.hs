@@ -14,7 +14,8 @@ main = do
     let ex = parseOnly (expr >>= unSemiP) "stdin" stdin
     putStrLn $ case ex of
         Left e -> ppShow e
-        Right r -> pretty r
-    --putStrLn $ case ex of
-    --    Left e -> ppShow e
-    --    Right r -> ppShow r
+        Right r -> concat
+            [ pretty r
+            , "\n"
+            , ppShow r
+            ]
