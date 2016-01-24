@@ -294,6 +294,15 @@ instance Pretty Char where
     pretty c = show c
     prettyList s = showString s
 
+instance Pretty Arguments where
+    prettysPrec _ e = case e of
+        NormalArguments [] -> id
+        NormalArguments (ex:exs) ->
+            foldr (\e' acc -> acc . showString ", " . prettysPrec 0 e')
+                  (prettysPrec 0 ex)
+                  exs
+        TypeArguments _ _ -> error "Pretty: Arguments"
+
 instance Pretty Expr where
     prettysPrec d e = case e of
         BinaryOp op l r -> showParen (d > precedence op) $ prettyInfix op l r
@@ -301,4 +310,5 @@ instance Pretty Expr where
         -- never have to show parens around a literal or a variable
         Literal l -> prettysPrec d l
         Variable x -> showString x
-        _ -> error "unknown"
+        Call f args -> (prettysPrec 6 f) . showParen True (prettysPrec 0 args)
+        _ -> error "Pretty: Expr"
