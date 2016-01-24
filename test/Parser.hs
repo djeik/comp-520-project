@@ -57,4 +57,11 @@ expression = describe "expr" $ do
             r (Call (bin Plus (int 3) (int 4))
                     (args [bin Divide (int 4) (var "a")]))
 
+    it "parses chained function calls" $ do
+        parseExpr "f(a)(b)(c)"
+            `shouldBe`
+            r (Call (Call (Call (var "f")
+                                (args [var "a"]))
+                          (args [var "b"]))
+                    (args [var "c"]))
 

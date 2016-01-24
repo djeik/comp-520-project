@@ -76,9 +76,9 @@ table =
             = Postfix $ do
                 qs <- some p :: Parser [Semi Expr -> Semi Expr]
                 pure $ foldr1 (\a b -> \c -> do
-                    b' <- b c :: Semi Expr
+                    a' <- a c :: Semi Expr
                     noSemi
-                    a (pure b')) qs
+                    b (pure a')) qs
 
 -- | Parses an operand, sufficiently wrapped so as to act as an expression in
 -- its own right.
