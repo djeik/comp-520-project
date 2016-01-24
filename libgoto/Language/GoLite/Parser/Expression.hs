@@ -106,11 +106,13 @@ conversion = do
 
 -- | Parses a primary expression in the form of a "Selector".
 --
--- This parser can be backtracked from until it parses a dot \".\".
+-- This parser can be backtracked from until it parses a dot \".\" followed by
+-- an identifier.
 selector :: Parser (Semi Expr -> Semi Expr)
 selector = do
-    try $ symbol "."
-    ident <- identifier
+    ident <- try $ do
+        symbol "."
+        identifier
     pure $ \e -> do
         x <- e
         noSemi
@@ -178,7 +180,7 @@ typeAssertion = do
     _ <- closeParen
     pure $ \e -> do
         y <- e
-        noSemi 
+        noSemi
         x <- t
         pure $ TypeAssertion y x
 
