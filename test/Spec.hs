@@ -22,8 +22,12 @@ lexer = describe "Lexer" $ do
         it "parses a decimal integer literal" $ do
             parseOnly decimalLiteral "12" `shouldBe` Right 12
 
-        prop "cannot parse a literal starting with 0 of length > 1" $ do
-            isLeft $ parseOnly decimalLiteral "01"
+        it "cannot parse a literal starting with 0" $ do
+            parseOnly decimalLiteral "012" `shouldSatisfy` isLeft
+            parseOnly decimalLiteral "0" `shouldSatisfy` isLeft
+
+        it "cannot parse a number containing spaces" $ do
+            parseOnly decimalLiteral "12 34" `shouldSatisfy` isLeft
 
     describe "octalLiteral" $ do
         it "parses an octal integer literal" $ do
@@ -41,6 +45,9 @@ lexer = describe "Lexer" $ do
             parseOnly octalLiteral "08" `shouldSatisfy` isLeft
             parseOnly octalLiteral "09" `shouldSatisfy` isLeft
 
+        it "cannot parse `0` followed by a space then octal digits" $ do
+            parseOnly octalLiteral "0 1" `shouldSatisfy` isLeft
+
     describe "hexLiteral" $ do
         prop "parses hexadecimal integer literals" $ do
             forAll (resize 8 hexGenLower) $ \s ->
@@ -54,12 +61,16 @@ lexer = describe "Lexer" $ do
             parseOnly hexLiteral "0x" `shouldSatisfy` isLeft
             parseOnly hexLiteral "0X" `shouldSatisfy` isLeft
 
+        it "cannot parse `0x` followed by a space and a number`" $ do
+            parseOnly hexLiteral "0x 12" `shouldSatisfy` isLeft
+            parseOnly hexLiteral "0X 12" `shouldSatisfy` isLeft
+
         prop "cannot parse numbers without the hex prefix" $ do
             forAll (resize 8 intGen) $ \s ->
                 isLeft $ parseOnly hexLiteral s
 
     describe "integerLiteral" $ do
-        it "parses all kinds of integer literals (decimal, octal, hex" $ do
+        it "parses all kinds of integer literals (decimal, octal, hex)" $ do
             parseOnly decimalLiteral "123" `shouldBe` Right 123
             parseOnly octalLiteral "012" `shouldBe` Right 0o12
             parseOnly hexLiteral "0x8F" `shouldBe` Right  0x8F
@@ -88,6 +99,11 @@ lexer = describe "Lexer" $ do
 
         it "cannot parse the string `.`" $ do
             parseOnly floatLiteral "." `shouldSatisfy` isLeft
+
+        it "cannot parse string with spaces between the dot and numbers" $ do
+            parseOnly floatLiteral "1. 1" `shouldSatisfy` isLeft
+            parseOnly floatLiteral "1 .1" `shouldSatisfy` isLeft
+            parseOnly floatLiteral "1 . 1" `shouldSatisfy` isLeft
 
     describe "escapeCode" $ do
         it "parses legal escape codes (e.g. `\\b`)" $ do
@@ -118,6 +134,11 @@ lexer = describe "Lexer" $ do
             parseOnly runeLiteral "'\\\"'" `shouldSatisfy` isLeft
             parseOnly runeLiteral "'\n'" `shouldSatisfy` isLeft
             parseOnly runeLiteral "'''" `shouldSatisfy` isLeft
+
+        it "cannot parse a rune containing more than one character" $ do
+            parseOnly runeLiteral "'ab'" `shouldSatisfy` isLeft
+            parseOnly runeLiteral "'a '" `shouldSatisfy` isLeft
+            parseOnly runeLiteral "'  '" `shouldSatisfy` isLeft
 
     describe "rawString" $ do
         it "parses a string of characters enclosed in backticks (`)" $ do
