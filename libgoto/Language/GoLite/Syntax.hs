@@ -9,12 +9,36 @@ Stability   : experimental
 
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.GoLite.Syntax where
+module Language.GoLite.Syntax
+( Package(..)
+, TopLevelDecl(..)
+, VarDecl(..)
+, TypeDecl(..)
+, TypeDeclBody(..)
+, FieldDecl(..)
+, FunDecl(..)
+, FunParam
+, Type(..)
+, Statement(..)
+, ForHead(..)
+, CaseHead(..)
+, Block
+, Declaration(..)
+, Expr(..)
+, BinaryOp(..)
+, UnaryOp(..)
+, Arguments(..)
+, Slice(..)
+, Literal(..)
+, Ident
+, GoInt
+, GoFloat
+, GoRune
+, GoString
+) where
 
 import Language.GoLite.Precedence
 import Language.GoLite.Pretty
-
-import Data.String ( IsString )
 
 data Package
     = Package Ident [TopLevelDecl]
@@ -194,96 +218,6 @@ type GoInt = Int
 type GoFloat = Double
 type GoRune = Char
 type GoString = String
-
-keywords :: IsString a => [a]
-keywords =
-    -- standard Go keywords
-    [ "break"
-    , "case"
-    , "chan"
-    , "const"
-    , "continue"
-    , "default"
-    , "defer"
-    , "else"
-    , "fallthrough"
-    , "for"
-    , "func"
-    , "go"
-    , "goto"
-    , "if"
-    , "import"
-    , "interface"
-    , "map"
-    , "package"
-    , "range"
-    , "return"
-    , "select"
-    , "struct"
-    , "switch"
-    , "type"
-    , "var"
-    -- special GoLite keywords
-    , "int"
-    , "float64"
-    , "bool"
-    , "rune"
-    , "string"
-    , "print"
-    , "println"
-    , "append"
-    ]
-
-operators :: IsString a => [a]
-operators =
-    [ "+"
-    , "-"
-    , "*"
-    , "/"
-    , "%"
-    , "&"
-    , "|"
-    , "^"
-    , "<<"
-    , ">>"
-    , "&^"
-    , "+="
-    , "-="
-    , "*="
-    , "/="
-    , "%="
-    , "&="
-    , "|="
-    , "^="
-    , "<<="
-    , ">>="
-    , "&^="
-    , "&&"
-    , "||"
-    , "<-"
-    , "++"
-    , "-"
-    , "=="
-    , "<"
-    , ">"
-    , "="
-    , "!"
-    , "!="
-    , "<="
-    , ">="
-    , ":="
-    , "..."
-    , "("
-    , ")"
-    , "["
-    , "]"
-    , "{"
-    , "}"
-    , ","
-    , ";"
-    , "."
-    , ":"
-    ]
 
 instance HasPrecedence BinaryOp where
     precedence o = case o of
