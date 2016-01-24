@@ -346,6 +346,18 @@ instance Pretty Arguments where
                   exs
         TypeArguments _ _ -> error "Pretty: Arguments"
 
+instance Pretty a => Pretty (Maybe a) where
+    prettysPrec d e = case e of
+        Just x -> prettysPrec d x
+        Nothing -> id
+
+instance Pretty Slice where
+    prettysPrec _ e = case e of
+        SliceFromTo e1 e2 ->
+            prettys e1 . showString ":" . prettys e2
+        SliceFromToStep e1 e2 step ->
+            prettys e1 . showString ":" . prettys e2 . showString ":" . prettys step
+
 instance Pretty Expr where
     prettysPrec d e = case e of
         BinaryOp op l r -> showParen (d > precedence op) $ prettyInfix op l r
@@ -353,5 +365,6 @@ instance Pretty Expr where
         -- never have to show parens around a literal or a variable
         Literal l -> prettysPrec d l
         Variable x -> showString x
+        Slice ex s -> (prettysPrec 6 ex) . prettyBrackets True s
         Call f args -> (prettysPrec 6 f) . showParen True (prettysPrec 0 args)
         _ -> error "Pretty: Expr"

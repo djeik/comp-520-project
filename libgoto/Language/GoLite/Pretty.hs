@@ -16,6 +16,8 @@ module Language.GoLite.Pretty
 , prettys
 , prettyPrefix
 , prettyInfix
+, showBrackets
+, prettyBrackets
 ) where
 
 import Language.GoLite.Precedence
@@ -56,3 +58,11 @@ prettyPrefix :: (HasPrecedence sym, Pretty sym, Pretty p)
 prettyPrefix sym p
     = showString (pretty sym)
     . prettysPrec (precedence sym) p
+
+showBrackets :: Show a => Bool -> a -> ShowS
+showBrackets True s = showString "[" . shows s . showString "]"
+showBrackets False s = shows s
+
+prettyBrackets :: Pretty a => Bool -> a -> ShowS
+prettyBrackets True s = showString "[" . prettys s . showString "]"
+prettyBrackets False s = prettys s
