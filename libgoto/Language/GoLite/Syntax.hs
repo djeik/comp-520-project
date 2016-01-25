@@ -333,10 +333,6 @@ instance Pretty Literal where
         StringLit x -> show x
         RuneLit x -> show x
 
-instance Pretty Char where
-    pretty c = show c
-    prettyList s = showString s
-
 instance Pretty Arguments where
     prettysPrec _ e = case e of
         NormalArguments [] -> id
@@ -345,11 +341,6 @@ instance Pretty Arguments where
                   (prettysPrec 0 ex)
                   exs
         TypeArguments _ _ -> error "Pretty: Arguments"
-
-instance Pretty a => Pretty (Maybe a) where
-    prettysPrec d e = case e of
-        Just x -> prettysPrec d x
-        Nothing -> id
 
 instance Pretty Slice where
     prettysPrec _ e = case e of

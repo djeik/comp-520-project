@@ -32,6 +32,15 @@ class Pretty a where
     pretty x = prettys x ""
     prettyList ls s = prettyList__ prettys ls s
 
+instance Pretty Char where
+    pretty c = show c
+    prettyList s = showString s
+
+instance Pretty a => Pretty (Maybe a) where
+    prettysPrec d e = case e of
+        Just x -> prettysPrec d x
+        Nothing -> id
+
 -- | Pretty-prints something (as a difference list) with the lowest precedence.
 prettys :: Pretty a => a -> ShowS
 prettys = prettysPrec 0

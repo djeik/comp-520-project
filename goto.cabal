@@ -40,6 +40,11 @@ library
     Language.GoLite.Syntax
   other-modules:
     Language.GoLite.Precedence
+    Language.GoLite.Lexer.Core
+    Language.GoLite.Lexer.Keywords
+    Language.GoLite.Lexer.Literal
+    Language.GoLite.Lexer.Semi
+    Language.GoLite.Lexer.Symbols
 
 test-suite spec
   type:                exitcode-stdio-1.0

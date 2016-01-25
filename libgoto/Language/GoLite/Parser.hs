@@ -25,13 +25,13 @@ import Language.GoLite.Syntax
 stmt :: Parser Statement
 stmt = declStmt
     <|> printStmt
-    <|> exprStmt
     <|> returnStmt
     <|> ifStmt
     <|> switchStmt
     <|> forStmt
     <|> breakStmt
     <|> continueStmt
+    <|> (SimpleStmt <$> (simpleStmt >>= requireSemiP))
 
 declStmt :: Parser Statement
 declStmt = DeclStmt <$> (decl >>= requireSemiP)
@@ -41,13 +41,6 @@ printStmt = do
     hasLn <- (kwPrint *> pure False) <|> (kwPrintLn *> pure True)
     exprs <- parens (expr `sepBy` comma) >>= requireSemiP
     PrintStmt <$> mapM noSemiP exprs <*> pure hasLn
-
--- | Parses an expression as a statement.
---
--- TODO: Go only allows certain kinds of expressions to act as statements. We
--- need to introduce a check that causes invalid expressions to raise errors.
-exprStmt :: Parser Statement
-exprStmt = ExprStmt <$> (expr >>= requireSemiP)
 
 -- | Parses a return statement.
 returnStmt :: Parser Statement
@@ -85,10 +78,22 @@ varDecl :: Parser (Semi Declaration)
 varDecl = error "varDecl"
 
 simpleStmt :: Parser (Semi SimpleStatement)
-simpleStmt = error "simpleStmt"
+simpleStmt
+    = exprStmt
+    <|> shortVarDecl
+    <|> assignStmt
 
-shortVarDecl :: Parser (Semi ShortVarDecl)
+shortVarDecl :: Parser (Semi SimpleStatement)
 shortVarDecl = error "shortVarDecl"
 
-assignStmt :: Parser (Semi Assignment)
+assignStmt :: Parser (Semi SimpleStatement)
 assignStmt = error "assignStmt"
+
+-- | Parses an expression as a statement.
+--
+-- TODO: Go only allows certain kinds of expressions to act as statements. We
+-- need to introduce a check that causes invalid expressions to raise errors.
+exprStmt :: Parser (Semi SimpleStatement)
+exprStmt = do
+    e <- expr
+    pure (ExprStmt <$> e)
