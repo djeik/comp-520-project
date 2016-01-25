@@ -83,3 +83,12 @@ typeDecl = error "typeDecl"
 
 varDecl :: Parser (Semi Declaration)
 varDecl = error "varDecl"
+
+simpleStmt :: Parser (Semi SimpleStatement)
+simpleStmt = error "simpleStmt"
+
+shortVarDecl :: Parser (Semi ShortVarDecl)
+shortVarDecl = error "shortVarDecl"
+
+assignStmt :: Parser (Semi Assignment)
+assignStmt = error "assignStmt"
