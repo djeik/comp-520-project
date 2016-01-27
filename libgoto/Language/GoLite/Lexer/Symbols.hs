@@ -10,6 +10,8 @@ module Language.GoLite.Lexer.Symbols
 , closeParen
 , closeBracket
 , closeBrace
+-- * Statement symbols
+, shortVarDeclarator
   -- * Assignment operators
 , opAssign
 , opAssignSimple
@@ -54,6 +56,12 @@ closeBracket = semisym "]"
 closeBrace :: Parser (Semi String)
 closeBrace = semisym "}"
 
+-- | Parses a short variable declarator \":=\", checking for a semicolon.
+shortVarDeclarator :: Parser (Semi String)
+shortVarDeclarator = semisym ":="
+
+-- | Creates a parser that will consume the given string and return the
+--   appropriate assignment operator, checking for a semicolon.
 semiAssignOp :: String -> AssignOp -> Parser (Semi AssignOp)
 semiAssignOp s op = do
                     x <- semisym s

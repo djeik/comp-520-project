@@ -62,10 +62,10 @@ forStmt :: Parser Statement
 forStmt = error "forStmt"
 
 breakStmt :: Parser Statement
-breakStmt = error "breakStmt"
+breakStmt = (kwBreak >>= requireSemiP) *> pure BreakStmt
 
 continueStmt :: Parser Statement
-continueStmt = error "continueStmt"
+continueStmt = breakStmt = (kwContinue >>= requireSemiP) *> pure ContinueStmt
 
 decl :: Parser (Semi Declaration)
 decl = typeDecl
