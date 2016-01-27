@@ -65,7 +65,7 @@ breakStmt :: Parser Statement
 breakStmt = (kwBreak >>= requireSemiP) *> pure BreakStmt
 
 continueStmt :: Parser Statement
-continueStmt = breakStmt = (kwContinue >>= requireSemiP) *> pure ContinueStmt
+continueStmt = (kwContinue >>= requireSemiP) *> pure ContinueStmt
 
 decl :: Parser (Semi Declaration)
 decl = typeDecl
