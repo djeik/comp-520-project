@@ -77,6 +77,12 @@ typeDecl = error "typeDecl"
 varDecl :: Parser (Semi Declaration)
 varDecl = error "varDecl"
 
+-- | Parses a variable specification.
+varSpec :: Parser (Semi Declaration)
+varSpec = error "varSpec"
+
+-- | Parses a simple statement. In some contexts (such as the initializer for
+-- \"if\" and \"switch\" statements), only simple statements are allowed.
 simpleStmt :: Parser (Semi Statement)
 simpleStmt
     = exprStmt
@@ -84,6 +90,8 @@ simpleStmt
     <|> assignStmt
 
 
+-- | Parses a short variable declaration: a list of identifiers followed by the
+-- operator \":=\", then by a list of expressions.
 shortVarDecl :: Parser (Semi Statement)
 shortVarDecl = do
         ids <- (identifier >>= noSemiP) `sepBy1` comma <* shortVarDeclarator
@@ -92,14 +100,34 @@ shortVarDecl = do
             exprs' <- exprs
             pure $ ShortVarDecl ids exprs'
 
+-- | Parses an assignment statement: a list of expressions followed by an
+-- assignment operator (\"=\", \"+=\", etc.) and a list of expressions.
+--
+-- TODO: Only certain kinds of expressions are allowed on the left-hand side of
+-- the assignment operator (namely, addressable expressions). We need to check
+-- that this is the case and raise an error otherwise.
 assignStmt :: Parser (Semi Statement)
-assignStmt = do
-        lhs <- (expr >>= noSemiP) `sepBy1` comma
-        op <- opAssign >>= noSemiP
-        rhs <- semiTerminatedList expr
+assignStmt = try (incDecStmt opIncrement PlusEq)
+        <|>  try (incDecStmt opDecrement MinusEq)
+        <|>  do
+                lhs <- (expr >>= noSemiP) `sepBy1` comma
+                op <- opAssign >>= noSemiP
+                rhs <- semiTerminatedList expr
+                pure $ do
+                    rhs' <- rhs
+                    pure $ Assignment lhs op rhs'
+
+-- | Parses an increment or decrement statement (\"x++\", \"y--\"). This is
+-- parsed to the same representation as \"x += 1\" or \"y -= 1\".
+incDecStmt :: Parser a -> AssignOp -> Parser (Semi Statement)
+incDecStmt opParse op = do
+        e <- expr
+        opParse
         pure $ do
-            rhs' <- rhs
-            pure $ Assignment lhs op rhs'
+            e' <- e
+            noSemi
+            pure $ Assignment [e'] op [Literal (IntLit 1)]
+
 
 -- | Parses an expression as a statement.
 --

@@ -5,6 +5,8 @@ module Language.GoLite.Parser.Expression
 import Language.GoLite.Syntax
 import Language.GoLite.Lexer
 
+import Control.Monad (void)
+
 import Text.Megaparsec.Expr
 
 -- | Parses an expression.
@@ -57,9 +59,7 @@ table =
         binary :: String -> (Expr -> Expr -> Expr) -> Operator Parser (Semi Expr)
         binary name f
             = InfixL $ do
-                -- Prevent conflict with assignment operators (e.g. here we
-                -- want to recognize '+' but not '+=')
-                try $ symbol_ name <* notFollowedBy (char '=')
+                try $ symbol_ name <* notFollowedBy (incDecAssignEnd name)
                 pure $ \e1 e2 -> do
                     x <- e1
                     noSemi
@@ -81,6 +81,19 @@ table =
                     a' <- a c :: Semi Expr
                     noSemi
                     b (pure a')) qs
+
+        -- Succeeds if the next character is part of a longer operator that
+        -- isn't expected in the context of an expression (an assignment or
+        -- increment/decrement operator).
+        incDecAssignEnd :: String -> Parser ()
+        incDecAssignEnd name = void (char '=' <|> incDecEnd) where
+                                incDecEnd = case name of
+                                    "+" -> char '+'
+                                    "-" -> char '-'
+                                    -- If not a plus or minus, we don't care
+                                    -- what the next character is.
+                                    _   -> failure []
+
 
 -- | Parses an operand, sufficiently wrapped so as to act as an expression in
 -- its own right.
