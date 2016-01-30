@@ -31,7 +31,7 @@ stmt = declStmt
     <|> forStmt
     <|> breakStmt
     <|> continueStmt
-    <|> (SimpleStmt <$> (simpleStmt >>= requireSemiP))
+    <|> (simpleStmt >>= requireSemiP)
 
 declStmt :: Parser Statement
 declStmt = DeclStmt <$> (decl >>= requireSemiP)
@@ -77,14 +77,14 @@ typeDecl = error "typeDecl"
 varDecl :: Parser (Semi Declaration)
 varDecl = error "varDecl"
 
-simpleStmt :: Parser (Semi SimpleStatement)
+simpleStmt :: Parser (Semi Statement)
 simpleStmt
     = exprStmt
     <|> shortVarDecl
     <|> assignStmt
 
 
-shortVarDecl :: Parser (Semi SimpleStatement)
+shortVarDecl :: Parser (Semi Statement)
 shortVarDecl = do
         ids <- (identifier >>= noSemiP) `sepBy1` comma <* shortVarDeclarator
         exprs <- semiTerminatedList expr
@@ -92,7 +92,7 @@ shortVarDecl = do
             exprs' <- exprs
             pure $ ShortVarDecl ids exprs'
 
-assignStmt :: Parser (Semi SimpleStatement)
+assignStmt :: Parser (Semi Statement)
 assignStmt = do
         lhs <- (expr >>= noSemiP) `sepBy1` comma
         op <- opAssign >>= noSemiP
@@ -105,7 +105,7 @@ assignStmt = do
 --
 -- TODO: Go only allows certain kinds of expressions to act as statements. We
 -- need to introduce a check that causes invalid expressions to raise errors.
-exprStmt :: Parser (Semi SimpleStatement)
+exprStmt :: Parser (Semi Statement)
 exprStmt = do
     e <- expr
     pure (ExprStmt <$> e)

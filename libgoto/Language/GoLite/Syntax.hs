@@ -20,7 +20,6 @@ module Language.GoLite.Syntax
 , FunParam
 , Type(..)
 , Statement(..)
-, SimpleStatement(..)
 , ForHead(..)
 , CaseHead(..)
 , Block
@@ -103,8 +102,20 @@ data Type
 data Statement
     = DeclStmt Declaration
     -- ^ Declarations are valid statements.
-    | SimpleStmt SimpleStatement
-    -- ^ Simple statements are statements too.
+    | ExprStmt Expr
+    -- ^ Certain expressions are allowed as simple statements.
+    | ShortVarDecl [Ident] [Expr]
+    -- ^ A short variable declaration uses the := operator and omits the type
+    -- from the declaration. It consists of a list of identifiers, followed by
+    -- the short declaration operator, then a list of expressions. The two lists
+    -- are grouped pair-wise to form all the initializations. ShortVarDecl is
+    -- semantically different from VarDecl in the fact that only the former can
+    -- appear in contexts where a simple statement is expected.
+    | Assignment [Expr] AssignOp [Expr]
+    -- ^ An assignment is two lists of expressions separated by an assignment
+    -- operator. Possible assignment operators include +=, <<= and =.
+    -- A statement like x += y is semantically different from x = x + y in that
+    -- x is only evaluated once in the former case..
     | PrintStmt [Expr] Bool
     -- ^ Print a list of expressions to standard out, optionally with a
     -- newline.
@@ -127,25 +138,6 @@ data Statement
     -- ^ Break out of a loop.
     | ContinueStmt
     -- ^ Jump to the beginning of a loop.
-    deriving (Eq, Read, Show)
-
--- | Some statements are dubbed "simple". Optional statement initializers (e.g.
--- in if or switch statements) can only be simple statements.
-data SimpleStatement
-    = ExprStmt Expr
-    -- ^ Certain expressions are allowed as simple statements.
-    | ShortVarDecl [Ident] [Expr]
-    -- ^ A short variable declaration uses the := operator and omits the type
-    -- from the declaration. It consists of a list of identifiers, followed by
-    -- the short declaration operator, then a list of expressions. The two lists
-    -- are grouped pair-wise to form all the initializations. ShortVarDecl is
-    -- semantically different from VarDecl in the fact that only the former can
-    -- appear in contexts where a simple statement is expected.
-    | Assignment [Expr] AssignOp [Expr]
-    -- ^ An assignment is two lists of expressions separated by an assignment
-    -- operator. Possible assignment operators include +=, <<= and =.
-    -- A statement like x += y is semantically different from x = x + y in that
-    -- x is only evaluated once in the former case.
     deriving (Eq, Read, Show)
 
 -- | The head of a for-loop determines its semantics.
