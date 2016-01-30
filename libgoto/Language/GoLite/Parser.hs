@@ -83,11 +83,23 @@ simpleStmt
     <|> shortVarDecl
     <|> assignStmt
 
+
 shortVarDecl :: Parser (Semi SimpleStatement)
-shortVarDecl = error "shortVarDecl"
+shortVarDecl = do
+        ids <- (identifier >>= noSemiP) `sepBy1` comma <* shortVarDeclarator
+        exprs <- semiTerminatedList expr
+        pure $ do
+            exprs' <- exprs
+            pure $ ShortVarDecl ids exprs'
 
 assignStmt :: Parser (Semi SimpleStatement)
-assignStmt = error "assignStmt"
+assignStmt = do
+        lhs <- (expr >>= noSemiP) `sepBy1` comma
+        op <- opAssign >>= noSemiP
+        rhs <- semiTerminatedList expr
+        pure $ do
+            rhs' <- rhs
+            pure $ Assignment lhs op rhs'
 
 -- | Parses an expression as a statement.
 --
@@ -97,3 +109,16 @@ exprStmt :: Parser (Semi SimpleStatement)
 exprStmt = do
     e <- expr
     pure (ExprStmt <$> e)
+
+-- | Parses one or more instances of `p`, separated by commas, requiring a
+-- semicolon on the last instance, but no semicolon on any other instance.
+semiTerminatedList :: Parser (Semi a) -> Parser (Semi [a])
+semiTerminatedList p = do
+        s <- p `sepBy1` comma
+        pure $ foldr (\cur acc -> do
+                        acc' <- acc
+                        cur' <- cur
+                        case acc' of
+                                [] -> requireSemi
+                                _ -> noSemi
+                        pure $ cur':acc') (pure []) s

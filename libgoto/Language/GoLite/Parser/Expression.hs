@@ -57,7 +57,9 @@ table =
         binary :: String -> (Expr -> Expr -> Expr) -> Operator Parser (Semi Expr)
         binary name f
             = InfixL $ do
-                symbol_ name
+                -- Prevent conflict with assignment operators (e.g. here we
+                -- want to recognize '+' but not '+=')
+                try $ symbol_ name <* notFollowedBy (char '=')
                 pure $ \e1 e2 -> do
                     x <- e1
                     noSemi
