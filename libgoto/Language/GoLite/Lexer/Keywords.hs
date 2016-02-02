@@ -8,6 +8,7 @@ module Language.GoLite.Lexer.Keywords
 , kwPrint
 , kwPrintLn
 , kwRead
+, kwVar
 ) where
 
 import Language.GoLite.Lexer.Core
@@ -43,3 +44,7 @@ kwPrintLn = semisym "println"
 -- | Parses the \"read\" keyword, checking for a semicolon.
 kwRead :: Parser (Semi Keyword)
 kwRead = semisym "read"
+
+-- | Parses the \"var\" keyword, checking for a semicolon.
+kwVar :: Parser (Semi Keyword)
+kwVar = semisym "var"
