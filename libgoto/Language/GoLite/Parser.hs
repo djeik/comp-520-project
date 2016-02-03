@@ -81,16 +81,26 @@ varDecl = (kwVar >>= noSemiP) >> (manyVarSpecs <|> oneVarSpec) where
         >>= requireSemiP -- Need a semi after the closing paren.
 
 -- | Parses a variable specification. It consists of a comma-separated list of
--- identifiers, followed by an optional type, then by the assignment operator
--- \"=\", then by a comma-separated list of expressions.
+-- identifiers, followed by a type, then by the assignment operator \"=\", then
+-- by a comma-separated list of expressions. Either the type or the list of
+-- expressions may be omitted, but not both.
 varSpec :: Parser (Semi Statement)
-varSpec = do
+varSpec = (try varSpecNoExpr) <|> do
     ids <- (lexeme identifier >>= noSemiP) `sepBy1` comma
     typ <- optional (type_ >>= noSemiP)
     exprs <- opAssignSimple >> (expr `sepBy1` comma)
     pure $ do
         exprs' <- sequenceA exprs
         pure $ DeclStmt (VarDecl (VarDeclBody ids typ exprs'))
+
+-- TODO see if there's a way to make this cleaner?
+varSpecNoExpr :: Parser (Semi Statement)
+varSpecNoExpr = do
+    ids <- (lexeme identifier >>= noSemiP) `sepBy1` comma
+    typ <- type_
+    pure $ do
+        typ' <- typ
+        pure $ DeclStmt (VarDecl (VarDeclBody ids (Just typ') []))
 
 -- | Parses a simple statement. In some contexts (such as the initializer for
 -- \"if\" and \"switch\" statements), only simple statements are allowed.
