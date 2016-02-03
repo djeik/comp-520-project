@@ -45,6 +45,9 @@ library
     Language.GoLite.Lexer.Literal
     Language.GoLite.Lexer.Semi
     Language.GoLite.Lexer.Symbols
+    Language.GoLite.Parser.Core
+    Language.GoLite.Parser.SimpleStmts
+    Language.GoLite.Parser.Decl
 
 test-suite spec
   type:                exitcode-stdio-1.0

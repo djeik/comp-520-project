@@ -52,8 +52,9 @@ data TopLevelDecl
 
 -- | The body of a variable declaration.
 --
--- The identifier list and expression list must have the same length and must
--- both be nonempty. Optionally, the bindings can be annotated with a type.
+-- The identifier list must be nonempty. Either the type annotation or the list
+-- of expressions may be omitted, but not both. If the type is omitted, the list
+-- or expressions must have the same length as the identifier list.
 data VarDecl
     = VarDeclBody [Ident] (Maybe Type) [Expr]
     deriving (Eq, Read, Show)
