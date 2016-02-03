@@ -17,7 +17,9 @@ module Language.GoLite.Pretty
 , prettyPrefix
 , prettyInfix
 , showBrackets
+, prettysParen
 , prettyBrackets
+, prettysBrackets
 ) where
 
 import Language.GoLite.Precedence
@@ -40,6 +42,9 @@ instance Pretty a => Pretty (Maybe a) where
     prettysPrec d e = case e of
         Just x -> prettysPrec d x
         Nothing -> id
+
+instance Pretty Int where
+    pretty i = show i
 
 -- | Pretty-prints something (as a difference list) with the lowest precedence.
 prettys :: Pretty a => a -> ShowS
@@ -68,6 +73,11 @@ prettyPrefix sym p
     = showString (pretty sym)
     . prettysPrec (precedence sym) p
 
+prettysParen :: Bool -> ShowS -> ShowS
+prettysParen b s = case b of
+    True -> showString "(" . s . showString ")"
+    False -> s
+
 showBrackets :: Show a => Bool -> a -> ShowS
 showBrackets True s = showString "[" . shows s . showString "]"
 showBrackets False s = shows s
@@ -75,3 +85,8 @@ showBrackets False s = shows s
 prettyBrackets :: Pretty a => Bool -> a -> ShowS
 prettyBrackets True s = showString "[" . prettys s . showString "]"
 prettyBrackets False s = prettys s
+
+prettysBrackets :: Bool -> ShowS -> ShowS
+prettysBrackets b s = case b of
+    True -> showString "[" . s . showString "]"
+    False -> s

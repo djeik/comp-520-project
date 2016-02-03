@@ -17,15 +17,11 @@ expression = describe "expr" $ do
     let int = Literal . IntLit
     let float = Literal . FloatLit
     let str = Literal . StringLit
-    let args = NormalArguments
-    let noArgs = args []
     let bin = BinaryOp
     let un = UnaryOp
     let conv = Conversion
     let intSlice = SliceType (NamedType "int")
     let sel = Selector
-    let sliFT = SliceFromTo
-    let sliFTS = SliceFromToStep
     let ta = TypeAssertion
 
     it "parses variables" $ do
@@ -59,23 +55,17 @@ expression = describe "expr" $ do
 
     it "parses slices" $ do
         parseExpr "a[1:2]" `shouldBe` r
-            (Slice (var "a")
-                (sliFT (Just $ int 1) (Just $ int 2)))
+            (Slice (var "a") (Just $ int 1) (Just $ int 2) Nothing)
         parseExpr "a[:1]" `shouldBe` r
-            (Slice (var "a")
-                (sliFT Nothing (Just $ int 1)))
+            (Slice (var "a") Nothing (Just $ int 1) Nothing)
         parseExpr "a[1:]" `shouldBe` r
-            (Slice (var "a")
-                (sliFT (Just $ int 1) Nothing))
+            (Slice (var "a") (Just $ int 1) Nothing Nothing)
         parseExpr "a[:]" `shouldBe` r
-            (Slice (var "a")
-                (sliFT Nothing Nothing))
+            (Slice (var "a") Nothing Nothing Nothing)
         parseExpr "a[0:10:2]" `shouldBe` r
-            (Slice (var "a")
-                (sliFTS (Just $ int 0) (int 10) (int 2)))
+            (Slice (var "a") (Just $ int 0) (Just $ int 10) (Just $ int 2))
         parseExpr "a[:10:2]" `shouldBe` r
-            (Slice (var "a")
-                (sliFTS Nothing (int 10) (int 2)))
+            (Slice (var "a") Nothing (Just $ int 10) (Just $ int 2))
 
         parseExpr "a[::2]" `shouldSatisfy` isLeft
         parseExpr "a[:2:]" `shouldSatisfy` isLeft
@@ -88,57 +78,71 @@ expression = describe "expr" $ do
     it "parses function calls with normal arguments" $ do
         parseExpr "a(3, 4, b)"
             `shouldBe`
-            r (Call (var "a") (NormalArguments [int 3, int 4, var "b"]))
+            r (Call
+                (var "a")
+                Nothing
+                [int 3, int 4, var "b"])
 
         parseExpr "complicatedFunction13()"
             `shouldBe`
-            r (Call (var "complicatedFunction13") noArgs)
+            r (Call
+                (var "complicatedFunction13")
+                Nothing
+                [])
 
         parseExpr "a(b(a), c(b), d(c))"
             `shouldBe`
             r (Call (var "a")
-                    (args [ Call (var "b") (args [var "a"])
-                          , Call (var "c") (args [var "b"])
-                          , Call (var "d") (args [var "c"])
-                          ]))
+                Nothing
+                [ Call (var "b") Nothing [var "a"]
+                , Call (var "c") Nothing [var "b"]
+                , Call (var "d") Nothing [var "c"]
+                ])
 
         parseExpr "(3 + 4)(4 / a)"
             `shouldBe`
-            r (Call (bin Plus (int 3) (int 4))
-                    (args [bin Divide (int 4) (var "a")]))
+            r (Call
+                (bin Plus (int 3) (int 4))
+                Nothing
+                [bin Divide (int 4) (var "a")])
 
     it "parses calls chained with other postfix operators" $ do
         parseExpr "f(a)(b)(c)"
             `shouldBe`
-            r (Call (Call (Call (var "f")
-                                (args [var "a"]))
-                          (args [var "b"]))
-                    (args [var "c"]))
+            r (Call
+                (Call
+                    (Call
+                        (var "f")
+                        Nothing
+                        [var "a"])
+                    Nothing
+                    [var "b"])
+                Nothing
+                [var "c"])
 
         parseExpr "[]int(a)(1)"
             `shouldBe`
-            r (Call (conv intSlice (var "a")) (args [int 1]))
+            r (Call (conv intSlice (var "a")) Nothing [int 1])
 
         parseExpr "x.f(2)"
             `shouldBe`
-            r (Call (sel (var "x") "f") (args [int 2]))
+            r (Call (sel (var "x") "f") Nothing [int 2])
 
         parseExpr "fs[0](a)"
             `shouldBe`
-            r (Call (Index (var "fs") (int 0)) (args [var "a"]))
+            r (Call (Index (var "fs") (int 0)) Nothing [var "a"])
 
         parseExpr "fs[1:2](a)"
             `shouldBe`
             r (Call
-                (Slice (var "fs")
-                    (SliceFromTo (Just $ int 1) (Just $ int 2)))
-                (args [var "a"]))
+                (Slice (var "fs") (Just $ int 1) (Just $ int 2) Nothing)
+                Nothing [var "a"])
 
         parseExpr "f.([]int)(2)"
             `shouldBe`
             r (Call
                 (TypeAssertion (var "f") intSlice)
-                (args [int 2]))
+                Nothing [int 2])
 
     it "parses conversions chained with other postfix operators" $ do
         parseExpr "[]int([]float(a))" `shouldBe`
@@ -156,15 +160,14 @@ expression = describe "expr" $ do
 
         parseExpr "[]int(a[:])" `shouldBe`
             r (conv intSlice
-                (Slice (var "a")
-                    (sliFT Nothing Nothing)))
+                (Slice (var "a") Nothing Nothing Nothing))
 
         parseExpr "[]int(a.([]int))" `shouldBe`
             r (conv intSlice (ta (var "a") intSlice))
 
         parseExpr "[]int(f())" `shouldBe`
             r (conv intSlice
-                (Call (var "f") noArgs))
+                (Call (var "f") Nothing []))
 
     it "parses selectors chained with other postfix operators" $ do
         parseExpr "[]int(a).x" `shouldBe` -- TODO Check golang
@@ -175,12 +178,12 @@ expression = describe "expr" $ do
         parseExpr "a[0].x" `shouldBe` r (sel (Index (var "a") (int 0)) "x")
 
         parseExpr "a[:].x" `shouldBe`
-            r (sel (Slice (var "a") (sliFT Nothing Nothing)) "x")
+            r (sel (Slice (var "a") Nothing Nothing Nothing) "x")
 
         parseExpr "a.([]int).x" `shouldBe` -- TODO Check golang
             r (sel (ta (var "a") intSlice) "x")
 
-        parseExpr "f().x" `shouldBe` r (sel (Call (var "f") noArgs) "x")
+        parseExpr "f().x" `shouldBe` r (sel (Call (var "f") Nothing []) "x")
 
     it "parses indices chained with other postfix operators" $ do
         parseExpr "[]int(a)[0]" `shouldBe`
@@ -192,28 +195,28 @@ expression = describe "expr" $ do
             r (Index (Index (var "a") (int 0)) (int 1))
 
         parseExpr "a[:][0]" `shouldBe`
-            r (Index (Slice (var "a") (sliFT Nothing Nothing)) (int 0))
+            r (Index (Slice (var "a") Nothing Nothing Nothing) (int 0))
 
         parseExpr "a.([]int)[0]" `shouldBe`
             r (Index (ta (var "a") intSlice) (int 0))
 
-        parseExpr "f()[0]" `shouldBe` r (Index (Call (var "f") noArgs) (int 0))
+        parseExpr "f()[0]" `shouldBe` r (Index (Call (var "f") Nothing []) (int 0))
 
     it "parses slices chained with other postfix operators" $ do
         parseExpr "[]int(a)[:]" `shouldBe`
-            r (Slice (conv intSlice (var "a")) (sliFT Nothing Nothing))
+            r (Slice (conv intSlice (var "a")) Nothing Nothing Nothing)
 
         parseExpr "a.x[:]" `shouldBe`
-            r (Slice (sel (var "a") "x") (sliFT Nothing Nothing))
+            r (Slice (sel (var "a") "x") Nothing Nothing Nothing)
 
         parseExpr "a[0][:]" `shouldBe`
-            r (Slice (Index (var "a") (int 0)) (sliFT Nothing Nothing))
+            r (Slice (Index (var "a") (int 0)) Nothing Nothing Nothing)
 
         parseExpr "a.([]int)[:]" `shouldBe`
-            r (Slice (ta (var "a") intSlice) (sliFT Nothing Nothing))
+            r (Slice (ta (var "a") intSlice) Nothing Nothing Nothing)
 
         parseExpr "f()[:]" `shouldBe`
-            r (Slice (Call (var "f") noArgs) (sliFT Nothing Nothing))
+            r (Slice (Call (var "f") Nothing []) Nothing Nothing Nothing)
 
     it "parses type assertions chained with other postfix operators" $ do
         parseExpr "[]int(a).([]int)" `shouldBe`
@@ -228,4 +231,4 @@ expression = describe "expr" $ do
             r (ta (ta (var ("a")) intSlice) intSlice)
 
         parseExpr "f().([]int)" `shouldBe`
-            r (ta (Call (var "f") noArgs) intSlice)
+            r (ta (Call (var "f") Nothing []) intSlice)

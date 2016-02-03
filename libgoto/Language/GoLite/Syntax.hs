@@ -8,6 +8,8 @@ Stability   : experimental
 -}
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Language.GoLite.Syntax
 ( Package(..)
@@ -20,7 +22,6 @@ module Language.GoLite.Syntax
 , FunParam
 , Type(..)
 , Statement(..)
-, ForHead(..)
 , CaseHead(..)
 , Block
 , Declaration(..)
@@ -28,8 +29,6 @@ module Language.GoLite.Syntax
 , BinaryOp(..)
 , UnaryOp(..)
 , AssignOp(..)
-, Arguments(..)
-, Slice(..)
 , Literal(..)
 , Ident
 , GoInt
@@ -128,28 +127,22 @@ data Statement
     -- An optional sequence of statements can follow, acting as the else-body.
     -- The else-if construct is simply represented as a nesting of
     -- if-statements within the else-block of another if-statement.
-    | SwitchStmt (Maybe Statement) (Maybe Expr) [(CaseHead, [Statement])]
+    | SwitchStmt (Maybe Statement) (Maybe Expr) [(CaseHead, Block)]
     -- ^ A switch statement consists of an optional initializer and an optional
     -- expression whose value is matched against by the expressions in the
     -- "CaseHead"s in the list of cases.
-    | ForStmt ForHead Block
-    -- ^ All loops are represented as for-loops. Different constructors of
-    -- "ForHead" give different loop semantics.
+    | ForStmt (Maybe Statement) (Maybe Expr) (Maybe Statement) Block
+    -- ^ All loops are represented as for-loops. If all three "Maybe"s are
+    -- "Nothing", then we have an infinite loop. If only the "Expr" is present,
+    -- then we have what's essentially a while loop. If either of the
+    -- statements are present, then we have a bona fide for loop.
+    --
+    -- In Go, all loops are however written with the keyword @for@, so
+    -- syntactically there is little difference.
     | BreakStmt
     -- ^ Break out of a loop.
     | ContinueStmt
     -- ^ Jump to the beginning of a loop.
-    deriving (Eq, Read, Show)
-
--- | The head of a for-loop determines its semantics.
-data ForHead
-    = ForCondition Expr
-    -- ^ A condition-based for-loop executes its body while the expression
-    -- evaluates true.
-    | ForClause (Maybe Statement) (Maybe Expr) (Maybe Statement)
-    -- ^ An iteration-based for-loop executes its initializer, if any, and
-    -- executes its body followed by its iteration-statement while its
-    -- condition-expression evaluates true.
     deriving (Eq, Read, Show)
 
 -- | The head of a case.
@@ -182,10 +175,78 @@ data Expr
     | UnaryOp UnaryOp Expr
     | Conversion Type Expr
     | Selector Expr Ident
-    | Index Expr Expr
-    | Slice Expr Slice
+    {-|
+    \"An expression of the form
+
+    > a[x]
+
+    denotes the element of the array, pointer to array, slice, string or map a
+    indexed by @x@. The value @x@ is called the /index/ or /map key/,
+    respectively.
+
+    The following rules apply:
+
+    * If @a@ is not a map
+
+        * The index x must be of integer type or untyped; 
+        * It is in range if @0 <= x < len(a)@;
+        * Otherwise it is out of range a constant index must be non-negative
+        and representable by a value of type int.
+
+    * For @a@ of array type A
+
+        A constant index must be in range if x is out of range at run time, a
+        run-time panic occurs @a[x]@ is the array element at index x and the type
+        of @a[x]@ is the element type of A
+
+    * For @a@ of pointer to array type
+
+        @a[x]@ is shorthand for @(*a)[x]@
+
+    * For @a@ of slice type /S/
+
+        * If @x@ is out of range at run time, a run-time panic occurs.
+        * @a[x]@ is the slice element at index @x@ and the type of @a[x]@ is the
+        element type of /S/
+
+    * For @a@ of string type
+
+        * A constant index must be in range if the string @a@ is also constant;
+        * If @x@ is out of range at run time, a run-time panic occurs;
+        * @a[x]@ is the non-constant byte value at index @x@ and the type of @a[x]@
+        is byte;
+        * @a[x]@ may not be assigned to.
+
+    * For a of map type M
+
+        * @x@'s type must be assignable to the key type of /M/;
+        * If the map contains an entry with key @x@, @a[x]@ is the map value with
+        key @x@ and the type of @a[x]@ is the value type of /M/;
+        * If the map is @nil@ or does not contain such an entry, @a[x]@ is the zero
+        value for the value type of /M/;
+        * Otherwise @a[x]@ is illegal.
+    -}
+    | Index 
+        { indexExpr :: Expr
+        , indexExprValue :: Expr
+        }
+    -- | \"Slice expressions construct a substring or slice from a string,
+    -- array, pointer to array, or slice. There are two variants: a simple form
+    -- that specifies a low and high bound, and a full form that also specifies
+    -- a bound on the capacity.\"
+    | Slice
+        { sliceExpr :: Expr
+        -- ^ The expression to take a slice of.
+        , sliceExprLow :: Maybe Expr
+        -- ^ The low index to select from.
+        , sliceExprHigh :: Maybe Expr
+        -- ^ The high index to select up to.
+        , sliceExprBound :: Maybe Expr
+        -- ^ An upper bound on the capacity of the resulting slice object. No
+        -- more than this many elements will be selected.
+        }
     | TypeAssertion Expr Type
-    | Call Expr Arguments
+    | Call Expr (Maybe Type) [Expr]
     | Literal Literal
     | Variable Ident
     deriving (Eq, Read, Show)
@@ -213,16 +274,6 @@ data UnaryOp
     | Dereference
     | Reference
     | Receive
-    deriving (Eq, Read, Show)
-
-data Arguments
-    = NormalArguments [Expr]
-    | TypeArguments Type [Expr]
-    deriving (Eq, Read, Show)
-
-data Slice
-    = SliceFromTo (Maybe Expr) (Maybe Expr)
-    | SliceFromToStep (Maybe Expr) Expr Expr
     deriving (Eq, Read, Show)
 
 data Literal
@@ -326,21 +377,11 @@ instance Pretty Literal where
         StringLit x -> show x
         RuneLit x -> show x
 
-instance Pretty Arguments where
-    prettysPrec _ e = case e of
-        NormalArguments [] -> id
-        NormalArguments (ex:exs) ->
-            foldr (\e' acc -> acc . showString ", " . prettysPrec 0 e')
-                  (prettysPrec 0 ex)
-                  exs
-        TypeArguments _ _ -> error "Pretty: Arguments"
-
-instance Pretty Slice where
-    prettysPrec _ e = case e of
-        SliceFromTo e1 e2 ->
-            prettys e1 . showString ":" . prettys e2
-        SliceFromToStep e1 e2 step ->
-            prettys e1 . showString ":" . prettys e2 . showString ":" . prettys step
+instance Pretty Type where
+    prettysPrec d e = case e of
+        SliceType t -> showString "[]" . prettysPrec d t
+        ArrayType i t -> prettysBrackets True (prettys i) . prettysPrec d t
+        NamedType n -> showString n
 
 instance Pretty Expr where
     prettysPrec d e = case e of
@@ -349,6 +390,29 @@ instance Pretty Expr where
         -- never have to show parens around a literal or a variable
         Literal l -> prettysPrec d l
         Variable x -> showString x
-        Slice ex s -> (prettysPrec 6 ex) . prettyBrackets True s
-        Call f args -> (prettysPrec 6 f) . showParen True (prettysPrec 0 args)
+        Slice ex lo hi up ->
+            prettysPrec 6 ex .
+            prettysBrackets True (
+                prettys lo .
+                showString ":" .
+                prettys hi .
+                case up of
+                    Just u -> showString ":" .  prettys u
+                    Nothing -> id
+            )
+        Call f ty args ->
+            prettysPrec 6 f .
+            prettysParen True (
+                case args of
+                    [] -> prettys ty
+                    s@(ex:exs) -> case ty of
+                        Nothing -> foldr
+                            (\e' acc -> acc . showString ", " . prettys e')
+                            (prettys ex)
+                            exs
+                        Just t -> foldr
+                            (\e' acc -> acc . showString ", " . prettys e')
+                            (prettys t)
+                            s
+            )
         _ -> error "Pretty: Expr"

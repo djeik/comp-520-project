@@ -153,8 +153,8 @@ sliceE = do
     pure $ \e -> do
         y <- e
         noSemi
-        x <- s
-        pure $ Slice y x
+        (e1, e2, e3) <- s
+        pure $ Slice y e1 e2 e3
 
 -- | Parses the body of a slice operator, specifically the part between the
 -- square brackets.
@@ -162,15 +162,18 @@ sliceE = do
 -- The reason this function exists separately from "sliceE" is that there are
 -- two alternatives for "Slice"s, namely "SliceFromTo" and "SliceFromToStep",
 -- both of which can be produced by this parser.
-sliceBody :: Parser (Semi Slice)
+sliceBody :: Parser (Semi (Maybe Expr, Maybe Expr, Maybe Expr))
 sliceBody = try $ squareBrackets (fromToStep <|> fromTo) where
+    fromTo :: Parser (Maybe Expr, Maybe Expr, Maybe Expr)
     fromTo = do
         e1 <- try $ do
             e1 <- optional (expr >>= noSemiP)
             symbol ":"
             return e1
         e2 <- optional (expr >>= noSemiP)
-        return (SliceFromTo e1 e2)
+        return (e1, e2, Nothing)
+
+    fromToStep :: Parser (Maybe Expr, Maybe Expr, Maybe Expr)
     fromToStep = do
         (e1, e2) <- try $ do
             e1 <- optional (expr >>= noSemiP)
@@ -180,7 +183,7 @@ sliceBody = try $ squareBrackets (fromToStep <|> fromTo) where
             return (e1, e2)
 
         e3 <- expr >>= noSemiP
-        return (SliceFromToStep e1 e2 e3)
+        return (e1, Just e2, Just e3)
 
 -- | Parses a type assertion.
 --
@@ -200,11 +203,17 @@ typeAssertion = do
         pure $ TypeAssertion y x
 
 -- | Parses a function call argument list.
-arguments :: Parser Arguments
-arguments = normalArgs <|> typeArgs where
-    normalArgs = NormalArguments <$> exprs
-    typeArgs = TypeArguments <$> (type_ >>= noSemiP) <*> exprs
-    exprs = (expr >>= noSemiP) `sepBy` symbol ","
+arguments :: Parser (Maybe Type, [Expr])
+arguments = noType <|> withType where
+    noType = do
+        exprs <- (expr >>= noSemiP) `sepBy` symbol ","
+        pure (Nothing, exprs)
+    withType = do
+        ty <- type_ >>= noSemiP
+        symbol ","
+        exprs <- (expr >>= noSemiP) `sepBy` symbol ","
+        pure (Just ty, exprs)
+
 
 -- | Parses the function call postfix operator.
 --
@@ -213,9 +222,9 @@ arguments = normalArgs <|> typeArgs where
 call :: Parser (Semi Expr -> Semi Expr)
 call = do
     try $ symbol "("
-    args <- arguments
+    (ty, exprs) <- arguments
     _ <- closeParen
     pure $ \e -> do
         y <- e
         noSemi
-        pure $ Call y args
+        pure $ Call y ty exprs
