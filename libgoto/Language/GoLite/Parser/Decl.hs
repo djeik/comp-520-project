@@ -5,20 +5,34 @@ module Language.GoLite.Parser.Decl (
 
 import Language.GoLite.Parser.Core
 
+-- | Parses a type declaration. It consists of the \"type\" keyword, followed
+-- by either one type specification, or multiple type specifications enclosed in
+-- parentheseses. Returns a list of all the type declarations.
 typeDecl :: Parser [Statement]
-typeDecl = error "typeDecl"
+typeDecl = decl kwType typeSpec
+
+-- | Parses a type specification: an identifier followed by a type.
+typeSpec :: Parser (Semi Statement)
+typeSpec = do
+    id_ <- lexeme identifier >>= noSemiP
+    typ <- lexeme type_
+    pure $ do
+        typ' <- typ
+        pure $ DeclStmt (TypeDecl (TypeDeclBody id_ typ'))
 
 -- | Parses a variable declaration. It consists of the \"var\" keyword, followed
 -- by either one variable specification, or multiple variable specifications
 -- enclosed in parentheses. Returns a list of all the variable specifications.
 varDecl :: Parser [Statement]
-varDecl = (kwVar >>= noSemiP) >> (manyVarSpecs <|> oneVarSpec) where
-    oneVarSpec = fmap pure (varSpec >>= requireSemiP)
-    manyVarSpecs = parens (semiList (many varSpec)
-                requireSemi -- Want a semicolon at each internal varSpec
-                (pure ()) >>= unSemiP)  -- For the last one, we don't care:
-                                        -- var (x = 2) or var (x = 2;) is OK.
-        >>= requireSemiP -- Need a semi after the closing paren.
+varDecl = decl kwVar varSpec
+
+-- | Generates a declaration parser. It will run the given keyword parser, then
+-- parse either one declaration specification or several specifications enclosed
+-- in parentheses.
+decl :: Parser (Semi a) -> Parser (Semi Statement) -> Parser [Statement]
+decl kw spec = (kw >>= noSemiP) >> (manySpecs <|> oneSpec) where
+    oneSpec = fmap pure (spec >>= requireSemiP)
+    manySpecs = specList (many spec) >>= requireSemiP
 
 -- | Parses a variable specification. It consists of a comma-separated list of
 -- identifiers, followed by a type, then by the assignment operator \"=\", then

@@ -16,8 +16,6 @@ module Language.GoLite.Syntax
 , TopLevelDecl(..)
 , VarDecl(..)
 , TypeDecl(..)
-, TypeDeclBody(..)
-, FieldDecl(..)
 , FunDecl(..)
 , FunParam
 , Type(..)
@@ -60,18 +58,7 @@ data VarDecl
 
 -- | A type declaration.
 data TypeDecl
-    = TypeDecls [TypeDeclBody]
-    deriving (Eq, Read, Show)
-
--- | A body for a type declaration.
-data TypeDeclBody
-    = TypeAlias Ident Type
-    | StructDecl [FieldDecl]
-    deriving (Eq, Read, Show)
-
--- | A field in a struct.
-data FieldDecl
-    = FieldDecl [Ident] Type
+    = TypeDeclBody Ident Type
     deriving (Eq, Read, Show)
 
 -- | A function declaration.
@@ -96,6 +83,7 @@ data Type
     | NamedType Ident
     -- ^ A named type is the category into which all other types fall. It is
     -- simply an identifier.
+    | StructType [([Ident], Type)]
     deriving (Eq, Read, Show)
 
 -- | GoLite statements. These make up the bodies of functions.
@@ -188,7 +176,7 @@ data Expr
 
     * If @a@ is not a map
 
-        * The index x must be of integer type or untyped; 
+        * The index x must be of integer type or untyped;
         * It is in range if @0 <= x < len(a)@;
         * Otherwise it is out of range a constant index must be non-negative
         and representable by a value of type int.
@@ -226,7 +214,7 @@ data Expr
         value for the value type of /M/;
         * Otherwise @a[x]@ is illegal.
     -}
-    | Index 
+    | Index
         { indexExpr :: Expr
         , indexExprValue :: Expr
         }
@@ -382,6 +370,21 @@ instance Pretty Type where
         SliceType t -> showString "[]" . prettysPrec d t
         ArrayType i t -> prettysBrackets True (prettys i) . prettysPrec d t
         NamedType n -> showString n
+        StructType t -> let prettyIds ids =
+                                    foldr (\id_ acc2 -> acc2 . showString ", " .
+                                                showString id_)
+                                        (showString (head ids))
+                                        (tail ids) . showString " " in
+                        showString "struct {" .
+                        case t of
+                            [] -> showString "}"
+                            ((hids, htyp):xs) -> foldr
+                                (\(ids, typ) acc -> acc . showString "; " .
+                                    prettyIds ids . prettys typ)
+                                (prettyIds hids . prettys htyp)
+                                xs
+                                . showString "}"
+
 
 instance Pretty Expr where
     prettysPrec d e = case e of

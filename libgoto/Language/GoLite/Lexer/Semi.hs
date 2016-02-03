@@ -15,6 +15,7 @@ module Language.GoLite.Lexer.Semi
 , unSemiP
 , semicolon
 , semisym
+, semiList
 ) where
 
 import Language.GoLite.Lexer.Core
@@ -148,3 +149,17 @@ semicolon = symbol_ ";"
 -- | Parses a string and performs semicolon detection.
 semisym :: String -> Parser (Semi String)
 semisym = withDetectSemicolon . symbol
+
+-- | Transforms a parser producing a list of Semi elements into a parser
+-- producing a Semi list of elements, with potentially different semicolon
+-- checks for the last element versus the rest of the list.
+semiList :: Parser ([Semi a]) -> Semi () -> Semi () -> Parser (Semi [a])
+semiList p internal end = do
+    s <- p
+    pure $ foldr (\cur acc -> do
+                    acc' <- acc
+                    cur' <- cur
+                    case acc' of
+                            [] -> end
+                            _ -> internal
+                    pure $ cur':acc') (pure []) s

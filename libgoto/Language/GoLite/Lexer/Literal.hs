@@ -3,6 +3,7 @@ module Language.GoLite.Lexer.Literal
   literal
 , identifier
 , type_
+, structType -- Exported separately because some situations only allow this type
 , decimalLiteral
 , octalLiteral
 , hexLiteral
@@ -21,6 +22,7 @@ module Language.GoLite.Lexer.Literal
 import Language.GoLite.Lexer.Core
 import Language.GoLite.Lexer.Semi
 import Language.GoLite.Lexer.Symbols
+import Language.GoLite.Lexer.Keywords
 
 import Language.GoLite.Syntax
 
@@ -165,7 +167,7 @@ identifier = p <?> "identifier" where
 
 -- | Parses a type.
 type_ :: Parser (Semi Type)
-type_ = label "type" $ sliceType <|> arrayType <|> namedType where
+type_ = label "type" $ sliceType <|> arrayType <|> structType <|> namedType where
     sliceType = label "slice type" $ do
         symbol_ "["
         closeBracket >>= noSemiP
@@ -182,6 +184,28 @@ type_ = label "type" $ sliceType <|> arrayType <|> namedType where
 
     namedType = label "named type" $ do
         fmap NamedType <$> lexeme identifier
+
+-- | Parses a struct type, which is the keyword "struct" followed by a list of
+-- fields enclosed in braces.
+structType :: Parser (Semi Type)
+structType = label "struct type" $ do
+    kwStruct >>= noSemiP
+    symbol_ "{"
+    fields <- semiList (many field) requireSemi (pure ())
+    closeBrace
+    pure $ fmap StructType fields
+
+-- | Parses a field of a struct, which is a non-empty list of identifiers
+-- followed by a type.
+field :: Parser (Semi ([Ident], Type))
+field = do
+    ids <- (lexeme identifier) `sepBy1` comma
+    typ <- type_
+    pure $ do
+        ids' <- sequenceA ids
+        typ' <- typ
+        pure $ (ids' , typ')
+
 
 -- | Requires a parse of a given character around a provided arbitrary parser.
 surroundingWith :: Char -> Parser a -> Parser a
