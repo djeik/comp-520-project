@@ -13,80 +13,64 @@ GoLite code.
 
 module Language.GoLite.Pretty 
 ( Pretty(..)
-, prettys
 , prettyPrefix
 , prettyInfix
-, showBrackets
-, prettysParen
+, prettyParens
 , prettyBrackets
-, prettysBrackets
+, prettyBraces
 ) where
 
 import Language.GoLite.Precedence
 
+import Text.PrettyPrint
+
 -- | Essentially a clone of 'Text.Show.Show'.
 class Pretty a where
-    pretty :: a -> String
-    prettysPrec :: Int -> a -> ShowS
-    prettyList :: [a] -> ShowS
+    prettyPrec :: Int -> a -> Doc
+    pretty :: a -> Doc
 
-    prettysPrec _ x s = pretty x ++ s
-    pretty x = prettys x ""
-    prettyList ls s = prettyList__ prettys ls s
+    pretty = prettyPrec 0
+    prettyPrec _ = pretty
 
 instance Pretty Char where
-    pretty c = show c
-    prettyList s = showString s
+    pretty = char
 
 instance Pretty a => Pretty (Maybe a) where
-    prettysPrec d e = case e of
-        Just x -> prettysPrec d x
-        Nothing -> id
+    prettyPrec d e = case e of
+        Just x -> prettyPrec d x
+        Nothing -> empty
 
 instance Pretty Int where
-    pretty i = show i
+    pretty = int
 
--- | Pretty-prints something (as a difference list) with the lowest precedence.
-prettys :: Pretty a => a -> ShowS
-prettys = prettysPrec 0
-
-prettyList__ :: (a -> ShowS) ->  [a] -> ShowS
-prettyList__ _     []     s = "[]" ++ s
-prettyList__ prettyx (x:xs) s = '[' : prettyx x (prettyl xs) where
-    prettyl []     = ']' : s
-    prettyl (y:ys) = ',' : prettyx y (prettyl ys)
+instance Pretty Double where
+    pretty = double
 
 -- | Pretty-prints an infix operator and its two operands.
 prettyInfix :: (HasPrecedence sym, Pretty sym, Pretty l, Pretty r)
-            => sym -> l -> r -> ShowS
+            => sym -> l -> r -> Doc
 prettyInfix sym l r
-    = prettysPrec (precedence sym) l
-    . showChar ' '
-    . showString (pretty sym)
-    . showChar ' '
-    . prettysPrec (precedence sym) r
+    = prettyPrec (precedence sym) l
+    <+> pretty sym
+    <+> prettyPrec (precedence sym) r
 
 -- | Pretty-prints a prefix operator and its operand.
 prettyPrefix :: (HasPrecedence sym, Pretty sym, Pretty p)
-             => sym -> p -> ShowS
+             => sym -> p -> Doc
 prettyPrefix sym p
-    = showString (pretty sym)
-    . prettysPrec (precedence sym) p
+    = pretty sym
+    <> prettyPrec (precedence sym) p
 
-prettysParen :: Bool -> ShowS -> ShowS
-prettysParen b s = case b of
-    True -> showString "(" . s . showString ")"
-    False -> s
+prettyIf :: Bool -> (Doc -> Doc) -> (Doc -> Doc)
+prettyIf b f = case b of
+    True -> f
+    False -> id
 
-showBrackets :: Show a => Bool -> a -> ShowS
-showBrackets True s = showString "[" . shows s . showString "]"
-showBrackets False s = shows s
+prettyParens :: Bool -> Doc -> Doc
+prettyParens = flip prettyIf parens
 
-prettyBrackets :: Pretty a => Bool -> a -> ShowS
-prettyBrackets True s = showString "[" . prettys s . showString "]"
-prettyBrackets False s = prettys s
+prettyBrackets :: Bool -> Doc -> Doc
+prettyBrackets = flip prettyIf brackets
 
-prettysBrackets :: Bool -> ShowS -> ShowS
-prettysBrackets b s = case b of
-    True -> showString "[" . s . showString "]"
-    False -> s
+prettyBraces :: Bool -> Doc -> Doc
+prettyBraces = flip prettyIf braces

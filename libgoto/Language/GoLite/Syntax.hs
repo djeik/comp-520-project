@@ -38,6 +38,8 @@ module Language.GoLite.Syntax
 import Language.GoLite.Precedence
 import Language.GoLite.Pretty
 
+import Text.PrettyPrint
+
 data Package
     = Package Ident [TopLevelDecl]
     deriving (Eq, Read, Show)
@@ -315,109 +317,93 @@ instance HasPrecedence UnaryOp where
 
 instance Pretty AssignOp where
     pretty o = case o of
-        Assign -> "="
-        PlusEq -> "+="
-        MinusEq -> "-="
-        BitwiseOrEq -> "|="
-        BitwiseXorEq -> "^="
-        TimesEq -> "*="
-        DivideEq -> "/="
-        ModuloEq -> "%="
-        ShiftLeftEq -> "<<="
-        ShiftRightEq -> ">>="
-        BitwiseAndEq -> "&="
-        BitwiseAndNotEq -> "&^="
+        Assign -> text "="
+        PlusEq -> text "+="
+        MinusEq -> text "-="
+        BitwiseOrEq -> text "|="
+        BitwiseXorEq -> text "^="
+        TimesEq -> text "*="
+        DivideEq -> text "/="
+        ModuloEq -> text "%="
+        ShiftLeftEq -> text "<<="
+        ShiftRightEq -> text ">>="
+        BitwiseAndEq -> text "&="
+        BitwiseAndNotEq -> text "&^="
 
 instance Pretty BinaryOp where
     pretty o = case o of
-        LogicalOr -> "||"
-        LogicalAnd -> "&&"
-        Equal -> "=="
-        NotEqual -> "!="
-        LessThan -> "<"
-        LessThanEqual -> "<="
-        GreaterThan -> ">"
-        GreaterThanEqual -> ">="
-        Plus -> "+"
-        Minus -> "-"
-        BitwiseOr -> "|"
-        BitwiseXor -> "^"
-        Times -> "*"
-        Divide -> "/"
-        Modulo -> "%"
-        ShiftLeft -> "<<"
-        ShiftRight -> ">>"
-        BitwiseAnd -> "&"
-        BitwiseAndNot -> "&^"
+        LogicalOr -> text "||"
+        LogicalAnd -> text "&&"
+        Equal -> text "=="
+        NotEqual -> text "!="
+        LessThan -> text "<"
+        LessThanEqual -> text "<="
+        GreaterThan -> text ">"
+        GreaterThanEqual -> text ">="
+        Plus -> text "+"
+        Minus -> text "-"
+        BitwiseOr -> text "|"
+        BitwiseXor -> text "^"
+        Times -> text "*"
+        Divide -> text "/"
+        Modulo -> text "%"
+        ShiftLeft -> text "<<"
+        ShiftRight -> text ">>"
+        BitwiseAnd -> text "&"
+        BitwiseAndNot -> text "&^"
 
 instance Pretty UnaryOp where
     pretty o = case o of
-        Positive -> "+"
-        Negative -> "-"
-        LogicalNot -> "!"
-        BitwiseNot -> "^"
-        Dereference -> "*"
-        Reference -> "&"
-        Receive -> "<-"
+        Positive -> text "+"
+        Negative -> text "-"
+        LogicalNot -> text "!"
+        BitwiseNot -> text "^"
+        Dereference -> text "*"
+        Reference -> text "&"
+        Receive -> text "<-"
 
 instance Pretty Literal where
     pretty l = case l of
-        IntLit x -> show x
-        FloatLit x -> show x
-        StringLit x -> show x
-        RuneLit x -> show x
+        IntLit x -> pretty x
+        FloatLit x -> pretty x
+        StringLit x -> text $ show x
+        RuneLit x -> pretty x
 
 instance Pretty Type where
-    prettysPrec d e = case e of
-        SliceType t -> showString "[]" . prettysPrec d t
-        ArrayType i t -> prettysBrackets True (prettys i) . prettysPrec d t
-        NamedType n -> showString n
-        StructType t -> let prettyIds ids =
-                                    foldr (\id_ acc2 -> acc2 . showString ", " .
-                                                showString id_)
-                                        (showString (head ids))
-                                        (tail ids) . showString " " in
-                        showString "struct {" .
-                        case t of
-                            [] -> showString "}"
-                            ((hids, htyp):xs) -> foldr
-                                (\(ids, typ) acc -> acc . showString "; " .
-                                    prettyIds ids . prettys typ)
-                                (prettyIds hids . prettys htyp)
-                                xs
-                                . showString "}"
-
+    prettyPrec d e = case e of
+        SliceType t -> text "[]" <> prettyPrec d t
+        ArrayType i t -> prettyBrackets True (pretty i) <> prettyPrec d t
+        NamedType n -> text n
+        StructType t ->
+            text "struct" <+> prettyBraces True (
+                sep $ map (\(ids, ty) ->
+                    sep (punctuate comma (map text ids)) <+> pretty ty <> semi
+                ) t
+            )
 
 instance Pretty Expr where
-    prettysPrec d e = case e of
-        BinaryOp op l r -> showParen (d > precedence op) $ prettyInfix op l r
-        UnaryOp op p -> showParen (d > precedence op) $ prettyPrefix op p
-        -- never have to show parens around a literal or a variable
-        Literal l -> prettysPrec d l
-        Variable x -> showString x
+    prettyPrec d e = case e of
+        BinaryOp op l r -> prettyParens (d > precedence op) $ prettyInfix op l r
+        UnaryOp op p -> prettyParens (d > precedence op) $ prettyPrefix op p
+        Literal l -> prettyPrec d l
+        Variable x -> text x
         Slice ex lo hi up ->
-            prettysPrec 6 ex .
-            prettysBrackets True (
-                prettys lo .
-                showString ":" .
-                prettys hi .
+            prettyPrec 6 ex <>
+            prettyBrackets True (
+                pretty lo <>
+                text ":" <>
+                pretty hi <>
                 case up of
-                    Just u -> showString ":" .  prettys u
-                    Nothing -> id
+                    Just u -> text ":" <> pretty u
+                    Nothing -> empty
             )
         Call f ty args ->
-            prettysPrec 6 f .
-            prettysParen True (
+            prettyPrec 6 f <>
+            prettyParens True (
                 case args of
-                    [] -> prettys ty
-                    s@(ex:exs) -> case ty of
-                        Nothing -> foldr
-                            (\e' acc -> acc . showString ", " . prettys e')
-                            (prettys ex)
-                            exs
-                        Just t -> foldr
-                            (\e' acc -> acc . showString ", " . prettys e')
-                            (prettys t)
-                            s
+                    [] -> pretty ty
+                    s -> case ty of
+                        Nothing -> sep $ punctuate comma $ map pretty s
+                        Just t -> sep $ punctuate comma $ pretty t : map pretty s
             )
         _ -> error "Pretty: Expr"
