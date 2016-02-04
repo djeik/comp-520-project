@@ -14,6 +14,9 @@ module Language.GoLite.Lexer.Keywords
 , kwIf
 , kwElse
 , kwFor
+, kwSwitch
+, kwCase
+, kwDefault
 ) where
 
 import Language.GoLite.Lexer.Core
@@ -66,10 +69,22 @@ kwType = semisym "type"
 kwIf :: Parser (Semi Keyword)
 kwIf = semisym "if"
 
--- | Parses the \"if\" keyword, checking for a semicolon.
+-- | Parses the \"else\" keyword, checking for a semicolon.
 kwElse :: Parser (Semi Keyword)
 kwElse = semisym "else"
 
 -- | Parses the \"for\" keyword, checking for a semicolon.
 kwFor :: Parser (Semi Keyword)
 kwFor = semisym "for"
+
+-- | Parses the \"switch\" keyword, checking for a semicolon.
+kwSwitch :: Parser (Semi Keyword)
+kwSwitch = semisym "switch"
+
+-- | Parses the \"case\" keyword, checking for a semicolon.
+kwCase :: Parser (Semi Keyword)
+kwCase = semisym "case"
+
+-- | Parses the \"default\" keyword, checking for a semicolon.
+kwDefault :: Parser (Semi Keyword)
+kwDefault = semisym "default"

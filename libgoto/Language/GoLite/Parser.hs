@@ -7,6 +7,7 @@ module Language.GoLite.Parser
 , returnStmt
 , ifStmt
 , switchStmt
+, fallthroughStmt
 , forStmt
 , breakStmt
 , continueStmt
@@ -27,6 +28,7 @@ stmt =  varDecl
         , returnStmt
         , ifStmt
         , switchStmt
+        , fallthroughStmt
         , forStmt
         , breakStmt
         , continueStmt
@@ -69,9 +71,34 @@ ifStmt = do
 else_ :: Parser Block
 else_ = (kwElse >>= unSemiP) >> block <|> fmap (:[]) ifStmt
 
-
+-- | Parses a switch statement. It consists of the \"switch\" keyword, followed
+-- by an optional initializer simple statement, an optional expression, then a
+-- potentially empty list of case clauses enclosed in brackets.
 switchStmt :: Parser Statement
-switchStmt = error "switchStmt"
+switchStmt = do
+    kwSwitch
+    initializer <- optional (simpleStmt >>= requireSemiP)
+    e <- optional (expr >>= noSemiP)
+    clauses <- (braces $ many caseClause) >>= noSemiP
+    pure $ SwitchStmt initializer e clauses
+
+-- | Parses a case clause. It is a case head and a block separated by a colon.
+caseClause :: Parser (CaseHead, Block)
+caseClause = do
+    head_ <- caseHead <* colon
+    stmts <- many stmt
+    pure $ (head_, concat stmts)
+    -- Each statement parser may produce multiple statements, so use concat.
+
+-- | Parses a case head. It is either the keyword \"default\", or the keyword
+-- \"case\" followed by a comma-separated list of expressions.
+caseHead :: Parser CaseHead
+caseHead = default_ <|> case_ where
+    default_ = (kwDefault >>= noSemiP) *> pure CaseDefault
+    case_ = do
+        kwCase
+        exprs <- (expr >>= noSemiP) `sepBy1` comma
+        pure $ CaseExpr exprs
 
 -- | Parses a for statement. It starts with the \"for\" keyword, then the for
 -- head, then a block. The for head has three forms: nothing, an expression, or
@@ -138,3 +165,9 @@ breakStmt = (kwBreak >>= requireSemiP) *> pure BreakStmt
 -- | Parses a continue statement, which consists of the \"continue\" keyword.
 continueStmt :: Parser Statement
 continueStmt = (kwContinue >>= requireSemiP) *> pure ContinueStmt
+
+-- | Parses a fallthrough statement, which consists of the \"fallthrough\"
+-- keyword.
+fallthroughStmt :: Parser Statement
+fallthroughStmt = (kwFallthrough >>= requireSemiP) *> pure ContinueStmt
+

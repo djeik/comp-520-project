@@ -135,6 +135,8 @@ data Statement
     -- ^ Break out of a loop.
     | ContinueStmt
     -- ^ Jump to the beginning of a loop.
+    | FallthroughStmt
+    -- ^ Transfer control to the next case clause in a switch statement.
     deriving (Eq, Read, Show)
 
 -- | The head of a case.

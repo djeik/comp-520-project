@@ -1,12 +1,14 @@
 module Language.GoLite.Lexer.Symbols
 ( -- * Simple symbols
   comma
+, colon
 , semicolon
 , opIncrement
 , opDecrement
 -- * Structure symbols
 , parens
 , squareBrackets
+, braces
 , closeParen
 , closeBracket
 , closeBrace
@@ -35,6 +37,10 @@ import Language.GoLite.Syntax
 -- | Parses a comma symbol \",\".
 comma :: Parser ()
 comma = symbol_ ","
+
+-- | Parses a colon symbol \":\".
+colon :: Parser ()
+colon = symbol_ ":"
 
 -- | Parses the increment symbol \"++\", checking for a semicolon.
 opIncrement :: Parser (Semi String)
@@ -154,4 +160,13 @@ squareBrackets p = do
     symbol_ "["
     q <- p
     s <- closeBracket
+    pure (s $> q)
+
+-- | Runs a given parses requiring that it be surrounded by matched brace
+-- "symbol_"s.
+braces :: Parser a -> Parser (Semi a)
+braces p = do
+    symbol_ "{"
+    q <- p
+    s <- closeBrace
     pure (s $> q)
