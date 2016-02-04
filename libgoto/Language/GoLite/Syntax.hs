@@ -127,6 +127,8 @@ data Statement
     --
     -- In Go, all loops are however written with the keyword @for@, so
     -- syntactically there is little difference.
+    --
+    -- Note that the statements involved can only be simple statements.
     | BreakStmt
     -- ^ Break out of a loop.
     | ContinueStmt

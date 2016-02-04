@@ -11,6 +11,9 @@ module Language.GoLite.Lexer.Keywords
 , kwVar
 , kwStruct
 , kwType
+, kwIf
+, kwElse
+, kwFor
 ) where
 
 import Language.GoLite.Lexer.Core
@@ -58,3 +61,15 @@ kwStruct = semisym "struct"
 -- | Parses the \"type\" keyword, checking for a semicolon.
 kwType :: Parser (Semi Keyword)
 kwType = semisym "type"
+
+-- | Parses the \"if\" keyword, checking for a semicolon.
+kwIf :: Parser (Semi Keyword)
+kwIf = semisym "if"
+
+-- | Parses the \"if\" keyword, checking for a semicolon.
+kwElse :: Parser (Semi Keyword)
+kwElse = semisym "else"
+
+-- | Parses the \"for\" keyword, checking for a semicolon.
+kwFor :: Parser (Semi Keyword)
+kwFor = semisym "for"

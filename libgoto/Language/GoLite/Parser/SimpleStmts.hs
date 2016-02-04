@@ -8,9 +8,9 @@ import Language.GoLite.Parser.Core
 -- \"if\" and \"switch\" statements), only simple statements are allowed.
 simpleStmt :: Parser (Semi Statement)
 simpleStmt
-    = exprStmt
+    = try assignStmt
     <|> shortVarDecl
-    <|> assignStmt
+    <|> exprStmt
 
 -- | Parses a short variable declaration: a list of identifiers followed by the
 -- operator \":=\", then by a list of expressions.
