@@ -4,81 +4,102 @@ module Language.GoLite.Parser.Expression
 
 import Language.GoLite.Syntax
 import Language.GoLite.Lexer
+import Language.GoLite.SrcAnn
 
 import Control.Monad (void)
+import Data.Functor.Foldable
 
 import Text.Megaparsec.Expr
 
 -- | Parses an expression.
-expr :: Parser (Semi Expr)
+expr :: Parser (Semi SrcAnnExpr)
 expr = makeExprParser term table
 
 -- | Parses a basic term of an expression, sufficiently wrapped so as to act as
 -- an "Expr" in its own right.
-term :: Parser (Semi Expr)
+term :: Parser (Semi SrcAnnExpr)
 term = operand <|> conversion
 
 -- | The operator precedence table for expressions.
-table :: [[Operator Parser (Semi Expr)]]
+table :: [[Operator Parser (Semi SrcAnnExpr)]]
 table =
     [ [ postfix (selector <|> index <|> sliceE <|> typeAssertion <|> call)
       ]
-    , [ prefix "+" (UnaryOp Positive)
-      , prefix "-" (UnaryOp Negative)
-      , prefix "!" (UnaryOp LogicalNot)
-      , prefix "^" (UnaryOp BitwiseNot)
-      , prefix "*" (UnaryOp Dereference)
-      , prefix "&" (UnaryOp Reference)
-      , prefix "<-" (UnaryOp Receive)
+    , [ prefix "+"  (\f -> UnaryOp (f Positive))
+      , prefix "-"  (\f -> UnaryOp (f Negative))
+      , prefix "!"  (\f -> UnaryOp (f LogicalNot))
+      , prefix "^"  (\f -> UnaryOp (f BitwiseNot))
+      , prefix "*"  (\f -> UnaryOp (f Dereference))
+      , prefix "&"  (\f -> UnaryOp (f Reference))
+      , prefix "<-" (\f -> UnaryOp (f Receive))
       ]
-    , [ binary "*" (BinaryOp Times)
-      , binary "/" (BinaryOp Divide)
-      , binary "%" (BinaryOp Modulo)
-      , binary "<<" (BinaryOp ShiftLeft)
-      , binary ">>" (BinaryOp ShiftRight)
-      , binary "&" (BinaryOp BitwiseAnd)
-      , binary "&^" (BinaryOp BitwiseAndNot)
+    , [ binary "*"  (\f -> BinaryOp (f Times))
+      , binary "/"  (\f -> BinaryOp (f Divide))
+      , binary "%"  (\f -> BinaryOp (f Modulo))
+      , binary "<<" (\f -> BinaryOp (f ShiftLeft))
+      , binary ">>" (\f -> BinaryOp (f ShiftRight))
+      , binary "&"  (\f -> BinaryOp (f BitwiseAnd))
+      , binary "&^" (\f -> BinaryOp (f BitwiseAndNot))
       ]
-    , [ binary "+" (BinaryOp Plus)
-      , binary "-" (BinaryOp Minus)
-      , binary "|" (BinaryOp BitwiseOr)
-      , binary "^" (BinaryOp BitwiseXor)
+    , [ binary "+"  (\f -> BinaryOp (f Plus))
+      , binary "-"  (\f -> BinaryOp (f Minus))
+      , binary "|"  (\f -> BinaryOp (f BitwiseOr))
+      , binary "^"  (\f -> BinaryOp (f BitwiseXor))
       ]
-    , [ binary "==" (BinaryOp Equal)
-      , binary "!=" (BinaryOp NotEqual)
-      , binary "<" (BinaryOp LessThan)
-      , binary "<=" (BinaryOp LessThanEqual)
-      , binary ">" (BinaryOp GreaterThan)
-      , binary ">=" (BinaryOp GreaterThanEqual)
+    , [ binary "==" (\f -> BinaryOp (f Equal))
+      , binary "!=" (\f -> BinaryOp (f NotEqual))
+      , binary "<"  (\f -> BinaryOp (f LessThan))
+      , binary "<=" (\f -> BinaryOp (f LessThanEqual))
+      , binary ">"  (\f -> BinaryOp (f GreaterThan))
+      , binary ">=" (\f -> BinaryOp (f GreaterThanEqual))
       ]
-    , [ binary "&&" (BinaryOp LogicalAnd)
+    , [ binary "&&" (\f -> BinaryOp (f LogicalAnd))
       ]
-    , [ binary "||" (BinaryOp LogicalOr)
+    , [ binary "||" (\f -> BinaryOp (f LogicalOr))
       ]
     ] where
-        binary :: String -> (Expr -> Expr -> Expr) -> Operator Parser (Semi Expr)
+        binary
+            :: String
+            -> (   (BinaryOp () -> SrcAnnBinaryOp)
+                -> SrcAnnExpr
+                -> SrcAnnExpr
+                -> SrcAnnExprF SrcAnnExpr)
+            -> Operator Parser (Semi SrcAnnExpr)
         binary name f
             = InfixL $ do
-                try $ symbol_ name <* notFollowedBy (incDecAssignEnd name)
+                (Ann a _) <- try $ withSrcAnnConst $
+                    symbol_ name <* notFollowedBy (incDecAssignEnd name)
                 pure $ \e1 e2 -> do
                     x <- e1
                     noSemi
                     y <- e2
-                    pure $ f x y
+                    let (s1, s2) = (topAnn x, topAnn y)
+                    pure $ Fix $ Ann (SrcSpan (srcStart s1) (srcEnd s2)) $
+                        f (Ann a) x y
 
-        prefix :: String -> (Expr -> Expr) -> Operator Parser (Semi Expr)
+        prefix
+            :: String
+            -> (   (UnaryOp () -> SrcAnnUnaryOp)
+                -> SrcAnnExpr
+                -> SrcAnnExprF SrcAnnExpr)
+            -> Operator Parser (Semi SrcAnnExpr)
         prefix name f
             = Prefix $ do
-                symbol_ name
-                pure $ \e -> f <$> e
+                (Ann a _) <- try $ withSrcAnnConst $ symbol_ name
+                pure $ \e -> do
+                    x <- e
+                    let s = topAnn x
+                    pure $ Fix $ Ann (SrcSpan (srcStart a) (srcEnd s)) $
+                        f (Ann a) x
 
-        postfix :: Parser (Semi Expr -> Semi Expr)
-                -> Operator Parser (Semi Expr)
+        postfix
+            :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
+            -> Operator Parser (Semi SrcAnnExpr)
         postfix p
             = Postfix $ do
-                qs <- some p :: Parser [Semi Expr -> Semi Expr]
+                qs <- some p :: Parser [Semi SrcAnnExpr -> Semi SrcAnnExpr]
                 pure $ foldr1 (\a b -> \c -> do
-                    a' <- a c :: Semi Expr
+                    a' <- a c :: Semi SrcAnnExpr
                     noSemi
                     b (pure a')) qs
 
@@ -87,27 +108,28 @@ table =
         -- increment/decrement operator).
         incDecAssignEnd :: String -> Parser ()
         incDecAssignEnd name = void (char '=' <|> incDecEnd) where
-                                incDecEnd = case name of
-                                    "+" -> char '+'
-                                    "-" -> char '-'
-                                    -- If not a plus or minus, we don't care
-                                    -- what the next character is.
-                                    _   -> failure []
+            incDecEnd = case name of
+                "+" -> char '+'
+                "-" -> char '-'
+                -- If not a plus or minus, we don't care
+                -- what the next character is.
+                _   -> failure []
 
 
 -- | Parses an operand, sufficiently wrapped so as to act as an expression in
 -- its own right.
-operand :: Parser (Semi Expr)
+operand :: Parser (Semi SrcAnnExpr)
 operand
-    = (fmap Literal <$> lexeme literal)
-    <|> (fmap Variable <$> lexeme identifier)
-    <|> parens (expr >>= noSemiP)
+    = (fmap (dup Literal) <$> lexeme literal)
+    <|> (fmap (dup Variable) <$> lexeme identifier)
+    <|> parens (expr >>= noSemiP) where
+        dup f x@(Ann a _) = Fix $ Ann a (f x)
 
 -- | Parses a cast expression.
 --
 -- This parser can be backtracked from until it parses a "type_" followed by an
 -- "expr".
-conversion :: Parser (Semi Expr)
+conversion :: Parser (Semi SrcAnnExpr)
 conversion = do
     t <- try $ do
         t <- type_ >>= noSemiP
@@ -115,15 +137,18 @@ conversion = do
         return t
     e <- expr >>= noSemiP
     s <- closeParen
+
+    let a = SrcSpan (srcStart (topAnn t)) (srcEnd (topAnn e))
+
     pure $ do
         s
-        pure $ Conversion t e
+        pure $ Fix $ Ann a $ Conversion t e
 
 -- | Parses a primary expression in the form of a "Selector".
 --
 -- This parser can be backtracked from until it parses a dot \".\" followed by
 -- an identifier.
-selector :: Parser (Semi Expr -> Semi Expr)
+selector :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
 selector = do
     ident <- try $ do
         symbol "."
@@ -132,29 +157,44 @@ selector = do
         x <- e
         noSemi
         i <- ident
-        pure $ Selector x i
+
+        -- the source span of the selector expression starts before the
+        -- expression to select in and ends after the identifier used to do the
+        -- selection.
+        let a = SrcSpan (srcStart (topAnn x)) (srcEnd (ann i))
+
+        pure $ Fix $ Ann a $ Selector x i
 
 -- | Parses a primary expression in the form of an "Index".
 --
 -- This parser can be backtracked from until the closing square bracket is
 -- parsed.
-index :: Parser (Semi Expr -> Semi Expr)
+index :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
 index = do
-    e' <- try $ squareBrackets (expr >>= noSemiP)
+    (Ann b e') <- try $ withSrcAnnF $ squareBrackets (expr >>= noSemiP)
     pure $ \e -> do
         x <- e
         noSemi
         y <- e'
-        pure $ Index x y
 
-sliceE :: Parser (Semi Expr -> Semi Expr)
+        -- the source span of the index expression starts before the expression
+        -- to index in and ends after the square bracket
+        let a = SrcSpan (srcStart (topAnn x)) (srcEnd b)
+
+        pure $ Fix $ Ann a $ Index x y
+
+sliceE :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
 sliceE = do
-    s <- sliceBody
+    (Ann b s) <- withSrcAnnF sliceBody
+
     pure $ \e -> do
         y <- e
         noSemi
         (e1, e2, e3) <- s
-        pure $ Slice y e1 e2 e3
+
+        let a = SrcSpan (srcStart (topAnn y)) (srcEnd b)
+
+        pure $ Fix $ Ann a $ Slice y e1 e2 e3
 
 -- | Parses the body of a slice operator, specifically the part between the
 -- square brackets.
@@ -162,9 +202,9 @@ sliceE = do
 -- The reason this function exists separately from "sliceE" is that there are
 -- two alternatives for "Slice"s, namely "SliceFromTo" and "SliceFromToStep",
 -- both of which can be produced by this parser.
-sliceBody :: Parser (Semi (Maybe Expr, Maybe Expr, Maybe Expr))
+sliceBody :: Parser (Semi (Maybe SrcAnnExpr, Maybe SrcAnnExpr, Maybe SrcAnnExpr))
 sliceBody = try $ squareBrackets (fromToStep <|> fromTo) where
-    fromTo :: Parser (Maybe Expr, Maybe Expr, Maybe Expr)
+    fromTo :: Parser (Maybe SrcAnnExpr, Maybe SrcAnnExpr, Maybe SrcAnnExpr)
     fromTo = do
         e1 <- try $ do
             e1 <- optional (expr >>= noSemiP)
@@ -173,7 +213,7 @@ sliceBody = try $ squareBrackets (fromToStep <|> fromTo) where
         e2 <- optional (expr >>= noSemiP)
         return (e1, e2, Nothing)
 
-    fromToStep :: Parser (Maybe Expr, Maybe Expr, Maybe Expr)
+    fromToStep :: Parser (Maybe SrcAnnExpr, Maybe SrcAnnExpr, Maybe SrcAnnExpr)
     fromToStep = do
         (e1, e2) <- try $ do
             e1 <- optional (expr >>= noSemiP)
@@ -189,21 +229,25 @@ sliceBody = try $ squareBrackets (fromToStep <|> fromTo) where
 --
 -- This function can be backtracked from until both a dot (\".\") and an
 -- opening parenthesis (\"(\") are parsed.
-typeAssertion :: Parser (Semi Expr -> Semi Expr)
+typeAssertion :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
 typeAssertion = do
     try $ do
         symbol "."
         symbol "("
     t <- type_
     _ <- closeParen
+
     pure $ \e -> do
         y <- e
         noSemi
         x <- t
-        pure $ TypeAssertion y x
+
+        let a = SrcSpan (srcStart (topAnn y)) (srcEnd (topAnn x))
+
+        pure $ Fix $ Ann a $ TypeAssertion y x
 
 -- | Parses a function call argument list.
-arguments :: Parser (Maybe Type, [Expr])
+arguments :: Parser (Maybe SrcAnnType, [SrcAnnExpr])
 arguments = noType <|> withType where
     noType = do
         exprs <- (expr >>= noSemiP) `sepBy` symbol ","
@@ -219,12 +263,16 @@ arguments = noType <|> withType where
 --
 -- This parser can be backtracked from until the opening parenthesis (\"(\") of
 -- the argument list is parsed.
-call :: Parser (Semi Expr -> Semi Expr)
+call :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
 call = do
     try $ symbol "("
     (ty, exprs) <- arguments
-    _ <- closeParen
+    (Ann b _) <- withSrcAnnF closeParen
+
     pure $ \e -> do
         y <- e
         noSemi
-        pure $ Call y ty exprs
+
+        let a = SrcSpan (srcStart (topAnn y)) (srcEnd b)
+
+        pure $ Fix $ Ann a $ Call y ty exprs

@@ -22,6 +22,7 @@ module Language.GoLite.Pretty
 
 import Language.GoLite.Precedence
 
+import Control.Applicative ( Const(..) )
 import Text.PrettyPrint
 
 -- | Essentially a clone of 'Text.Show.Show'.
@@ -40,11 +41,17 @@ instance Pretty a => Pretty (Maybe a) where
         Just x -> prettyPrec d x
         Nothing -> empty
 
+instance Pretty Doc where
+    pretty = id
+
 instance Pretty Int where
     pretty = int
 
 instance Pretty Double where
     pretty = double
+
+instance Pretty a => Pretty (Const a b) where
+    pretty = pretty . getConst
 
 -- | Pretty-prints an infix operator and its two operands.
 prettyInfix :: (HasPrecedence sym, Pretty sym, Pretty l, Pretty r)

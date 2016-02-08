@@ -24,14 +24,15 @@ import Language.GoLite.Lexer.Semi
 import Language.GoLite.Lexer.Symbols
 import Language.GoLite.Lexer.Keywords
 
+import Language.GoLite.SrcAnn
 import Language.GoLite.Syntax
 
 import qualified Data.Map.Strict as Map
 import Data.String ( fromString )
 
 -- | Parses a literal.
-literal :: Parser (Semi Literal)
-literal = withDetectSemicolon $ do
+literal :: Parser (Semi SrcAnnLiteral)
+literal = withDetectSemicolon $ withSrcAnnF $ do
     label "literal" $ choice
         [ fmap FloatLit (try floatLiteral)
         , fmap IntLit integerLiteral
@@ -158,37 +159,47 @@ stringLiteral
 -- | Parses an identifier
 -- An identifier starts with an letter, followed by any number of alphanumeric
 -- characters. `_` is considered a letter.
-identifier :: Parser (Semi String)
+identifier :: Parser (Semi SrcAnnIdent)
 identifier = p <?> "identifier" where
-    p = withDetectSemicolon $ do
+    p = withDetectSemicolon $ withSrcAnn Ident $ do
         c <- char '_' <|> letterChar
         cs <- many $ char '_' <|> alphaNumChar
         pure $ fromString (c:cs)
 
+-- SrcAnnType
+-- = SrcAnnFix SrcAnnTypeF
+-- = Fix (Ann SrcSpan SrcAnnTypeF)
+--
+-- Parser (Semi (f (Fix f))) -> Parser (Semi (Fix f))
+
 -- | Parses a type.
-type_ :: Parser (Semi Type)
-type_ = label "type" $ sliceType <|> arrayType <|> structType <|> namedType where
-    sliceType = label "slice type" $ do
-        symbol_ "["
-        closeBracket >>= noSemiP
-        s <- type_
-        pure $ fmap SliceType s
+type_ :: Parser (Semi SrcAnnType)
+type_
+    = label "type"
+    $ sliceType <|> arrayType <|> structType <|> namedType where
+        sliceType :: Parser (Semi SrcAnnType)
+        sliceType = label "slice type" $ withPushSrcAnnFix $ do
+            symbol_ "["
+            closeBracket >>= noSemiP
+            s <- type_
+            pure $ SliceType <$> s
 
-    arrayType :: Parser (Semi Type)
-    arrayType = label "array type" $ do
-        symbol_ "["
-        i <- lexeme integerLiteral
-        closeBracket >>= noSemiP
-        s <- type_
-        pure $ fmap (ArrayType i) s
+        arrayType :: Parser (Semi SrcAnnType)
+        arrayType = label "array type" $ withPushSrcAnnFix $ do
+            symbol_ "["
+            i <- withSrcAnnConst $ lexeme integerLiteral
+            closeBracket >>= noSemiP
+            s <- type_
+            pure $ fmap (ArrayType i) s
 
-    namedType = label "named type" $ do
-        fmap NamedType <$> lexeme identifier
+        namedType :: Parser (Semi SrcAnnType)
+        namedType = label "named type" $ withPushSrcAnnFix $ do
+            fmap NamedType <$> lexeme identifier
 
 -- | Parses a struct type, which is the keyword "struct" followed by a list of
 -- fields enclosed in braces.
-structType :: Parser (Semi Type)
-structType = label "struct type" $ do
+structType :: Parser (Semi SrcAnnType)
+structType = label "struct type" $ withPushSrcAnnFix $ do
     kwStruct >>= noSemiP
     symbol_ "{"
     fields <- semiList (many field) requireSemi (pure ())
@@ -197,7 +208,7 @@ structType = label "struct type" $ do
 
 -- | Parses a field of a struct, which is a non-empty list of identifiers
 -- followed by a type.
-field :: Parser (Semi ([Ident], Type))
+field :: Parser (Semi ([SrcAnnIdent], SrcAnnType))
 field = do
     ids <- (lexeme identifier) `sepBy1` comma
     typ <- type_

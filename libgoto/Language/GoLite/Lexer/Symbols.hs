@@ -68,67 +68,67 @@ shortVarDeclarator = semisym ":="
 
 -- | Creates a parser that will consume the given string and return the
 --   appropriate assignment operator, checking for a semicolon.
-semiAssignOp :: String -> AssignOp -> Parser (Semi AssignOp)
+semiAssignOp :: String -> AssignOp a -> Parser (Semi (AssignOp a))
 semiAssignOp s op = do
                     x <- semisym s
                     pure (x $> op)
 
 -- | Parses an assignment operator \"=\", checking for a semicolon.
-opAssignSimple :: Parser (Semi AssignOp)
+opAssignSimple :: Parser (Semi (AssignOp a))
 opAssignSimple = semiAssignOp "=" Assign
 
 -- | Parses a plus-equal assignment operator \"+=\", checking for a semicolon.
-opPlusEq :: Parser (Semi AssignOp)
+opPlusEq :: Parser (Semi (AssignOp a))
 opPlusEq = semiAssignOp "+=" PlusEq
 
 -- | Parses a minus-equal assignment operator \"-=\", checking for a semicolon.
-opMinusEq :: Parser (Semi AssignOp)
+opMinusEq :: Parser (Semi (AssignOp a))
 opMinusEq = semiAssignOp "-=" MinusEq
 
 -- | Parses a bitwise-or-equal assignment operator \"|=\", checking for a
 -- semicolon.
-opBitwiseOrEq :: Parser (Semi AssignOp)
+opBitwiseOrEq :: Parser (Semi (AssignOp a))
 opBitwiseOrEq = semiAssignOp "|=" BitwiseOrEq
 
 -- | Parses a bitwise-xor-equal assignment operator \"^=\", checking for a
 -- semicolon.
-opBitwiseXorEq :: Parser (Semi AssignOp)
+opBitwiseXorEq :: Parser (Semi (AssignOp a))
 opBitwiseXorEq = semiAssignOp "^=" BitwiseXorEq
 
 -- | Parses a times-equal assignment operator \"*=\", checking for a semicolon.
-opTimesEq :: Parser (Semi AssignOp)
+opTimesEq :: Parser (Semi (AssignOp a))
 opTimesEq = semiAssignOp "*=" TimesEq
 
 -- | Parses a divide-equal assignment operator \"/=\", checking for a semicolon.
-opDivideEq :: Parser (Semi AssignOp)
+opDivideEq :: Parser (Semi (AssignOp a))
 opDivideEq = semiAssignOp "/=" DivideEq
 
 -- | Parses a modulo-equal assignment operator \"%=\", checking for a semicolon.
-opModuloEq :: Parser (Semi AssignOp)
+opModuloEq :: Parser (Semi (AssignOp a))
 opModuloEq = semiAssignOp "%=" ModuloEq
 
 -- | Parses a left-shift-equal assignment operator \"<<=\", checking for a
 -- semicolon.
-opShiftLeftEq :: Parser (Semi AssignOp)
+opShiftLeftEq :: Parser (Semi (AssignOp a))
 opShiftLeftEq = semiAssignOp "<<=" ShiftLeftEq
 
 -- | Parses a right-shift-equal assignment operator \">>=\", checking for a
 -- semicolon.
-opShiftRightEq :: Parser (Semi AssignOp)
+opShiftRightEq :: Parser (Semi (AssignOp a))
 opShiftRightEq = semiAssignOp ">>=" ShiftRightEq
 
 -- | Parses a bitwise-and-equal assignment operator \"&=\", checking for a
 -- semicolon.
-opBitwiseAndEq :: Parser (Semi AssignOp)
+opBitwiseAndEq :: Parser (Semi (AssignOp a))
 opBitwiseAndEq = semiAssignOp "&=" BitwiseAndEq
 
 -- | Parses a bitwise-and-not-equal assignment operator \"&^=\", checking for a
 -- semicolon.
-opBitwiseAndNotEq :: Parser (Semi AssignOp)
+opBitwiseAndNotEq :: Parser (Semi (AssignOp a))
 opBitwiseAndNotEq = semiAssignOp "&^=" BitwiseAndNotEq
 
 -- | Parses an assignment operator
-opAssign :: Parser (Semi AssignOp)
+opAssign :: Parser (Semi (AssignOp a))
 opAssign = choice
     [ opAssignSimple
     , opPlusEq

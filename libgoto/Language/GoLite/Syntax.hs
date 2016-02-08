@@ -10,25 +10,26 @@ Stability   : experimental
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE TupleSections #-}
 
 module Language.GoLite.Syntax
 ( Package(..)
 , TopLevelDecl(..)
+, BasicTopLevelDecl
 , VarDecl(..)
 , TypeDecl(..)
 , FunDecl(..)
-, FunParam
-, Type(..)
-, Statement(..)
+, TypeF(..)
+, StatementF(..)
 , CaseHead(..)
-, Block
 , Declaration(..)
-, Expr(..)
+, ExprF(..)
 , BinaryOp(..)
 , UnaryOp(..)
 , AssignOp(..)
 , Literal(..)
-, Ident
+, Ident(..)
 , GoInt
 , GoFloat
 , GoRune
@@ -38,90 +39,104 @@ module Language.GoLite.Syntax
 import Language.GoLite.Precedence
 import Language.GoLite.Pretty
 
+import Data.Functor.Identity
+import Data.Functor.Foldable
 import Text.PrettyPrint
 
-data Package
-    = Package Ident [TopLevelDecl]
+data Package ident topLevelDecl
+    = Package ident [topLevelDecl]
     deriving (Eq, Read, Show)
 
-data TopLevelDecl
-    = TopLevelDecl Declaration
-    | TopLevelFun FunDecl
+data TopLevelDecl decl funDecl
+    = TopLevelDecl decl
+    | TopLevelFun funDecl
     deriving (Eq, Read, Show)
+
+type BasicTopLevelDecl
+    = TopLevelDecl BasicDeclaration BasicFunDecl
 
 -- | The body of a variable declaration.
 --
 -- The identifier list must be nonempty. Either the type annotation or the list
 -- of expressions may be omitted, but not both. If the type is omitted, the list
 -- or expressions must have the same length as the identifier list.
-data VarDecl
-    = VarDeclBody [Ident] (Maybe Type) [Expr]
+data VarDecl ident ty expr
+    = VarDeclBody [ident] (Maybe ty) [expr]
     deriving (Eq, Read, Show)
+
+type BasicVarDecl
+    = VarDecl BasicIdent BasicType BasicExpr
 
 -- | A type declaration.
-data TypeDecl
-    = TypeDeclBody Ident Type
+data TypeDecl ident ty
+    = TypeDeclBody ident ty
     deriving (Eq, Read, Show)
+
+type BasicTypeDecl
+    = TypeDecl BasicIdent BasicType
 
 -- | A function declaration.
-data FunDecl
-    = FunDecl Ident [FunParam] (Maybe Type) Block
+data FunDecl ident ty stmt
+    = FunDecl ident [([ident], ty)] (Maybe ty) [stmt]
     deriving (Eq, Read, Show)
 
--- | A single parameter declaration group for a function.
---
--- A parameter declaration group consists of one or more identifiers given the
--- same type.
-type FunParam = ([Ident], Type)
+type BasicFunDecl
+    = FunDecl BasicIdent BasicType BasicStatement
 
 -- | A type.
-data Type
-    = SliceType Type
+data TypeF ident int f
+    = SliceType f
     -- ^ A slice is a compound type, and represent a resizable array of
     -- elements of some other type.
-    | ArrayType GoInt Type
+    | ArrayType int f
     -- ^ An arrays is a compound type, and represents a statically-sized array
     -- of elements of some other type.
-    | NamedType Ident
+    | NamedType ident
     -- ^ A named type is the category into which all other types fall. It is
     -- simply an identifier.
-    | StructType [([Ident], Type)]
-    deriving (Eq, Read, Show)
+    | StructType [([ident], f)]
+    deriving (Eq, Read, Show, Functor)
+
+type BasicTypeF
+    = TypeF BasicIdent (Identity GoInt)
+
+type BasicType
+    = Fix BasicTypeF
 
 -- | GoLite statements. These make up the bodies of functions.
-data Statement
-    = DeclStmt Declaration
+data StatementF decl expr ident assignOp caseHead f
+    = DeclStmt decl
     -- ^ Declarations are valid statements.
-    | ExprStmt Expr
+    | ExprStmt expr
     -- ^ Certain expressions are allowed as simple statements.
-    | ShortVarDecl [Ident] [Expr]
+    | ShortVarDecl [ident] [expr]
     -- ^ A short variable declaration uses the := operator and omits the type
     -- from the declaration. It consists of a list of identifiers, followed by
     -- the short declaration operator, then a list of expressions. The two lists
     -- are grouped pair-wise to form all the initializations. ShortVarDecl is
     -- semantically different from VarDecl in the fact that only the former can
     -- appear in contexts where a simple statement is expected.
-    | Assignment [Expr] AssignOp [Expr]
+    | Assignment [expr] assignOp [expr]
     -- ^ An assignment is two lists of expressions separated by an assignment
     -- operator. Possible assignment operators include +=, <<= and =.
     -- A statement like x += y is semantically different from x = x + y in that
     -- x is only evaluated once in the former case..
-    | PrintStmt [Expr] Bool
+    | PrintStmt [expr] Bool
     -- ^ Print a list of expressions to standard out, optionally with a
     -- newline.
-    | ReturnStmt (Maybe Expr)
+    | ReturnStmt (Maybe expr)
     -- ^ A return statement may optionally return a value.
-    | IfStmt (Maybe Statement) Expr Block (Maybe Block)
+    | IfStmt (Maybe f) expr [f] (Maybe [f])
     -- ^ An if-statement consists of an optional initializer, followed by an
     -- expression and a sequence of statements acting as the then-body.
     -- An optional sequence of statements can follow, acting as the else-body.
     -- The else-if construct is simply represented as a nesting of
     -- if-statements within the else-block of another if-statement.
-    | SwitchStmt (Maybe Statement) (Maybe Expr) [(CaseHead, Block)]
+    | SwitchStmt (Maybe f) (Maybe expr) [(caseHead, [f])]
     -- ^ A switch statement consists of an optional initializer and an optional
     -- expression whose value is matched against by the expressions in the
     -- "CaseHead"s in the list of cases.
-    | ForStmt (Maybe Statement) (Maybe Expr) (Maybe Statement) Block
+    | ForStmt (Maybe f) (Maybe expr) (Maybe f) [f]
     -- ^ All loops are represented as for-loops. If all three "Maybe"s are
     -- "Nothing", then we have an infinite loop. If only the "Expr" is present,
     -- then we have what's essentially a while loop. If either of the
@@ -139,12 +154,23 @@ data Statement
     -- ^ Transfer control to the next case clause in a switch statement.
     deriving (Eq, Read, Show)
 
+type BasicStatementF
+    = StatementF
+        BasicDeclaration
+        BasicExpr
+        BasicIdent
+        BasicAssignOp
+        BasicCaseHead
+
+type BasicStatement
+    = Fix BasicStatementF
+
 -- | The head of a case.
-data CaseHead
+data CaseHead expr
     = CaseDefault
     -- ^ The default case's body is executed if no other case is matched. There
     -- can be at most one default case in any given switch.
-    | CaseExpr [Expr]
+    | CaseExpr [expr]
     -- ^ A case's semantics are different according to whether its
     -- corresponding switch has an expression to match against.
     --
@@ -156,19 +182,25 @@ data CaseHead
     -- is matched and its body is executed.
     deriving (Eq, Read, Show)
 
--- | A block is simply a list of statements.
-type Block = [Statement]
+type BasicCaseHead
+    = CaseHead BasicExpr
 
-data Declaration
-    = TypeDecl TypeDecl
-    | VarDecl VarDecl
+data Declaration typeDecl varDecl
+    = TypeDecl typeDecl
+    | VarDecl varDecl
     deriving (Eq, Read, Show)
 
-data Expr
-    = BinaryOp BinaryOp Expr Expr
-    | UnaryOp UnaryOp Expr
-    | Conversion Type Expr
-    | Selector Expr Ident
+type BasicDeclaration
+    = Declaration BasicTypeDecl BasicVarDecl
+
+-- UnaryOp Positive
+--  :: SrcAnnExpr -> ExprF UnaryOp id bin UnaryOp lit ty SrcAnnExpr
+
+data ExprF id bin un lit ty f
+    = BinaryOp bin f f
+    | UnaryOp un f
+    | Conversion ty f
+    | Selector f id
     {-|
     \"An expression of the form
 
@@ -221,46 +253,67 @@ data Expr
         * Otherwise @a[x]@ is illegal.
     -}
     | Index
-        { indexExpr :: Expr
-        , indexExprValue :: Expr
+        { indexExpr :: f
+        , indexExprValue :: f
         }
     -- | \"Slice expressions construct a substring or slice from a string,
     -- array, pointer to array, or slice. There are two variants: a simple form
     -- that specifies a low and high bound, and a full form that also specifies
     -- a bound on the capacity.\"
     | Slice
-        { sliceExpr :: Expr
+        { sliceExpr :: f
         -- ^ The expression to take a slice of.
-        , sliceExprLow :: Maybe Expr
+        , sliceExprLow :: Maybe f
         -- ^ The low index to select from.
-        , sliceExprHigh :: Maybe Expr
+        , sliceExprHigh :: Maybe f
         -- ^ The high index to select up to.
-        , sliceExprBound :: Maybe Expr
+        , sliceExprBound :: Maybe f
         -- ^ An upper bound on the capacity of the resulting slice object. No
         -- more than this many elements will be selected.
         }
-    | TypeAssertion Expr Type
-    | Call Expr (Maybe Type) [Expr]
-    | Literal Literal
-    | Variable Ident
-    deriving (Eq, Read, Show)
+    | TypeAssertion f ty
+    | Call f (Maybe ty) [f]
+    | Literal lit
+    | Variable id
+    deriving (Eq, Read, Show, Functor)
 
-data BinaryOp
+type BasicExprF
+    = ExprF BasicIdent BasicBinaryOp BasicUnaryOp BasicLiteral BasicType
+
+type BasicExpr
+    = Fix BasicExprF
+
+-- | A binary operator.
+--
+-- Derives Functor so that we can painlessly use 'Language.GoLite.Annotation'.
+data BinaryOp a
     = LogicalOr | LogicalAnd
     | Equal | NotEqual | LessThan | LessThanEqual | GreaterThan | GreaterThanEqual
     | Plus | Minus | BitwiseOr | BitwiseXor
     | Times | Divide | Modulo
     | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseAndNot
-    deriving (Eq, Read, Show)
+    deriving (Eq, Read, Show, Functor)
 
-data AssignOp
+type BasicBinaryOp
+    = BinaryOp ()
+
+-- | An assignment operator.
+--
+-- Derives Functor so that we can painlessly use 'Language.GoLite.Annotation'.
+data AssignOp a
     = Assign
     | PlusEq | MinusEq | BitwiseOrEq | BitwiseXorEq
     | TimesEq | DivideEq | ModuloEq
     | ShiftLeftEq | ShiftRightEq | BitwiseAndEq | BitwiseAndNotEq
-    deriving (Eq, Read, Show)
+    deriving (Eq, Read, Show, Functor)
 
-data UnaryOp
+type BasicAssignOp
+    = AssignOp ()
+
+-- | A unary operator.
+--
+-- Derives Functor so that we can painlessly use 'Language.GoLite.Annotation'.
+data UnaryOp a
     = Positive
     | Negative
     | LogicalNot
@@ -268,24 +321,36 @@ data UnaryOp
     | Dereference
     | Reference
     | Receive
-    deriving (Eq, Read, Show)
+    deriving (Eq, Read, Show, Functor)
 
-data Literal
+type BasicUnaryOp
+    = UnaryOp ()
+
+-- | A literal.
+--
+-- Derives functor so that we can painlessly use 'Language.GoLite.Annotation'.
+data Literal a
     = IntLit GoInt
     | FloatLit GoFloat
     | RuneLit GoRune
     | StringLit GoString
     deriving (Eq, Read, Show)
 
--- | Identifiers are just strings.
-type Ident = String
+type BasicLiteral
+    = Literal ()
+
+-- | Identifiers are just wrapped strings.
+data Ident a = Ident String deriving (Eq, Read, Show, Functor)
+
+type BasicIdent
+    = Ident ()
 
 type GoInt = Int
 type GoFloat = Double
 type GoRune = Char
 type GoString = String
 
-instance HasPrecedence BinaryOp where
+instance HasPrecedence (BinaryOp a) where
     precedence o = case o of
         LogicalOr -> 0
         LogicalAnd -> 1
@@ -307,7 +372,7 @@ instance HasPrecedence BinaryOp where
         Divide -> 4
         Times -> 4
 
-instance HasPrecedence UnaryOp where
+instance HasPrecedence (UnaryOp a) where
     precedence o = case o of
         Receive -> 5
         Reference -> 5
@@ -317,7 +382,7 @@ instance HasPrecedence UnaryOp where
         Negative -> 5
         Positive -> 5
 
-instance Pretty AssignOp where
+instance Pretty (AssignOp a) where
     pretty o = case o of
         Assign -> text "="
         PlusEq -> text "+="
@@ -332,7 +397,7 @@ instance Pretty AssignOp where
         BitwiseAndEq -> text "&="
         BitwiseAndNotEq -> text "&^="
 
-instance Pretty BinaryOp where
+instance Pretty (BinaryOp a) where
     pretty o = case o of
         LogicalOr -> text "||"
         LogicalAnd -> text "&&"
@@ -354,7 +419,7 @@ instance Pretty BinaryOp where
         BitwiseAnd -> text "&"
         BitwiseAndNot -> text "&^"
 
-instance Pretty UnaryOp where
+instance Pretty (UnaryOp a) where
     pretty o = case o of
         Positive -> text "+"
         Negative -> text "-"
@@ -364,48 +429,90 @@ instance Pretty UnaryOp where
         Reference -> text "&"
         Receive -> text "<-"
 
-instance Pretty Literal where
+instance Pretty (Literal a) where
     pretty l = case l of
         IntLit x -> pretty x
         FloatLit x -> pretty x
         StringLit x -> text $ show x
         RuneLit x -> pretty x
 
-instance Pretty Type where
-    prettyPrec d e = case e of
-        SliceType t -> text "[]" <> prettyPrec d t
-        ArrayType i t -> prettyBrackets True (pretty i) <> prettyPrec d t
-        NamedType n -> text n
-        StructType t ->
-            text "struct" <+> prettyBraces True (
-                sep $ map (\(ids, ty) ->
-                    sep (punctuate comma (map text ids)) <+> pretty ty <> semi
-                ) t
-            )
+instance Pretty (Ident a) where
+    pretty (Ident s) = text s
 
-instance Pretty Expr where
-    prettyPrec d e = case e of
-        BinaryOp op l r -> prettyParens (d > precedence op) $ prettyInfix op l r
-        UnaryOp op p -> prettyParens (d > precedence op) $ prettyPrefix op p
-        Literal l -> prettyPrec d l
-        Variable x -> text x
-        Slice ex lo hi up ->
-            prettyPrec 6 ex <>
-            prettyBrackets True (
-                pretty lo <>
-                text ":" <>
-                pretty hi <>
-                case up of
-                    Just u -> text ":" <> pretty u
-                    Nothing -> empty
-            )
-        Call f ty args ->
-            prettyPrec 6 f <>
-            prettyParens True (
-                case args of
-                    [] -> pretty ty
-                    s -> case ty of
-                        Nothing -> sep $ punctuate comma $ map pretty s
-                        Just t -> sep $ punctuate comma $ pretty t : map pretty s
-            )
-        _ -> error "Pretty: Expr"
+instance
+    ( Pretty ident
+    , Pretty int
+    ) => Pretty (Fix (TypeF ident int)) where
+    prettyPrec _ = cata f where -- TODO investigate precedence rules for types
+        f :: (Pretty ident, Pretty int)
+          => TypeF ident int Doc -> Doc
+        f e = case e of
+            SliceType t -> text "[]" <> t
+            ArrayType i t -> prettyBrackets True (pretty i) <> t
+            NamedType n -> pretty n
+            StructType t ->
+                text "struct" <+> prettyBraces True (
+                    sep $ map (\(ids, ty) ->
+                        sep (punctuate comma (map pretty ids)) <+> ty <> semi
+                    ) t
+                )
+
+instance
+    ( Pretty id
+    , Pretty bin
+    , Pretty un
+    , Pretty lit
+    , Pretty ty
+    , HasPrecedence bin
+    , HasPrecedence un
+    ) => Pretty (Fix (ExprF id bin un lit ty)) where
+    pretty = snd . cata f where
+
+        -- the F-algebra that we use here keeps track of the precendence levels
+        -- of subexpressions so that we can properly parenthesize them in
+        -- higher branches of the recursion.
+        f ::
+            ( Pretty id
+            , Pretty bin
+            , Pretty un
+            , Pretty lit
+            , Pretty ty
+            , HasPrecedence bin
+            , HasPrecedence un
+            ) => ExprF id bin un lit ty (Int, Doc) -> (Int, Doc)
+        f e = case e of
+            BinaryOp op (dl, l) (dr, r) -> (precedence op,) $
+                prettyParens (dl > precedence op) l <+>
+                pretty op <+>
+                prettyParens (dr > precedence op) r
+            UnaryOp op (dp, p) -> (precedence op,) $
+                pretty op <>
+                prettyParens (dp > precedence op) p
+            Literal l -> (6, pretty l)
+            Variable x -> (6, pretty x)
+            Slice (ep, ex) lo hi up -> (6,) $
+                prettyParens (ep < 6) ex <>
+                prettyBrackets True (
+                    pretty (snd <$> lo) <>
+                    text ":" <>
+                    pretty (snd <$> hi) <>
+                    case up of
+                        Just u -> text ":" <> pretty (snd u)
+                        Nothing -> empty
+                )
+            Call (fp, fb) ty args -> (6,) $
+                prettyParens (fp < 6) (prettyPrec 6 fb) <>
+                prettyParens True (
+                    case args of
+                        [] -> pretty ty
+                        s -> case ty of
+                            Nothing ->
+                                sep $
+                                punctuate comma $
+                                map (pretty . snd) s
+                            Just t ->
+                                sep $
+                                punctuate comma $
+                                pretty t : map (pretty . snd) s
+                )
+            _ -> error "Pretty: Expr"

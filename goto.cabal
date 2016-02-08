@@ -31,7 +31,8 @@ library
     megaparsec >=4.2 && <4.4,
     containers >=0.5,
     mtl >=2.2 && <2.3,
-    pretty >=1.1 && <1.2
+    pretty >=1.1 && <1.2,
+    recursion-schemes >=4.1 && <4.2
   exposed-modules:
     Language.GoLite
     Language.GoLite.Lexer
@@ -39,6 +40,8 @@ library
     Language.GoLite.Parser.Expression
     Language.GoLite.Pretty
     Language.GoLite.Syntax
+    Language.GoLite.Annotation
+    Language.GoLite.SrcAnn
   other-modules:
     Language.GoLite.Precedence
     Language.GoLite.Lexer.Core

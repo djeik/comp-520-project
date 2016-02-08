@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Language.GoLite.Parser
 -- TODO revisit the list of exports
 ( -- * Statements
@@ -19,8 +21,12 @@ module Language.GoLite.Parser
 import Language.GoLite.Parser.Core
 import Language.GoLite.Parser.SimpleStmts
 import Language.GoLite.Parser.Decl
+import Language.GoLite.SrcAnn
 
-stmt :: Parser [Statement]
+import Data.Functor.Foldable ( Fix(..) )
+import Data.Functor.Identity
+
+stmt :: Parser [SrcAnnStatement]
 stmt =  varDecl
     <|> typeDecl
     <|> choice (map (fmap pure)
@@ -34,21 +40,35 @@ stmt =  varDecl
         , continueStmt
         , (simpleStmt >>= requireSemiP) ])
 
-printStmt :: Parser Statement
+printStmt :: Parser SrcAnnStatement
 printStmt = do
-    hasLn <- (kwPrint *> pure False) <|> (kwPrintLn *> pure True)
-    exprs <- parens (expr `sepBy` comma) >>= requireSemiP
-    PrintStmt <$> mapM noSemiP exprs <*> pure hasLn
+    (Ann l (runIdentity -> hasLn)) <- withSrcAnnId $
+        (kwPrint *> pure False) <|> (kwPrintLn *> pure True)
+
+    (Ann r exprs) <- withSrcAnnF $ parens (expr `sepBy` comma) >>= requireSemiP
+
+    exprs' <- mapM noSemiP exprs
+
+    let a = SrcSpan (srcStart l) (srcEnd r)
+
+    pure $ Fix $ Ann a $ PrintStmt exprs' hasLn
 
 -- | Parses a return statement.
-returnStmt :: Parser Statement
+returnStmt :: Parser SrcAnnStatement
 returnStmt = do
-    s <- kwReturn
+    (Ann l s) <- withSrcAnnF kwReturn
     se <- optional expr
 
     requireSemiP $ case se of
-        Nothing -> s *> pure (ReturnStmt Nothing)
-        Just e -> s *> noSemi *> fmap (ReturnStmt . Just) e
+        Nothing -> do
+            s
+            pure $ Fix $ Ann l $ ReturnStmt Nothing
+
+        Just e -> do
+            s *> noSemi
+            e' <- e
+            let a = SrcSpan (srcStart l) (srcEnd (topAnn e'))
+            pure $ Fix $ Ann a $ ReturnStmt $ Just e'
 
 -- | Parses an if statement. It consists of the keyword if, followed by an
 -- optional simple statement, then an expression, then a block, followed by
@@ -58,32 +78,39 @@ returnStmt = do
 --
 -- If the optional initializer is present, it must have a semicolon. There
 -- cannot be a semicolon between the expression and the block.
-ifStmt :: Parser Statement
+ifStmt :: Parser SrcAnnStatement
 ifStmt = do
-    initializer <- (kwIf >>= unSemiP) >> optional (simpleStmt >>= requireSemiP)
+    (Ann l _) <- withSrcAnnConst $ kwIf >>= unSemiP
+
+    initializer <- optional (simpleStmt >>= requireSemiP)
     cond <- expr >>= noSemiP
     thens <- block
-    elses <- optional else_
-    pure $ IfStmt initializer cond thens elses
+    (Ann r elses) <- withSrcAnnF $ optional else_
+
+    let a = SrcSpan (srcStart l) (srcEnd r)
+    pure $ Fix $ Ann a $ IfStmt initializer cond thens elses
 
 -- | Parses the else part of an if statement. It's the \"else\" keyword followed
 -- either by a block or another if statement.
-else_ :: Parser Block
+else_ :: Parser [SrcAnnStatement]
 else_ = (kwElse >>= unSemiP) >> block <|> fmap (:[]) ifStmt
 
 -- | Parses a switch statement. It consists of the \"switch\" keyword, followed
 -- by an optional initializer simple statement, an optional expression, then a
 -- potentially empty list of case clauses enclosed in brackets.
-switchStmt :: Parser Statement
+switchStmt :: Parser SrcAnnStatement
 switchStmt = do
-    kwSwitch
+    (Ann l _) <- withSrcAnnConst kwSwitch
     initializer <- optional (simpleStmt >>= requireSemiP)
     e <- optional (expr >>= noSemiP)
-    clauses <- (braces $ many caseClause) >>= noSemiP
-    pure $ SwitchStmt initializer e clauses
+    (Ann r clauses) <- withSrcAnnF $ (braces $ many caseClause) >>= noSemiP
+
+    let a = SrcSpan (srcStart l) (srcEnd r)
+
+    pure $ Fix $ Ann a $ SwitchStmt initializer e clauses
 
 -- | Parses a case clause. It is a case head and a block separated by a colon.
-caseClause :: Parser (CaseHead, Block)
+caseClause :: Parser (SrcAnnCaseHead, [SrcAnnStatement])
 caseClause = do
     head_ <- caseHead <* colon
     stmts <- many stmt
@@ -92,7 +119,7 @@ caseClause = do
 
 -- | Parses a case head. It is either the keyword \"default\", or the keyword
 -- \"case\" followed by a comma-separated list of expressions.
-caseHead :: Parser CaseHead
+caseHead :: Parser SrcAnnCaseHead
 caseHead = default_ <|> case_ where
     default_ = (kwDefault >>= noSemiP) *> pure CaseDefault
     case_ = do
@@ -105,17 +132,21 @@ caseHead = default_ <|> case_ where
 -- an initializer simple statement followed by an expression and another simple
 -- statement. In this last case, all the components are optional, and the
 -- initializer and expression must end with a semicolon.
-forStmt :: Parser Statement
-forStmt = (kwFor >>= noSemiP) >> (infiniteFor <|> fullFor <|> simpleFor)
+forStmt :: Parser SrcAnnStatement
+forStmt = do
+    (Ann l _) <- withSrcAnnConst $ kwFor >>= noSemiP
+    (Fix (Ann r s)) <- infiniteFor <|> fullFor <|> simpleFor
+    let a = SrcSpan (srcStart l) (srcEnd r)
+    pure $ Fix $ Ann a s
 
 -- | Parses an infinite for loop, which does not contain anything in its head.
 -- This parser may be backtracked out of before reaching the beginning of a
 -- block.
-infiniteFor :: Parser Statement
+infiniteFor :: Parser SrcAnnStatement
 infiniteFor = do
     (try . lookAhead . symbol_) "{"
-    b <- block
-    pure $ ForStmt Nothing Nothing Nothing b
+    (Ann a b) <- withSrcAnnF block
+    pure $ Fix $ Ann a $ ForStmt Nothing Nothing Nothing b
 
 -- | Parses a full for loop, which may contain an initializer simple statement,
 -- an expression and a post-iteration simple statement. All those components
@@ -127,28 +158,34 @@ infiniteFor = do
 --      `for ;; y-- {`
 --      `for ;; {`
 -- ... and so on.
-fullFor :: Parser Statement
+fullFor :: Parser SrcAnnStatement
 fullFor = do
-    initializer <- optional (simpleStmt >>= requireSemiP)
-    cond <- optional (expr >>= requireSemiP)
-    post <- optional (simpleStmt >>= noSemiP)
-    b <- block
-    pure $ ForStmt initializer cond post b
+    (Ann l (runIdentity -> (initializer, cond, post))) <- withSrcAnnId $
+        (,,)
+            <$> optional (simpleStmt >>= requireSemiP)
+            <*> optional (expr >>= requireSemiP)
+            <*> optional (simpleStmt >>= noSemiP)
+
+    (Ann r b) <- withSrcAnnF block
+
+    let a = SrcSpan (srcStart l) (srcEnd r)
+
+    pure $ Fix $ Ann a $ ForStmt initializer cond post b
 
 -- | Parses a for loop that only has a condition in its head. This parser can be
 -- backtracked out of until reaching the beginning of a block.
-simpleFor :: Parser Statement
+simpleFor :: Parser SrcAnnStatement
 simpleFor = do
     e <- try $ do
         e <- expr >>= noSemiP
         lookAhead $ symbol_ "{" -- Make sure a block begins next.
         pure e
-    b <- block
-    pure $ ForStmt Nothing (Just e) Nothing b
+    (Ann a b) <- withSrcAnnF block
+    pure $ Fix $ Ann a $ ForStmt Nothing (Just e) Nothing b
 
 -- | Parses a block, which is a potentially empty list of statements enclosed in
 -- braces.
-block :: Parser Block
+block :: Parser [SrcAnnStatement]
 block = do
         symbol "{"
         -- Here we're not applying rule 2 of semicolon omission because we don't
@@ -159,15 +196,20 @@ block = do
         pure $ concat stmts
 
 -- | Parses a break statement, which consists of the \"break\" keyword.
-breakStmt :: Parser Statement
-breakStmt = (kwBreak >>= requireSemiP) *> pure BreakStmt
+breakStmt :: Parser SrcAnnStatement
+breakStmt = do
+    (Ann a _) <- withSrcAnnConst $ kwBreak >>= requireSemiP
+    pure $ Fix $ Ann a $ BreakStmt
 
 -- | Parses a continue statement, which consists of the \"continue\" keyword.
-continueStmt :: Parser Statement
-continueStmt = (kwContinue >>= requireSemiP) *> pure ContinueStmt
-
 -- | Parses a fallthrough statement, which consists of the \"fallthrough\"
 -- keyword.
-fallthroughStmt :: Parser Statement
-fallthroughStmt = (kwFallthrough >>= requireSemiP) *> pure ContinueStmt
+fallthroughStmt :: Parser SrcAnnStatement
+fallthroughStmt = do
+    (Ann a _) <- withSrcAnnConst $ kwContinue >>= requireSemiP
+    pure $ Fix $ Ann a $ FallthroughStmt
 
+continueStmt :: Parser SrcAnnStatement
+continueStmt = do
+    (Ann a _) <- withSrcAnnConst $ kwContinue >>= requireSemiP
+    pure $ Fix $ Ann a $ ContinueStmt
