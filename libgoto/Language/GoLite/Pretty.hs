@@ -11,6 +11,9 @@ instead of aiming to output valid Haskell code, "Pretty" aims to output valid
 GoLite code.
 -}
 
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Language.GoLite.Pretty 
 ( Pretty(..)
 , prettyPrefix
@@ -18,11 +21,13 @@ module Language.GoLite.Pretty
 , prettyParens
 , prettyBrackets
 , prettyBraces
+, indentLevel
 ) where
 
 import Language.GoLite.Precedence
 
 import Control.Applicative ( Const(..) )
+import Data.Functor.Identity
 import Text.PrettyPrint
 
 -- | Essentially a clone of 'Text.Show.Show'.
@@ -53,6 +58,8 @@ instance Pretty Double where
 instance Pretty a => Pretty (Const a b) where
     pretty = pretty . getConst
 
+deriving instance Pretty a => Pretty (Identity a)
+
 -- | Pretty-prints an infix operator and its two operands.
 prettyInfix :: (HasPrecedence sym, Pretty sym, Pretty l, Pretty r)
             => sym -> l -> r -> Doc
@@ -81,3 +88,6 @@ prettyBrackets = flip prettyIf brackets
 
 prettyBraces :: Bool -> Doc -> Doc
 prettyBraces = flip prettyIf braces
+
+indentLevel :: Num a => a
+indentLevel = 4
