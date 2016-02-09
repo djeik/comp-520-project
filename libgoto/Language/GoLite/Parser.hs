@@ -51,7 +51,10 @@ printStmt = do
 
     let a = SrcSpan (srcStart l) (srcEnd r)
 
-    pure $ Fix $ Ann a $ PrintStmt exprs' hasLn
+    pure $ Fix $ Ann a $ PrintStmt $ case hasLn of
+        True ->
+            exprs' ++ [Fix (Ann l (Literal (Ann l (StringLit "\n"))))]
+        False -> exprs'
 
 -- | Parses a return statement.
 returnStmt :: Parser SrcAnnStatement

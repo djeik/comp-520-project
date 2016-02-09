@@ -121,7 +121,7 @@ data StatementF decl expr ident assignOp caseHead f
     -- operator. Possible assignment operators include +=, <<= and =.
     -- A statement like x += y is semantically different from x = x + y in that
     -- x is only evaluated once in the former case..
-    | PrintStmt [expr] Bool
+    | PrintStmt [expr]
     -- ^ Print a list of expressions to standard out, optionally with a
     -- newline.
     | ReturnStmt (Maybe expr)
