@@ -75,6 +75,8 @@ incDecStmt opParse op = do
 
         let a = SrcSpan (srcStart (topAnn e')) (srcEnd opSpan)
 
+        -- TODO: errors messages due to these overlapping annotations might be
+        -- weird.
         pure $ Fix $ Ann a $
             Assignment
                 [e']
