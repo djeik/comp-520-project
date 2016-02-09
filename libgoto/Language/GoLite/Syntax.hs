@@ -152,7 +152,7 @@ data StatementF decl expr ident assignOp caseHead f
     -- ^ Jump to the beginning of a loop.
     | FallthroughStmt
     -- ^ Transfer control to the next case clause in a switch statement.
-    deriving (Eq, Read, Show)
+    deriving (Eq, Read, Show, Functor)
 
 type BasicStatementF
     = StatementF
@@ -515,4 +515,77 @@ instance
                                 punctuate comma $
                                 pretty t : map (pretty . snd) s
                 )
-            _ -> error "Pretty: Expr"
+            Conversion ty (_, p) -> (6,) $
+                pretty ty <> prettyParens True p
+            Selector (ds, s) i -> (6,) $
+                prettyParens (ds < 6) s <> text "." <> pretty i
+            TypeAssertion (dex, ex) ty -> (6,) $ cat
+                [ prettyParens (dex < 6) ex
+                , text "."
+                , prettyParens True (pretty ty)
+                ]
+            Index (dex, ex) (_, i) -> (6,) $ cat
+                [ prettyParens (dex < 6) ex
+                , prettyBrackets True i
+                ]
+
+instance
+    ( Pretty decl
+    , Pretty funDecl
+    ) => Pretty (TopLevelDecl decl funDecl) where
+
+    pretty e = case e of
+        TopLevelDecl d -> pretty d
+        TopLevelFun f -> pretty f
+
+instance
+    ( Pretty ident
+    , Pretty ty
+    , Pretty stmt
+    ) => Pretty (FunDecl ident ty stmt) where
+
+    pretty (FunDecl i args mret body)
+        = text "func"
+        <+> pretty i
+        <+> prettyParens True prettyArgs
+        <+> pretty mret
+        <+> text "{"
+        $+$ nest indentLevel (vcat $
+            map pretty body
+        )
+        $+$ text "}" where
+            prettyArgs = sep (punctuate comma (pa <$> args))
+            pa (ids, ty) = sep (punctuate comma (pretty <$> ids)) <+> pretty ty
+
+instance
+    ( Pretty decl
+    , Pretty expr
+    , Pretty ident
+    , Pretty assignOp
+    , Pretty caseHead
+    ) => Pretty (Fix (StatementF decl expr ident assignOp caseHead)) where
+
+    pretty = cata f where
+        f :: (Pretty a, Pretty b, Pretty c, Pretty d, Pretty e)
+          => StatementF a b c d e Doc -> Doc
+        f s = case s of
+            DeclStmt d -> pretty d
+            ExprStmt expr -> pretty expr
+            ShortVarDecl ids exprs ->
+                sep (punctuate comma (pretty <$> ids)) <+>
+                text ":=" <+>
+                sep (punctuate comma (pretty <$> exprs))
+            Assignment exprs op moreExprs ->
+                sep (punctuate comma (pretty <$> exprs)) <+>
+                pretty op <+>
+                sep (punctuate comma (pretty <$> moreExprs))
+            PrintStmt exprs ->
+                text "print" <+>
+                sep (punctuate comma (pretty <$> exprs)) <>
+                semi
+            ReturnStmt mexpr ->
+                text "return" <+> pretty mexpr <> semi
+            BreakStmt -> text "break" <> semi
+            ContinueStmt -> text "continue" <> semi
+            FallthroughStmt -> text "fallthrough" <> semi
+            _ -> error "Pretty: StatementF"
