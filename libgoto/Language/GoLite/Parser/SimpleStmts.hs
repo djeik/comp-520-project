@@ -63,20 +63,24 @@ assignStmt = try (incDecStmt opIncrement PlusEq)
 
 -- | Parses an increment or decrement statement (\"x++\", \"y--\"). This is
 -- parsed to the same representation as \"x += 1\" or \"y -= 1\".
-incDecStmt :: Parser a -> AssignOp () -> Parser (Semi SrcAnnStatement)
+incDecStmt :: Parser (Semi a) -> AssignOp () -> Parser (Semi SrcAnnStatement)
 incDecStmt opParse op = do
     e <- expr
 
-    (Ann opSpan _) <- withSrcAnnConst opParse
+    (Ann opSpan parsedOp) <- withSrcAnnF opParse
 
     pure $ do
         e' <- e
         noSemi
 
+        -- We need to do this to ensure that the Semi state will be propagated
+        -- despite our artificial construction below.
+        parsedOp' <- parsedOp
+
         let a = SrcSpan (srcStart (topAnn e')) (srcEnd opSpan)
 
-        -- TODO: errors messages due to these overlapping annotations might be
-        -- weird.
+        -- Annotate the artificial operator and constant with the position of
+        -- of the IncDec operator. This matches golang behavior.
         pure $ Fix $ Ann a $
             Assignment
                 [e']
