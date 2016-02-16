@@ -585,7 +585,86 @@ instance
                 semi
             ReturnStmt mexpr ->
                 text "return" <+> pretty mexpr <> semi
+            IfStmt minit cond body mbody ->
+                text "if" <+> pretty minit <+> pretty cond <+> text "{" $+$
+                nest indentLevel (
+                    vcat (pretty <$> body)
+                ) $+$
+                text "}" $+$
+                case mbody of
+                    Just elseBody ->
+                        text "else {" <+> vcat elseBody
+                    Nothing -> empty
             BreakStmt -> text "break" <> semi
             ContinueStmt -> text "continue" <> semi
             FallthroughStmt -> text "fallthrough" <> semi
-            _ -> error "Pretty: StatementF"
+            SwitchStmt ini expr cases ->
+                text "switch" <+>
+                (case ini of
+                    Just i -> pretty i <> semi
+                    Nothing -> empty) <+>
+                pretty expr <+>
+                text "{" <+>
+                nest indentLevel (
+                    vcat (
+                        map (
+                            \(chead, body) ->
+                                pretty chead $+$ nest indentLevel (vcat body)
+                        ) cases
+                    )
+                ) <>
+                text "}"
+            ForStmt ini expr step body ->
+                text "for" <+>
+                (case ini of
+                    Just i -> pretty i <> semi
+                    Nothing -> empty
+                ) <+>
+                (case expr of
+                    Just expr' -> pretty expr' <> semi
+                    Nothing -> empty
+                ) <+>
+                (case step of
+                    Just step' -> pretty step' <> semi
+                    Nothing -> empty
+                ) <+>
+                text "{" $+$
+                nest indentLevel (vcat body) $+$
+                text "}"
+
+instance
+    ( Pretty typeDecl
+    , Pretty varDecl
+    ) => Pretty (Declaration typeDecl varDecl) where
+
+    pretty e = case e of
+        TypeDecl t -> pretty t <> semi
+        VarDecl t -> pretty t <> semi
+
+instance
+    ( Pretty ident
+    , Pretty ty
+    ) => Pretty (TypeDecl ident ty) where
+
+    pretty e = case e of
+        TypeDeclBody ident ty -> text "type" <+> pretty ident <+> pretty ty
+
+instance
+    ( Pretty ident
+    , Pretty ty
+    , Pretty expr
+    ) => Pretty (VarDecl ident ty expr) where
+
+    pretty e = case e of
+        VarDeclBody idents mty exprs ->
+            sep (punctuate comma (pretty <$> idents)) <+>
+            pretty mty <+>
+            sep (punctuate comma (pretty <$> exprs))
+
+instance Pretty expr => Pretty (CaseHead expr) where
+    pretty e = case e of
+        CaseDefault -> text "default :"
+        CaseExpr exprs ->
+            text "case" <+>
+            sep (punctuate comma (pretty <$> exprs)) <>
+            text ":"
