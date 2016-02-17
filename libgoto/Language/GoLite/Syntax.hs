@@ -657,8 +657,10 @@ instance
 
     pretty e = case e of
         VarDeclBody idents mty exprs ->
+            text "var" <+>
             sep (punctuate comma (pretty <$> idents)) <+>
             pretty mty <+>
+            text "=" <+>
             sep (punctuate comma (pretty <$> exprs))
 
 instance Pretty expr => Pretty (CaseHead expr) where
