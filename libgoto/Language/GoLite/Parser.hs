@@ -4,7 +4,6 @@ module Language.GoLite.Parser
 -- TODO revisit the list of exports
 ( -- * Statements
   stmt
-, expr
 , printStmt
 , returnStmt
 , ifStmt
