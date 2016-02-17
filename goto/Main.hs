@@ -12,7 +12,7 @@ parseOnly m = parse (m <* lexeme eof)
 main :: IO ()
 main = do
     stdin <- getContents
-    let ex = parseOnly (expr >>= unSemiP) "stdin" stdin
+    let ex = parseOnly stmt "stdin" stdin
     putStrLn $ case ex of
         Left e -> ppShow e
-        Right r -> render (pretty r)
+        Right r -> render (vcat $ pretty <$> r)
