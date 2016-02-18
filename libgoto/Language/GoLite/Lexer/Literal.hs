@@ -179,8 +179,9 @@ type_
     $ sliceType <|> arrayType <|> structType <|> namedType where
         sliceType :: Parser (Semi SrcAnnType)
         sliceType = label "slice type" $ withPushSrcAnnFix $ do
-            symbol_ "["
-            closeBracket >>= noSemiP
+            try $ do
+                symbol_ "["
+                closeBracket >>= noSemiP
             s <- type_
             pure $ SliceType <$> s
 
