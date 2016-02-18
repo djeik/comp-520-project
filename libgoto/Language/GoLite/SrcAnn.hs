@@ -50,6 +50,7 @@ module Language.GoLite.SrcAnn
 , bareFunDecl
 , bareType
 , bareStmt
+, bareExpr
 ) where
 
 import Language.GoLite.Annotation
@@ -58,7 +59,6 @@ import Language.GoLite.Syntax
 
 import Control.Applicative
 import Data.Functor.Foldable
-import Data.Functor.Identity
 
 -- | A source span has a beginning and an end that refer to locations in a
 -- source file.

@@ -6,8 +6,6 @@ module Language.GoLite.Parser.Decl (
 import Language.GoLite.Parser.Core
 import Language.GoLite.SrcAnn
 
-import Data.Functor.Foldable ( Fix(..) )
-
 -- | Parses a type declaration. It consists of the \"type\" keyword, followed
 -- by either one type specification, or multiple type specifications enclosed in
 -- parentheseses. Returns a list of all the type declarations.

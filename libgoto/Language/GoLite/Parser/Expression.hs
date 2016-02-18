@@ -2,12 +2,11 @@ module Language.GoLite.Parser.Expression
 ( expr
 ) where
 
-import Language.GoLite.Syntax
+import Language.GoLite.Syntax.Types
 import Language.GoLite.Lexer
 import Language.GoLite.SrcAnn
 
 import Control.Monad (void)
-import Data.Functor.Foldable
 
 import Text.Megaparsec.Expr
 

@@ -25,7 +25,7 @@ import Language.GoLite.Lexer.Symbols
 import Language.GoLite.Lexer.Keywords
 
 import Language.GoLite.SrcAnn
-import Language.GoLite.Syntax
+import Language.GoLite.Syntax.Types
 
 import qualified Data.Map.Strict as Map
 import Data.String ( fromString )

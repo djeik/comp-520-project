@@ -23,9 +23,6 @@ import Language.GoLite.Parser.SimpleStmts
 import Language.GoLite.Parser.Decl
 import Language.GoLite.SrcAnn
 
-import Data.Functor.Foldable ( Fix(..) )
-import Data.Functor.Identity
-
 stmt :: Parser [SrcAnnStatement]
 stmt =  varDecl
     <|> typeDecl

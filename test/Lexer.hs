@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Lexer
 (
   lexer
@@ -6,6 +8,7 @@ module Lexer
 import qualified Text.Megaparsec.Lexer as L (charLiteral)
 
 import Language.GoLite
+import Language.GoLite.Annotation ( bare )
 import TestUtil
 
 lexer :: SpecWith ()
@@ -184,15 +187,17 @@ testInterpretedString = describe "interpretedString" $ do
 
 testIdentifier :: SpecWith ()
 testIdentifier = describe "identifier" $ do
+    let identifier' = fmap bare $ identifier >>= unSemiP
+
     it "parses an alphanumeric string starting with a letter" $ do
-        parseOnly (identifier >>= unSemiP) "abc12" `shouldBe` Right "abc12"
-        parseOnly (identifier >>= unSemiP) "a" `shouldBe` Right "a"
+        parseOnly (identifier') "abc12" `shouldBe` Right "abc12"
+        parseOnly (identifier') "a" `shouldBe` Right "a"
 
     it "parses a string containing or starting with underscores" $ do
-        parseOnly (identifier >>= unSemiP) "a_b" `shouldBe` Right "a_b"
-        parseOnly (identifier >>= unSemiP) "_ab" `shouldBe` Right "_ab"
-        parseOnly (identifier >>= unSemiP) "___" `shouldBe` Right "___"
+        parseOnly (identifier') "a_b" `shouldBe` Right "a_b"
+        parseOnly (identifier') "_ab" `shouldBe` Right "_ab"
+        parseOnly (identifier') "___" `shouldBe` Right "___"
 
     it "does not parse a string starting with a number" $ do
-        parseOnly (identifier >>= unSemiP) "0_or_1" `shouldSatisfy` isLeft
-        parseOnly (identifier >>= unSemiP) "0xAF" `shouldSatisfy` isLeft
+        parseOnly (identifier') "0_or_1" `shouldSatisfy` isLeft
+        parseOnly (identifier') "0xAF" `shouldSatisfy` isLeft

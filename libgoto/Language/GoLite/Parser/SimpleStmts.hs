@@ -5,8 +5,6 @@ module Language.GoLite.Parser.SimpleStmts (
 import Language.GoLite.Parser.Core
 import Language.GoLite.SrcAnn
 
-import Data.Functor.Foldable ( Fix(..) )
-
 -- | Parses a simple statement. In some contexts (such as the initializer for
 -- \"if\" and \"switch\" statements), only simple statements are allowed.
 simpleStmt :: Parser (Semi SrcAnnStatement)

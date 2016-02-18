@@ -40,6 +40,14 @@ library
     Language.GoLite.Parser.Expression
     Language.GoLite.Pretty
     Language.GoLite.Syntax
+    Language.GoLite.Syntax.Types
+    Language.GoLite.Syntax.Sugar
+    Language.GoLite.Syntax.Sugar.Type
+    Language.GoLite.Syntax.Sugar.Statement
+    Language.GoLite.Syntax.Sugar.Declaration
+    Language.GoLite.Syntax.Sugar.Misc
+    Language.GoLite.Syntax.Sugar.Expr
+    Language.GoLite.Syntax.Sugar.Ops
     Language.GoLite.Annotation
     Language.GoLite.SrcAnn
   other-modules:
@@ -66,6 +74,7 @@ test-suite spec
     megaparsec >=4.2 && <4.4,
     hspec >=2.1 && <2.3,
     QuickCheck >=2.8 && <2.9,
+    recursion-schemes >=4.1 && <4.2,
     goto
 
 executable goto
