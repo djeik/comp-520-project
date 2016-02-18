@@ -47,8 +47,8 @@ shortVarDecl = do
 -- the assignment operator (namely, addressable expressions). We need to check
 -- that this is the case and raise an error otherwise.
 assignStmt :: Parser (Semi SrcAnnStatement)
-assignStmt = try (incDecStmt opIncrement PlusEq)
-    <|>  try (incDecStmt opDecrement MinusEq)
+assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
+    <|>  try (incDecStmt (fmap (fmap (const ())) opDecrement) MinusEq)
     <|>  do
             (Ann al lhs) <- withSrcAnnF $ (expr >>= noSemiP) `sepBy1` comma
             op <- withSrcAnnF $ opAssign >>= noSemiP
@@ -63,7 +63,7 @@ assignStmt = try (incDecStmt opIncrement PlusEq)
 
 -- | Parses an increment or decrement statement (\"x++\", \"y--\"). This is
 -- parsed to the same representation as \"x += 1\" or \"y -= 1\".
-incDecStmt :: Parser (Semi a) -> AssignOp () -> Parser (Semi SrcAnnStatement)
+incDecStmt :: Parser (Semi ()) -> AssignOp () -> Parser (Semi SrcAnnStatement)
 incDecStmt opParse op = do
     e <- expr
 
@@ -75,7 +75,7 @@ incDecStmt opParse op = do
 
         -- We need to do this to ensure that the Semi state will be propagated
         -- despite our artificial construction below.
-        parsedOp' <- parsedOp
+        parsedOp
 
         let a = SrcSpan (srcStart (topAnn e')) (srcEnd opSpan)
 
