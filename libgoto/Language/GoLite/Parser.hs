@@ -105,7 +105,7 @@ switchStmt = do
     (Ann l _) <- withSrcAnnConst kwSwitch
     initializer <- optional (simpleStmt >>= requireSemiP)
     e <- optional (expr >>= noSemiP)
-    (Ann r clauses) <- withSrcAnnF $ (braces $ many caseClause) >>= noSemiP
+    (Ann r clauses) <- withSrcAnnF $ (braces $ many caseClause) >>= requireSemiP
 
     let a = SrcSpan (srcStart l) (srcEnd r)
 
