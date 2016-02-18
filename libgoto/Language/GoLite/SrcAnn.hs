@@ -45,6 +45,9 @@ module Language.GoLite.SrcAnn
 , SrcAnnGoFloat
 , SrcAnnGoRune
 , SrcAnnGoString
+, barePackage
+, bareTopLevelDecl
+, bareFunDecl
 , bareType
 , bareStmt
 ) where
@@ -155,10 +158,10 @@ bareStmt = cata phi where
                                                 (map bareExpr es'))
     phi (Ann _ (PrintStmt es)) = Fix (PrintStmt (map bareExpr es))
     phi (Ann _ (ReturnStmt e)) = Fix (ReturnStmt (bareExpr <$> e))
-    phi (Ann _ (IfStmt init e thens elses)) = Fix (IfStmt init (bareExpr e)
+    phi (Ann _ (IfStmt ini e thens elses)) = Fix (IfStmt ini (bareExpr e)
                                                 thens
                                                 elses)
-    phi (Ann _ (SwitchStmt init e clauses)) = Fix (SwitchStmt init
+    phi (Ann _ (SwitchStmt ini e clauses)) = Fix (SwitchStmt ini
                                                     (bareExpr <$> e)
                         (map (\cl -> (bareCaseHead (fst cl), snd cl)) clauses))
     phi (Ann _ (ForStmt i e p d)) = Fix (ForStmt i (bareExpr <$> e) p d)
@@ -177,11 +180,13 @@ bareExpr = cata phi where
     phi (Ann _ (BinaryOp op e e')) = Fix (BinaryOp (bare op) e e')
     phi (Ann _ (UnaryOp op e)) = Fix (UnaryOp (bare op) e)
     phi (Ann _ (Conversion ty e)) = Fix (Conversion (bareType ty) e)
-    phi (Ann _ (Selector e id)) = Fix (Selector e (bare id))
+    phi (Ann _ (Selector e i)) = Fix (Selector e (bare i))
+    phi (Ann _ (Index e e')) = Fix (Index e e')
+    phi (Ann _ (Slice e0 e1 e2 e3)) = Fix (Slice e0 e1 e2 e3)
     phi (Ann _ (TypeAssertion e ty)) = Fix (TypeAssertion e (bareType ty))
     phi (Ann _ (Call e ty es)) = Fix (Call e (bareType <$> ty) es)
     phi (Ann _ (Literal lit)) = Fix (Literal (bare lit))
-    phi (Ann _ (Variable id)) = Fix (Variable (bare id))
+    phi (Ann _ (Variable i)) = Fix (Variable (bare i))
 
 -- | Removes source annotations from a type and all its inner types.
 bareType :: SrcAnnType -> BasicType
@@ -190,7 +195,7 @@ bareType = cata phi where
     phi (Ann _ (ArrayType i ty)) = Fix (ArrayType
                                             (Identity (getConst (bare i)))
                                             ty)
-    phi (Ann _ (NamedType id)) = Fix (NamedType (bare id))
+    phi (Ann _ (NamedType i)) = Fix (NamedType (bare i))
     phi (Ann _ (StructType fields)) = Fix (StructType (map
                                     (\f -> ((map bare (fst f)), snd f)) fields))
 
