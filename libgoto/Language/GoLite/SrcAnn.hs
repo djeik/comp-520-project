@@ -45,6 +45,8 @@ module Language.GoLite.SrcAnn
 , SrcAnnGoFloat
 , SrcAnnGoRune
 , SrcAnnGoString
+, bareType
+, bareStmt
 ) where
 
 import Language.GoLite.Annotation
@@ -114,6 +116,83 @@ withSrcAnnId = withSrcAnn Identity
 -- source position information.
 withSrcAnnConst :: Parser a -> Parser (SrcAnn (Const a) b)
 withSrcAnnConst = withSrcAnn Const
+
+-- | Removes source annotations from a package.
+barePackage :: SrcAnnPackage -> BasicPackage
+barePackage (Package i ds) = Package (bare i) (map bareTopLevelDecl ds)
+
+-- | Removes source annotations from a top-level declaration (regular
+-- type/variable or function).
+bareTopLevelDecl :: SrcAnnTopLevelDecl -> BasicTopLevelDecl
+bareTopLevelDecl (TopLevelDecl d) = TopLevelDecl (bareDecl d)
+bareTopLevelDecl (TopLevelFun f) = TopLevelFun (bareFunDecl f)
+
+-- | Removes source annotations from a function declaration.
+bareFunDecl :: SrcAnnFunDecl -> BasicFunDecl
+bareFunDecl (FunDecl fn pars rty bod) =
+    FunDecl
+        (bare fn)
+        (map (\p -> (map bare (fst p), bareType (snd p))) pars)
+        (bareType <$> rty)
+        (map bareStmt bod)
+
+-- | Removes source annotations from a type/variable declaration.
+bareDecl :: SrcAnnDeclaration -> BasicDeclaration
+bareDecl (TypeDecl (TypeDeclBody i ty)) =
+        TypeDecl (TypeDeclBody (bare i) (bareType ty))
+bareDecl (VarDecl (VarDeclBody is ty es)) =
+        VarDecl (VarDeclBody (map bare is) (bareType <$> ty) (map bareExpr es))
+
+-- | Removes source annotations from a statement and all its inner statements.
+bareStmt :: SrcAnnStatement -> BasicStatement
+bareStmt = cata phi where
+    phi (Ann _ (DeclStmt d)) = Fix (DeclStmt (bareDecl d))
+    phi (Ann _ (ExprStmt e)) = Fix (ExprStmt (bareExpr e))
+    phi (Ann _ (ShortVarDecl ids es)) = Fix (ShortVarDecl (map bare ids)
+                                                (map bareExpr es))
+    phi (Ann _ (Assignment es op es')) = Fix (Assignment (map bareExpr es)
+                                                (bare op)
+                                                (map bareExpr es'))
+    phi (Ann _ (PrintStmt es)) = Fix (PrintStmt (map bareExpr es))
+    phi (Ann _ (ReturnStmt e)) = Fix (ReturnStmt (bareExpr <$> e))
+    phi (Ann _ (IfStmt init e thens elses)) = Fix (IfStmt init (bareExpr e)
+                                                thens
+                                                elses)
+    phi (Ann _ (SwitchStmt init e clauses)) = Fix (SwitchStmt init
+                                                    (bareExpr <$> e)
+                        (map (\cl -> (bareCaseHead (fst cl), snd cl)) clauses))
+    phi (Ann _ (ForStmt i e p d)) = Fix (ForStmt i (bareExpr <$> e) p d)
+    phi (Ann _ BreakStmt) = Fix BreakStmt
+    phi (Ann _ ContinueStmt) = Fix ContinueStmt
+    phi (Ann _ FallthroughStmt) = Fix FallthroughStmt
+
+-- | Removes source annotations from a case head.
+bareCaseHead :: SrcAnnCaseHead -> BasicCaseHead
+bareCaseHead CaseDefault = CaseDefault
+bareCaseHead (CaseExpr es) = CaseExpr (map bareExpr es)
+
+-- | Removes source annotations from an expression and all its inner expressions.
+bareExpr :: SrcAnnExpr -> BasicExpr
+bareExpr = cata phi where
+    phi (Ann _ (BinaryOp op e e')) = Fix (BinaryOp (bare op) e e')
+    phi (Ann _ (UnaryOp op e)) = Fix (UnaryOp (bare op) e)
+    phi (Ann _ (Conversion ty e)) = Fix (Conversion (bareType ty) e)
+    phi (Ann _ (Selector e id)) = Fix (Selector e (bare id))
+    phi (Ann _ (TypeAssertion e ty)) = Fix (TypeAssertion e (bareType ty))
+    phi (Ann _ (Call e ty es)) = Fix (Call e (bareType <$> ty) es)
+    phi (Ann _ (Literal lit)) = Fix (Literal (bare lit))
+    phi (Ann _ (Variable id)) = Fix (Variable (bare id))
+
+-- | Removes source annotations from a type and all its inner types.
+bareType :: SrcAnnType -> BasicType
+bareType = cata phi where
+    phi (Ann _ (SliceType ty)) = Fix (SliceType ty)
+    phi (Ann _ (ArrayType i ty)) = Fix (ArrayType
+                                            (Identity (getConst (bare i)))
+                                            ty)
+    phi (Ann _ (NamedType id)) = Fix (NamedType (bare id))
+    phi (Ann _ (StructType fields)) = Fix (StructType (map
+                                    (\f -> ((map bare (fst f)), snd f)) fields))
 
 type SrcAnnPackage
     = Package SrcAnnIdent SrcAnnTopLevelDecl

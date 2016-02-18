@@ -16,7 +16,6 @@ Stability   : experimental
 module Language.GoLite.Syntax
 ( Package(..)
 , TopLevelDecl(..)
-, BasicTopLevelDecl
 , VarDecl(..)
 , TypeDecl(..)
 , FunDecl(..)
@@ -34,6 +33,15 @@ module Language.GoLite.Syntax
 , GoFloat
 , GoRune
 , GoString
+, BasicPackage
+, BasicTopLevelDecl
+, BasicDeclaration
+, BasicTypeDecl
+, BasicFunDecl
+, BasicExpr
+, BasicStatement
+, BasicCaseHead
+, BasicType
 ) where
 
 import Language.GoLite.Precedence
@@ -46,6 +54,9 @@ import Text.PrettyPrint
 data Package ident topLevelDecl
     = Package ident [topLevelDecl]
     deriving (Eq, Read, Show)
+
+type BasicPackage
+    = Package BasicIdent BasicTopLevelDecl
 
 data TopLevelDecl decl funDecl
     = TopLevelDecl decl
