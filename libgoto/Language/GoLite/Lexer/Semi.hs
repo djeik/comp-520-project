@@ -6,15 +6,18 @@ module Language.GoLite.Lexer.Semi
 , SemiError(..)
   -- ** Semi introduction
 , withDetectSemicolon
+, withDetectExplicitSemicolon
   -- ** Semi elimination
 , requireSemi
 , requireSemiP
-, noSemiP
 , noSemi
+, noSemiP
 , unSemi
 , unSemiP
+  -- ** Semi-based parsers
 , semicolon
 , semisym
+, explicitSemisym
 , semiList
 ) where
 
@@ -132,6 +135,18 @@ eventuallyEol = hidden $ void $ manyTill spaceChar (void eol <|> eof)
 detectSemicolon :: Parser Bool
 detectSemicolon = isJust <$> optional (semicolon <|> try eventuallyEol)
 
+-- | Runs a parser and performs an explicit semicolon detection, introducing a
+-- computation in the "Semi" monad. The difference with `withDetectSemicolon`
+-- is that this does not check for end-of-lines, so it is used in conjunction
+-- with tokens that do not trigger semicolon insertion (e.g. some keywords).
+withDetectExplicitSemicolon :: Parser a -> Parser (Semi a)
+withDetectExplicitSemicolon p = do
+    q <- p
+    t <- isJust <$> optional semicolon
+    pure $ do
+        put (Just t)
+        pure q
+
 -- | Runs a parser and performs a semicolon detection, introducing a
 -- computation in the "Semi" monad.
 withDetectSemicolon :: Parser a -> Parser (Semi a)
@@ -149,6 +164,10 @@ semicolon = symbol_ ";"
 -- | Parses a string and performs semicolon detection.
 semisym :: String -> Parser (Semi String)
 semisym = withDetectSemicolon . symbol
+
+-- | Parses a string and performs explicit semicolon detection.
+explicitSemisym :: String -> Parser (Semi String)
+explicitSemisym = withDetectExplicitSemicolon . symbol
 
 -- | Transforms a parser producing a list of Semi elements into a parser
 -- producing a Semi list of elements, with potentially different semicolon

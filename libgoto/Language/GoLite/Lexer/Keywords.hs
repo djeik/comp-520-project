@@ -43,48 +43,48 @@ kwFallthrough = semisym "fallthrough"
 
 -- | Parses the \"print\" keyword, checking for a semicolon.
 kwPrint :: Parser (Semi Keyword)
-kwPrint = semisym "print"
+kwPrint = explicitSemisym "print"
 
 -- | Parses the \"println\" keyword, checking for a semicolon.
 kwPrintLn :: Parser (Semi Keyword)
-kwPrintLn = semisym "println"
+kwPrintLn = explicitSemisym "println"
 
 -- | Parses the \"read\" keyword, checking for a semicolon.
 kwRead :: Parser (Semi Keyword)
-kwRead = semisym "read"
+kwRead = explicitSemisym "read"
 
 -- | Parses the \"var\" keyword, checking for a semicolon.
 kwVar :: Parser (Semi Keyword)
-kwVar = semisym "var"
+kwVar = explicitSemisym "var"
 
 -- | Parses the \"struct\" keyword, checking for a semicolon.
 kwStruct :: Parser (Semi Keyword)
-kwStruct = semisym "struct"
+kwStruct = explicitSemisym "struct"
 
 -- | Parses the \"type\" keyword, checking for a semicolon.
 kwType :: Parser (Semi Keyword)
-kwType = semisym "type"
+kwType = explicitSemisym "type"
 
 -- | Parses the \"if\" keyword, checking for a semicolon.
 kwIf :: Parser (Semi Keyword)
-kwIf = semisym "if"
+kwIf = explicitSemisym "if"
 
 -- | Parses the \"else\" keyword, checking for a semicolon.
 kwElse :: Parser (Semi Keyword)
-kwElse = semisym "else"
+kwElse = explicitSemisym "else"
 
 -- | Parses the \"for\" keyword, checking for a semicolon.
 kwFor :: Parser (Semi Keyword)
-kwFor = semisym "for"
+kwFor = explicitSemisym "for"
 
 -- | Parses the \"switch\" keyword, checking for a semicolon.
 kwSwitch :: Parser (Semi Keyword)
-kwSwitch = semisym "switch"
+kwSwitch = explicitSemisym "switch"
 
 -- | Parses the \"case\" keyword, checking for a semicolon.
 kwCase :: Parser (Semi Keyword)
-kwCase = semisym "case"
+kwCase = explicitSemisym "case"
 
 -- | Parses the \"default\" keyword, checking for a semicolon.
 kwDefault :: Parser (Semi Keyword)
-kwDefault = semisym "default"
+kwDefault = explicitSemisym "default"

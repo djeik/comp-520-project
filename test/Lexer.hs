@@ -300,24 +300,29 @@ testType = describe "type_" $ do
     it "parses struct types" $ do
         -- No fields
         parseOnly type' "struct {}" `shouldBe` Right (structType [])
+        -- This is fine, the struct keyword doesn't trigger semicolon insertion
+        parseOnly type' "struct\n{}" `shouldSatisfy` isRight
         -- One field, one type
         parseOnly type' "struct { foo int32; }" `shouldBe`
             Right (structType [(["foo"], namedType "int32")])
         -- Multiple fields, one type
-        parseOnly type' "struct { foo bar int32; }" `shouldBe`
+        parseOnly type' "struct { foo, bar int32; }" `shouldBe`
+            Right (structType [(["foo", "bar"], namedType "int32")])
+        -- Same, with some whitespace before the comma
+        parseOnly type' "struct { foo , bar int32; }" `shouldBe`
             Right (structType [(["foo", "bar"], namedType "int32")])
         -- One field, multiple types
         parseOnly type' "struct { foo int32; bar int64; }" `shouldBe`
             Right (structType [ (["foo"], namedType "int32"),
                                 (["bar"], namedType "int64")])
         -- Multiple fields, multiple types
-        parseOnly type' "struct { foo, bar int32; baz quux int64; }" `shouldBe`
+        parseOnly type' "struct { foo, bar int32; baz, quux int64; }" `shouldBe`
             Right (structType [ (["foo", "bar"], namedType "int32"),
                                 (["baz", "quux"], namedType "int64")])
         -- Fields with various inner types
         parseOnly type' "struct { foo []ty; bar [4]ki; }" `shouldBe`
-            Right (structType [ (["foo", "bar"], sliceType $ namedType "ty"),
-                        (["baz", "quux"], arrayType (idf 4) (namedType "ki"))])
+            Right (structType [ (["foo"], sliceType $ namedType "ty"),
+                        (["bar"], arrayType (idf 4) (namedType "ki"))])
         -- Nested structs
         parseOnly type' "struct { in struct { inn struct {}}}" `shouldBe`
             Right (structType [ (["in"],
@@ -329,10 +334,17 @@ testType = describe "type_" $ do
         parseOnly type' "struct { []int32 }" `shouldSatisfy` isLeft
         -- Missing type
         parseOnly type' "struct { foo }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo, bar }" `shouldSatisfy` isLeft
         -- Invalid type
         parseOnly type' "struct { foo [-1]int32 }" `shouldSatisfy` isLeft
         -- Identifier with semi
         parseOnly type' "struct { foo; int32 }" `shouldSatisfy` isLeft
+        -- Spurious comma
+        parseOnly type' "struct { foo, bar, []int32 }" `shouldSatisfy` isLeft
+        -- Missing comma
+        parseOnly type' "struct { foo bar []int32 }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo bar, []int32 }" `shouldSatisfy` isLeft
+
     it "does not parse invalid structs" $ do
         -- Missing struct
         parseOnly type' "{ foo }" `shouldSatisfy` isLeft
@@ -341,5 +353,3 @@ testType = describe "type_" $ do
         parseOnly type' "struct }" `shouldSatisfy` isLeft
         -- Spurious semi
         parseOnly type' "struct; {}" `shouldSatisfy` isLeft
-        -- This is fine, the struct keyword doesn't trigger semicolon insertion
-        parseOnly type' "struct\n{}" `shouldSatisfy` isRight

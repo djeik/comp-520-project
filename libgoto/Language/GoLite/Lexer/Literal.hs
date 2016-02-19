@@ -188,7 +188,8 @@ type_
         arrayType :: Parser (Semi SrcAnnType)
         arrayType = label "array type" $ withPushSrcAnnFix $ do
             symbol_ "["
-            i <- withSrcAnnConst $ lexeme integerLiteral
+            i <- withSrcAnnConst $
+                lexeme (withDetectSemicolon integerLiteral) >>= noSemiP
             closeBracket >>= noSemiP
             s <- type_
             pure $ fmap (ArrayType i) s
@@ -211,12 +212,11 @@ structType = label "struct type" $ withPushSrcAnnFix $ do
 -- followed by a type.
 field :: Parser (Semi ([SrcAnnIdent], SrcAnnType))
 field = do
-    ids <- (lexeme identifier) `sepBy1` comma
+    ids <- (lexeme identifier >>= noSemiP) `sepBy1` comma
     typ <- type_
     pure $ do
-        ids' <- sequenceA ids
         typ' <- typ
-        pure $ (ids' , typ')
+        pure $ (ids , typ')
 
 
 -- | Requires a parse of a given character around a provided arbitrary parser.
