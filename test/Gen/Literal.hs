@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 module Gen.Literal
 ( hexGenLower
 , hexGenMixedCase
@@ -8,10 +11,13 @@ module Gen.Literal
 , rawStringGen
 , interpStringGen
 , identGen
+, typeGen
 ) where
 
 import Gen.Core
 import Data.Char ( chr )
+import Language.GoLite.Syntax
+import Test.QuickCheck.Gen ( Gen(MkGen) )
 
 -- | Generates hexadecimal literals with lower-case digits
 hexGenLower :: Gen String
@@ -52,7 +58,7 @@ runeGen = (surroundWith "'") <$> oneof [escape, normal] where
     escape = (\c -> "\\" ++ [c]) <$> elements "abfnrtv\\"
     normal = suchThat
                 (((:[]) . chr) <$> choose (1, 126)) --Singleton string in 1..126
-                (\c -> c /= "\n" && c /= "'") -- Must not be \n or '
+                (\c -> c /= "\n" && c /= "'" && c /= "\\")
 
 -- | Generates raw string literals.
 rawStringGen :: Gen String
@@ -76,3 +82,35 @@ identGen :: Gen String
 identGen = (:) <$> start <*> rest where
     start = elements $ '_' : ['a'..'z'] ++ ['A'..'Z']
     rest = sized . flip replicateM . oneof $ [start, elements ['0'..'9']]
+
+-- | Generates types, which may contain other generated types.
+typeGen :: Gen BasicType
+typeGen = sized typeGen' where
+    typeGen' 0 = Fix <$> oneof [
+                        liftM NamedType arbitrary,
+                        -- "Constant generator" that always creates empty lists
+                        liftM StructType (MkGen $ \_ _ -> []) ]
+
+    -- The types become impossibly long if we don't reduce size exponentially.
+    typeGen' n = let n' = n `div` 2 in
+                    Fix <$> oneof [
+                        liftM NamedType arbitrary,
+                        liftM SliceType (typeGen' $ n'),
+                        liftM2 ArrayType arbitrary (typeGen' n'),
+                        liftM StructType (vectorOf n' (fieldGen n'))]
+
+-- | Generates structure fields of a given size
+fieldGen :: Int -> Gen ([BasicIdent], BasicType)
+fieldGen x = liftM2 (,) (fieldGen' x) (resize 2 arbitrary) where
+    fieldGen' 0 = (:[]) <$> (resize 3 arbitrary)
+    fieldGen' n = (vectorOf n (resize 3 arbitrary))
+
+instance Arbitrary BasicIdent where
+   arbitrary = Ident <$> identGen
+
+instance Arbitrary (Identity GoInt) where
+    -- We don't have negative literals, only unary-minus expressions
+    arbitrary = Identity <$> abs <$> arbitrarySizedIntegral
+
+instance Arbitrary BasicType where
+    arbitrary = typeGen

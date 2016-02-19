@@ -11,6 +11,8 @@ import Language.GoLite hiding (structType) -- conflicts with sugar structType
 import Language.GoLite.Syntax.Sugar
 import Language.GoLite.Annotation ( bare )
 import Language.GoLite.SrcAnn ( bareType )
+import Text.PrettyPrint ( render )
+import Language.GoLite.Pretty
 import Core
 
 lexer :: SpecWith ()
@@ -152,8 +154,9 @@ testRuneLiteral = describe "runeLiteral" $ do
     it "cannot parse an empty pair of single quotes" $ do
         parseOnly runeLiteral "''" `shouldSatisfy` isLeft
 
-    it "cannot parse a rune containing a newline, `\\\"`, or `'`" $ do
+    it "cannot parse a rune containing a newline, `\\\"`, `\\` or `'`" $ do
         parseOnly runeLiteral "'\\\"'" `shouldSatisfy` isLeft
+        parseOnly runeLiteral "'\\'" `shouldSatisfy` isLeft
         parseOnly runeLiteral "'\n'" `shouldSatisfy` isLeft
         parseOnly runeLiteral "'''" `shouldSatisfy` isLeft
 
@@ -373,3 +376,7 @@ testType = describe "type_" $ do
         parseOnly type' "struct; {}" `shouldSatisfy` isLeft
         -- Missing body
         parseOnly type' "struct" `shouldSatisfy` isLeft
+
+    prop "parses any kind of valid type" $ do
+        forAll typeGen $
+            \t -> parseOnly type' (render $ pretty t) `shouldBe` Right t
