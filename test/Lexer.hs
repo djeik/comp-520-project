@@ -11,7 +11,7 @@ import Language.GoLite hiding (structType) -- conflicts with sugar structType
 import Language.GoLite.Syntax.Sugar
 import Language.GoLite.Annotation ( bare )
 import Language.GoLite.SrcAnn ( bareType )
-import TestUtil
+import Core
 
 lexer :: SpecWith ()
 lexer = describe "Lexer" $ do
@@ -43,6 +43,9 @@ testOctalLiteral :: SpecWith ()
 testOctalLiteral = describe "octalLiteral" $ do
     it "parses an octal integer literal" $ do
         parseOnly octalLiteral "054321" `shouldBe` Right 0o54321
+
+    prop "parses arbitrary octal literals" $ do
+        forAll octalGen $ \s -> isRight $ parseOnly octalLiteral s
 
     prop "parses an arbitrary number of zeroes" $ do
         forAll (choose (1, 100)) $ \n ->
@@ -78,15 +81,14 @@ testHexLiteral = describe "hexLiteral" $ do
         parseOnly hexLiteral "0X 12" `shouldSatisfy` isLeft
 
     prop "cannot parse numbers without the hex prefix" $ do
-        forAll (resize 8 intGen) $ \s ->
+        forAll (resize 8 decimalGen) $ \s ->
             isLeft $ parseOnly hexLiteral s
 
 testIntLiteral :: SpecWith ()
 testIntLiteral = describe "integerLiteral" $ do
     it "parses all kinds of integer literals (decimal, octal, hex)" $ do
-        parseOnly decimalLiteral "123" `shouldBe` Right 123
-        parseOnly octalLiteral "012" `shouldBe` Right 0o12
-        parseOnly hexLiteral "0x8F" `shouldBe` Right  0x8F
+        forAll (resize 8 (oneof [decimalGen, octalGen, hexGenLower])) $ \ s ->
+                isRight $ parseOnly integerLiteral s
 
 testFloatLiteral :: SpecWith ()
 testFloatLiteral = describe "floatLiteral" $ do
@@ -100,15 +102,15 @@ testFloatLiteral = describe "floatLiteral" $ do
             parseOnly floatLiteral s == Right (read s :: Double)
 
     prop "parses float literals with only an integral part" $ do
-        forAll (resize 8 intGen) $ \s ->
+        forAll (resize 8 decimalGen) $ \s ->
             parseOnly floatLiteral (s ++ ".") == Right (read s :: Double)
 
     prop "parses float literals with only a decimal part" $ do
-        forAll (resize 8 intGen) $ \s ->
+        forAll (resize 8 decimalGen) $ \s ->
             parseOnly floatLiteral ('.':s) == Right (read ("0."++s)::Double)
 
     prop "cannot parse numbers without a decimal point" $ do
-        forAll (resize 8 intGen) $ \s ->
+        forAll (resize 8 decimalGen) $ \s ->
             isLeft $ parseOnly floatLiteral s
 
     it "cannot parse the string `.`" $ do
@@ -139,9 +141,13 @@ testEscapeCode = describe "escapeCode" $ do
 
 testRuneLiteral :: SpecWith ()
 testRuneLiteral = describe "runeLiteral" $ do
-    it "parses a single character or escape code in single quotes" $ do
+
+    it "has the proper parse result" $ do
         parseOnly runeLiteral "'a'" `shouldBe` Right 'a'
         parseOnly runeLiteral "'\\a'" `shouldBe` Right '\a'
+
+    prop "parses arbitrary valid rune literals" $ do
+        forAll runeGen $ \s -> isRight (parseOnly runeLiteral s)
 
     it "cannot parse an empty pair of single quotes" $ do
         parseOnly runeLiteral "''" `shouldSatisfy` isLeft
@@ -162,6 +168,9 @@ testRawString = describe "rawString" $ do
         parseOnly rawStringLiteral "`abcd`" `shouldBe` Right "abcd"
         parseOnly rawStringLiteral "``" `shouldBe` Right ""
 
+    prop "parses arbitrary valid raw string literals" $ do
+        forAll rawStringGen $ \s -> isRight (parseOnly rawStringLiteral s)
+
     it "does not perform escape code interpretation" $ do
         parseOnly rawStringLiteral "`a\\tb`" `shouldBe` Right "a\\tb"
 
@@ -179,6 +188,9 @@ testInterpretedString = describe "interpretedString" $ do
     it "parses a string of characters in double-quotes" $ do
         parseOnly interpStringLiteral "\"abc\"" `shouldBe` Right "abc"
         parseOnly interpStringLiteral "\"\"" `shouldBe` Right ""
+
+    prop "parses arbitrary valid interpreted string literals" $ do
+        forAll interpStringGen $ \s -> isRight (parseOnly interpStringLiteral s)
 
     it "performs escape code interpretation" $ do
         parseOnly interpStringLiteral "\"\\t\"" `shouldBe` Right "\t"
@@ -200,6 +212,9 @@ testIdentifier = describe "identifier" $ do
         parseOnly (identifier') "a_b" `shouldBe` Right "a_b"
         parseOnly (identifier') "_ab" `shouldBe` Right "_ab"
         parseOnly (identifier') "___" `shouldBe` Right "___"
+
+    prop "parses arbitrary identifiers" $ do
+        forAll identGen $ \s -> isRight (parseOnly identifier' s)
 
     it "does not parse a string starting with a number" $ do
         parseOnly (identifier') "0_or_1" `shouldSatisfy` isLeft
@@ -311,6 +326,8 @@ testType = describe "type_" $ do
         -- Same, with some whitespace before the comma
         parseOnly type' "struct { foo , bar int32; }" `shouldBe`
             Right (structType [(["foo", "bar"], namedType "int32")])
+        parseOnly type' "struct { foo,\nbar int32; }" `shouldBe`
+            Right (structType [(["foo", "bar"], namedType "int32")])
         -- One field, multiple types
         parseOnly type' "struct { foo int32; bar int64; }" `shouldBe`
             Right (structType [ (["foo"], namedType "int32"),
@@ -339,6 +356,7 @@ testType = describe "type_" $ do
         parseOnly type' "struct { foo [-1]int32 }" `shouldSatisfy` isLeft
         -- Identifier with semi
         parseOnly type' "struct { foo; int32 }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo\n int32 }" `shouldSatisfy` isLeft
         -- Spurious comma
         parseOnly type' "struct { foo, bar, []int32 }" `shouldSatisfy` isLeft
         -- Missing comma
@@ -347,7 +365,7 @@ testType = describe "type_" $ do
 
     it "does not parse invalid structs" $ do
         -- Missing struct
-        parseOnly type' "{ foo }" `shouldSatisfy` isLeft
+        parseOnly type' "{ foo []int32 }" `shouldSatisfy` isLeft
         -- Missing braces
         parseOnly type' "struct {" `shouldSatisfy` isLeft
         parseOnly type' "struct }" `shouldSatisfy` isLeft

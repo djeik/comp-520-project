@@ -201,7 +201,6 @@ breakStmt = do
     (Ann a _) <- withSrcAnnConst $ kwBreak >>= requireSemiP
     pure $ Fix $ Ann a $ BreakStmt
 
--- | Parses a continue statement, which consists of the \"continue\" keyword.
 -- | Parses a fallthrough statement, which consists of the \"fallthrough\"
 -- keyword.
 fallthroughStmt :: Parser SrcAnnStatement
@@ -209,6 +208,7 @@ fallthroughStmt = do
     (Ann a _) <- withSrcAnnConst $ kwContinue >>= requireSemiP
     pure $ Fix $ Ann a $ FallthroughStmt
 
+-- | Parses a continue statement, which consists of the \"continue\" keyword.
 continueStmt :: Parser SrcAnnStatement
 continueStmt = do
     (Ann a _) <- withSrcAnnConst $ kwContinue >>= requireSemiP

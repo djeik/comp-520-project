@@ -5,7 +5,7 @@ module Parser where
 import Language.GoLite
 import Language.GoLite.SrcAnn
 import Language.GoLite.Syntax.Sugar
-import TestUtil
+import Core
 
 parser :: SpecWith()
 parser = describe "Parser" $ do

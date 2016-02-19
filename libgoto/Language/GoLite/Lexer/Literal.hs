@@ -136,7 +136,9 @@ runeLiteral
 rawStringLiteral :: Parser String
 rawStringLiteral
     = label "raw string literal"
-    $ surroundingWith '`' (many $ optional (char '\r') >> noneOf "`")
+    $ do
+        s <- surroundingWith '`' (many $ noneOf "`")
+        pure $ filter (\c -> c /= '\r') s
 
 -- | Parses an interpreted string literal
 --
@@ -166,13 +168,11 @@ identifier = p <?> "identifier" where
         cs <- many $ char '_' <|> alphaNumChar
         pure $ fromString (c:cs)
 
--- SrcAnnType
--- = SrcAnnFix SrcAnnTypeF
--- = Fix (Ann SrcSpan SrcAnnTypeF)
---
--- Parser (Semi (f (Fix f))) -> Parser (Semi (Fix f))
-
 -- | Parses a type.
+-- A type can be either a slice type (empty brackets followed by a type), an
+-- array type (brackets with an integer literal followed by a type), a named
+-- type (an identifier) or a struct type (struct keyword, followed by a
+-- semi-separated list of fields enclosed in braces)
 type_ :: Parser (Semi SrcAnnType)
 type_
     = label "type"
