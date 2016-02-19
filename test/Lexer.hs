@@ -353,3 +353,5 @@ testType = describe "type_" $ do
         parseOnly type' "struct }" `shouldSatisfy` isLeft
         -- Spurious semi
         parseOnly type' "struct; {}" `shouldSatisfy` isLeft
+        -- Missing body
+        parseOnly type' "struct" `shouldSatisfy` isLeft
