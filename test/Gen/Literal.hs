@@ -110,7 +110,7 @@ instance Arbitrary BasicIdent where
 
 instance Arbitrary (Identity GoInt) where
     -- We don't have negative literals, only unary-minus expressions
-    arbitrary = Identity <$> abs <$> arbitrarySizedIntegral
+    arbitrary = Identity <$> arbitrarySizedNatural
 
 instance Arbitrary BasicType where
     arbitrary = typeGen

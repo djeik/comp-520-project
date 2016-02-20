@@ -207,8 +207,10 @@ structType = label "struct type" $ withPushSrcAnnFix $ do
     kwStruct >>= noSemiP
     symbol_ "{"
     fields <- semiList (many field) requireSemi (pure ())
-    closeBrace
-    pure $ fmap StructType fields
+    b <- closeBrace
+    pure $ do
+        _ <- b -- Force semi detection at closing brace
+        fmap StructType fields
 
 -- | Parses a field of a struct, which is a non-empty list of identifiers
 -- followed by a type.

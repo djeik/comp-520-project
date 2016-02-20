@@ -4,7 +4,7 @@ module Language.GoLite.Parser
   package,
   -- * Declarations
   topLevelDecl,
-  funDecl
+  funDecl,
   module Language.GoLite.Parser.Decl,
   module Language.GoLite.Parser.Stmt
 ) where
