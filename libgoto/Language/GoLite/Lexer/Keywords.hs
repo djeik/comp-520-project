@@ -17,6 +17,8 @@ module Language.GoLite.Lexer.Keywords
 , kwSwitch
 , kwCase
 , kwDefault
+, kwPackage
+, kwFunc
 ) where
 
 import Language.GoLite.Lexer.Core
@@ -88,3 +90,11 @@ kwCase = explicitSemisym "case"
 -- | Parses the \"default\" keyword, checking for a semicolon.
 kwDefault :: Parser (Semi Keyword)
 kwDefault = explicitSemisym "default"
+
+-- | Parses the \"package\" keyword, checking for a semicolon.
+kwPackage :: Parser (Semi Keyword)
+kwPackage = explicitSemisym "package"
+
+-- | Parses the \"func\" keyword, checking for a semicolon.
+kwFunc :: Parser (Semi Keyword)
+kwFunc = explicitSemisym "func"

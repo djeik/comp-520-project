@@ -4,7 +4,6 @@ module Language.GoLite.Parser.Decl (
 ) where
 
 import Language.GoLite.Parser.Core
-import Language.GoLite.SrcAnn
 
 -- | Parses a type declaration. It consists of the \"type\" keyword, followed
 -- by either one type specification, or multiple type specifications enclosed in

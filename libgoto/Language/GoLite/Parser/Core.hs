@@ -4,11 +4,13 @@ module Language.GoLite.Parser.Core (
 , module Language.GoLite.Lexer
 , module Language.GoLite.Syntax.Types
 , module Language.GoLite.Parser.Expression
+, module Language.GoLite.SrcAnn
 ) where
 
 import Language.GoLite.Lexer
 import Language.GoLite.Syntax.Types
 import Language.GoLite.Parser.Expression
+import Language.GoLite.SrcAnn
 
 -- | Parses a specification list. The list is enclosed in parentheses. The
 -- elements of the lists themselves must end with a semicolon, except the last

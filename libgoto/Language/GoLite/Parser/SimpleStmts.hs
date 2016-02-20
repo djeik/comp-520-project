@@ -3,7 +3,6 @@ module Language.GoLite.Parser.SimpleStmts (
 ) where
 
 import Language.GoLite.Parser.Core
-import Language.GoLite.SrcAnn
 
 -- | Parses a simple statement. In some contexts (such as the initializer for
 -- \"if\" and \"switch\" statements), only simple statements are allowed.

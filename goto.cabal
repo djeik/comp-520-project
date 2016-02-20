@@ -60,6 +60,7 @@ library
     Language.GoLite.Parser.Core
     Language.GoLite.Parser.SimpleStmts
     Language.GoLite.Parser.Decl
+    Language.GoLite.Parser.Stmt
 
 test-suite spec
   type:                exitcode-stdio-1.0

@@ -1,9 +1,6 @@
 module Language.GoLite.Lexer.Literal
 ( -- * Literal lexers
   literal
-, identifier
-, type_
-, structType -- Exported separately because some situations only allow this type
 , decimalLiteral
 , octalLiteral
 , hexLiteral
@@ -13,10 +10,15 @@ module Language.GoLite.Lexer.Literal
 , rawStringLiteral
 , interpStringLiteral
 , stringLiteral
-  -- ** Escape code handling
+  -- * Escape code handling
 , commonEscapes
 , escapedChars
 , escapeCode
+  -- * Types
+, identifier
+, type_
+, structType -- Exported separately because some situations only allow this type
+, field -- Exported for reuse in function signatures.
 ) where
 
 import Language.GoLite.Lexer.Core
