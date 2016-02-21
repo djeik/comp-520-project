@@ -15,8 +15,11 @@ module Gen.Literal
 ) where
 
 import Gen.Core
+import Language.GoLite.Lexer.Literal ( commonEscapes, escapedChars )
+import qualified Data.Map.Strict as Map -- To used `escapedChars`
+
+
 import Data.Char ( chr )
-import Language.GoLite.Syntax
 import Test.QuickCheck.Gen ( Gen(MkGen) )
 
 -- | Generates hexadecimal literals with lower-case digits
@@ -71,7 +74,7 @@ interpStringGen :: Gen String
 interpStringGen
     =   (surroundWith "\"") . concat
     <$> listOf (frequency [(1, escape), (49, normal)]) where
-            escape = (\c -> "\\" ++ [c]) <$> elements "abfnrtv\\"
+            escape = (\c -> "\\" ++ [c]) <$> elements commonEscapes
             normal = suchThat
                 (((:[]) . chr) <$> choose (33, 126))
                 (\c -> c /= "\n" && c /= "\"" && c /= "\\")
@@ -114,3 +117,16 @@ instance Arbitrary (Identity GoInt) where
 
 instance Arbitrary BasicType where
     arbitrary = typeGen
+
+instance Arbitrary BasicLiteral where
+    -- Use default arbitraries for ints and floats, but our own for strings and
+    -- runes to ensure we generate valid escape codes.
+    arbitrary = oneof [ liftM IntLit arbitrary,
+                        liftM FloatLit arbitrary,
+                        liftM StringLit (unsurround interpStringGen),
+                        liftM RuneLit (fmap runeToChar runeGen)]
+        where
+            unsurround = fmap (reverse . tail . reverse . tail)
+            runeToChar s = let c = s !! 1 in case c of
+                '\\' -> escapedChars Map.! (s !! 2)
+                _ -> c

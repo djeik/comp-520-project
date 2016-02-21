@@ -7,6 +7,7 @@ module Core
 , module Test.Hspec.QuickCheck
 , module Test.QuickCheck
 , module Gen.Literal
+, module Gen.Expr
 ) where
 
 import Control.Monad
@@ -18,6 +19,7 @@ import Text.Megaparsec
 import Text.Megaparsec.String
 
 import Gen.Literal
+import Gen.Expr
 
 -- | Checks whether an instance of `Either` is `Right` or not
 isRight :: Either a b -> Bool

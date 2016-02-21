@@ -384,7 +384,7 @@ instance Pretty (Literal a) where
         IntLit x -> pretty x
         FloatLit x -> pretty x
         StringLit x -> text $ show x
-        RuneLit x -> pretty x
+        RuneLit x -> text $ show x
 
 instance Pretty (Ident a) where
     pretty (Ident s) = text s
