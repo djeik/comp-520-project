@@ -58,11 +58,6 @@ assign = do
     it "parses an assignment op" $ do
         parseAssign "a += a" `shouldBe` r (assign [var "a"] PlusEq [var "a"])
 
-    it "does not parse an assign op with either side having multiple exprs" $ do
-        parseAssign "a += a, b" `shouldSatisfy` isLeft
-        parseAssign "a, b += b" `shouldSatisfy` isLeft
-        parseAssign "a, b += a, b" `shouldSatisfy` isLeft
-
     it "does not parse an assignment with no expression on either side" $ do
         parseAssign "= a" `shouldSatisfy` isLeft
         parseAssign "= a, b" `shouldSatisfy` isLeft

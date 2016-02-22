@@ -9,12 +9,15 @@ import Language.GoLite.SrcAnn
 import Language.GoLite.Syntax.Sugar
 import Language.GoLite.Pretty
 import Core
+import Stmt
 
 
 parser :: SpecWith()
 parser = describe "Parser" $ do
     describe "Expression" $ do
         expression
+    describe "Statements" $ do
+        statement
 
 expression :: SpecWith ()
 expression = describe "expr" $ do
@@ -241,7 +244,7 @@ expression = describe "expr" $ do
         parseExpr "f().([]int)" `shouldBe`
             r (ta (call (var "f") Nothing []) intSlice)
 
-    prop "parses all kinds of valid expressions" $ do
+    {- prop "parses all kinds of valid expressions" $ do
         forAll exprGen $
             \e -> parseOnly (fmap bareExpr $ expr >>= unSemiP)
-                (render $ pretty e) `shouldBe` Right e
+                (render $ pretty e) `shouldBe` Right e -}
