@@ -8,10 +8,10 @@ module Language.GoLite.Parser.Stmt
 , returnStmt
 , ifStmt
 , switchStmt
-, fallthroughStmt
+, fallthroughStmtP
 , forStmt
-, breakStmt
-, continueStmt
+, breakStmtP
+, continueStmtP
 ) where
 
 import Language.GoLite.Parser.Core
@@ -26,10 +26,10 @@ stmt =  varDeclP
         , returnStmt
         , ifStmt
         , switchStmt
-        , fallthroughStmt
+        , fallthroughStmtP
         , forStmt
-        , breakStmt
-        , continueStmt
+        , breakStmtP
+        , continueStmtP
         , (simpleStmt >>= requireSemiP) ])
 
 printStmt :: Parser SrcAnnStatement
@@ -191,20 +191,20 @@ block = do
         pure $ concat stmts
 
 -- | Parses a break statement, which consists of the \"break\" keyword.
-breakStmt :: Parser SrcAnnStatement
-breakStmt = do
+breakStmtP :: Parser SrcAnnStatement
+breakStmtP = do
     (Ann a _) <- withSrcAnnConst $ kwBreak >>= requireSemiP
     pure $ Fix $ Ann a $ BreakStmt
 
 -- | Parses a fallthrough statement, which consists of the \"fallthrough\"
 -- keyword.
-fallthroughStmt :: Parser SrcAnnStatement
-fallthroughStmt = do
-    (Ann a _) <- withSrcAnnConst $ kwContinue >>= requireSemiP
+fallthroughStmtP :: Parser SrcAnnStatement
+fallthroughStmtP = do
+    (Ann a _) <- withSrcAnnConst $ kwFallthrough >>= requireSemiP
     pure $ Fix $ Ann a $ FallthroughStmt
 
 -- | Parses a continue statement, which consists of the \"continue\" keyword.
-continueStmt :: Parser SrcAnnStatement
-continueStmt = do
+continueStmtP :: Parser SrcAnnStatement
+continueStmtP = do
     (Ann a _) <- withSrcAnnConst $ kwContinue >>= requireSemiP
     pure $ Fix $ Ann a $ ContinueStmt

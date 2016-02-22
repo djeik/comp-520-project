@@ -18,6 +18,7 @@ statement = describe "stmt" $ do
                 describe "simpleStmt" simpleStatement
                 describe "varDecl" variableDeclaration
                 describe "typeDecl" typeDeclaration
+                describe "break/continue/fallthrough" simpleKeywordStmts
 
 r = Right
 int = Fix. Literal . IntLit
@@ -278,7 +279,7 @@ typeDeclaration = do
         parseTyDecl "type (a []int b []int;)" `shouldSatisfy` isLeft
         parseTyDecl "type (a []int; b []int)" `shouldSatisfy` isLeft
 
-    it "does not parse when any component (keyword, id, type) is missing"  $ do
+    it "does not parse when any component (keyword, id, type) is missing" $ do
         parseTyDecl "a []int" `shouldSatisfy` isLeft
         parseTyDecl "(a []int;)" `shouldSatisfy` isLeft
         parseTyDecl "type []int" `shouldSatisfy` isLeft
@@ -286,3 +287,15 @@ typeDeclaration = do
         parseTyDecl "type a;" `shouldSatisfy` isLeft
         parseTyDecl "type (a;)" `shouldSatisfy` isLeft
 
+simpleKeywordStmts :: SpecWith()
+simpleKeywordStmts = do
+    let parseStmt = parseOnly (fmap (map bareStmt) stmt)
+    it "parses the keywords `break`, `continue` and `fallthrough`" $ do
+        parseStmt "break" `shouldBe` r [breakStmt]
+        parseStmt "continue" `shouldBe` r [continueStmt]
+        parseStmt "fallthrough" `shouldBe` r [fallthroughStmt]
+
+    it "does not parses if the keywords are missing a semi" $ do
+        parseStmt "break {}" `shouldSatisfy` isLeft
+        parseStmt "continue {}" `shouldSatisfy` isLeft
+        parseStmt "fallthrough {}" `shouldSatisfy` isLeft
