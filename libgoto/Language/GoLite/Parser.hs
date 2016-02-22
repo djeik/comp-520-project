@@ -29,8 +29,8 @@ package = do
 topLevelDecl :: Parser [SrcAnnTopLevelDecl]
 topLevelDecl = typ <|> var <|> fun
     where
-        typ = fmap (map fromDeclStmt) typeDecl
-        var = fmap (map fromDeclStmt) varDecl
+        typ = fmap (map fromDeclStmt) typeDeclP
+        var = fmap (map fromDeclStmt) varDeclP
         fun = fmap (:[]) (fmap TopLevelFun funDecl)
 
 -- | Converts a declaration statement into a top-level declaration. This is

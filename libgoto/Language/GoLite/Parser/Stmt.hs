@@ -19,8 +19,8 @@ import Language.GoLite.Parser.SimpleStmts
 import Language.GoLite.Parser.Decl
 
 stmt :: Parser [SrcAnnStatement]
-stmt =  varDecl
-    <|> typeDecl
+stmt =  varDeclP
+    <|> typeDeclP
     <|> choice (map (fmap pure)
         [ printStmt
         , returnStmt

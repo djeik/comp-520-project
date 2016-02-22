@@ -13,8 +13,10 @@ import Core
 
 statement :: SpecWith ()
 statement = describe "stmt" $ do
-                describe "assignStmt" $ assign
-                describe "shortVarDecl" $ shortVariableDeclaration
+                describe "assignStmt" assign
+                describe "shortVarDecl" shortVariableDeclaration
+                describe "simpleStmt" simpleStatement
+                describe "varDecl" variableDeclaration
 
 r = Right
 int = Fix. Literal . IntLit
@@ -126,3 +128,108 @@ shortVariableDeclaration = do
     it "does not parse when the last expression doesn't have a semi" $ do
         parseShortVarDecl "x := 1 {}" `shouldSatisfy` isLeft
         parseShortVarDecl "x, y := 1, 2 {}" `shouldSatisfy` isLeft
+
+simpleStatement :: SpecWith ()
+simpleStatement = do
+    let parseSimpleStmt = parseOnly (fmap bareStmt $ simpleStmt >>= unSemiP)
+
+    it "parses any kind of simple statement" $ do
+        parseSimpleStmt "x := 2" `shouldSatisfy` isRight
+        parseSimpleStmt "f()" `shouldSatisfy` isRight
+        parseSimpleStmt " x = 2" `shouldSatisfy` isRight
+        parseSimpleStmt " x += 2" `shouldSatisfy` isRight
+
+variableDeclaration :: SpecWith()
+variableDeclaration = do
+    let parseVarDecl = parseOnly (fmap (map bareStmt) varDeclP)
+    let justInt = Just $ Fix $ NamedType "int"
+    let varDeclStmt i t e = Fix $ DeclStmt $ VarDecl $ VarDeclBody i t e
+
+    it "parses the three forms of declaration with one variable" $ do
+        parseVarDecl "var x int = 2" `shouldBe`
+            (r [varDeclStmt ["x"] justInt [int 2]])
+
+        parseVarDecl "var x = 2" `shouldBe`
+            (r [varDeclStmt ["x"] Nothing [int 2]])
+
+        parseVarDecl "var x int" `shouldBe`
+            (r [varDeclStmt ["x"] justInt []])
+
+    it "parses the three forms of declaration with multiple variables" $ do
+        parseVarDecl "var x, y int = 2, 3" `shouldBe`
+            r [varDeclStmt ["x", "y"] justInt [int 2, int 3]]
+
+        parseVarDecl "var x, y = 2, 3" `shouldBe`
+            r [varDeclStmt ["x", "y"] Nothing [int 2, int 3]]
+
+        parseVarDecl "var x, y int" `shouldBe`
+            r [varDeclStmt ["x", "y"] justInt []]
+
+    it "parses distributed versions of the three forms of declaration" $ do
+        parseVarDecl "var ( x = 2; y int = 2; z int; )" `shouldBe`
+            r [ varDeclStmt ["x"] Nothing [int 2],
+                varDeclStmt ["y"] justInt [int 2],
+                varDeclStmt ["z"] justInt []]
+
+        parseVarDecl "var (x, y = 2, 3; z, w int = 4, 5; u, v int;)" `shouldBe`
+            r [ varDeclStmt ["x", "y"] Nothing [int 2, int 3],
+                varDeclStmt ["z", "w"] justInt [int 4, int 5],
+                varDeclStmt ["u", "v"] justInt []]
+
+    it "parses distributed statments with one spec as normal declarations" $ do
+        parseVarDecl "var (x int;)" `shouldBe` parseVarDecl "var x int"
+        parseVarDecl "var (x int = 2;)" `shouldBe` parseVarDecl "var x int = 2"
+        parseVarDecl "var (x = 2;)" `shouldBe` parseVarDecl "var x = 2"
+
+    it "parses empty distributed declarations" $ do
+        parseVarDecl "var ()" `shouldBe` r []
+
+    it "does not parse if a spec is missing a semicolon" $ do
+        parseVarDecl "var (x = 2 y = 3;)" `shouldSatisfy` isLeft
+        parseVarDecl "var (x int y = 3;)" `shouldSatisfy` isLeft
+        parseVarDecl "var (x int = 2 y = 3;)" `shouldSatisfy` isLeft
+        parseVarDecl "var (x, y = 2, 3 z = 3;)" `shouldSatisfy` isLeft
+        parseVarDecl "var (x, y int y = 3;)" `shouldSatisfy` isLeft
+        parseVarDecl "var (x, y int = 2, 3 y = 3;)" `shouldSatisfy` isLeft
+
+    it "does not parse if there is no semicolon at the end" $ do
+        parseVarDecl "var x = 2 {}" `shouldSatisfy` isLeft
+        parseVarDecl "var x int {}" `shouldSatisfy` isLeft
+        parseVarDecl "var x, y = 2, 3 {}" `shouldSatisfy` isLeft
+        parseVarDecl "var (x = 2;) {}" `shouldSatisfy` isLeft
+
+    it "does not parse if there is an explicit semi on the var keyword" $ do
+        parseVarDecl "var; x = 2" `shouldSatisfy` isLeft
+        parseVarDecl "var\n x = 2" `shouldSatisfy` isRight
+
+    it "does not parse if one of the indentifiers has a semi" $ do
+        parseVarDecl "var x; = 2" `shouldSatisfy` isLeft
+        parseVarDecl "var x\n = 2" `shouldSatisfy` isLeft
+        parseVarDecl "var x, y;, z = 2, 3, 4" `shouldSatisfy` isLeft
+        parseVarDecl "var x, y\n, z = 2, 3, 4" `shouldSatisfy` isLeft
+
+    it "does not parse if the type has a semi but there are no expressions" $ do
+        parseVarDecl "var x int; = 2" `shouldSatisfy` isLeft
+        parseVarDecl "var x int\n = 2" `shouldSatisfy` isLeft
+
+    it "does not parse if any expression but the last has a semi" $ do
+        parseVarDecl "var x, y = 2;, 3" `shouldSatisfy` isLeft
+        parseVarDecl "var x, y = 2\n, 3" `shouldSatisfy` isLeft
+
+    it "does not parse if the left-hand side contains non-identifiers" $ do
+        parseVarDecl "var x, 1 = 2, 3" `shouldSatisfy` isLeft
+        parseVarDecl "var 1 = 2" `shouldSatisfy` isLeft
+
+    it "does no parse if there are no identifiers on the left" $ do
+        parseVarDecl "var = 3" `shouldSatisfy` isLeft
+        parseVarDecl "var ( = x; )" `shouldSatisfy` isLeft
+
+    it "does not parse if the var keyword is absent" $ do
+        parseVarDecl "x = 3" `shouldSatisfy` isLeft
+        parseVarDecl "(x = 3;)" `shouldSatisfy` isLeft
+
+    it "does not parse if there is no assignment operator nor expressions" $ do
+        parseVarDecl "var x 3" `shouldSatisfy` isLeft
+        parseVarDecl "var x int 3" `shouldSatisfy` isLeft
+        parseVarDecl "var (x 3;)" `shouldSatisfy` isLeft
+        parseVarDecl "var (x int 3;)" `shouldSatisfy` isLeft

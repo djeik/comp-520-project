@@ -20,7 +20,7 @@ simpleStmt
 -- operator \":=\", then by a list of expressions.
 shortVarDeclP :: Parser (Semi SrcAnnStatement)
 shortVarDeclP = do
-    ids@(i1:_) <-
+    ids@(i1:_) <- try $
         (lexeme identifier >>= noSemiP)
         `sepBy1`
         comma <* shortVarDeclarator
