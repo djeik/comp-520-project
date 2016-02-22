@@ -99,8 +99,9 @@ data StatementF decl expr ident assignOp caseHead f
     -- from the declaration. It consists of a list of identifiers, followed by
     -- the short declaration operator, then a list of expressions. The two lists
     -- are grouped pair-wise to form all the initializations. ShortVarDecl is
-    -- semantically different from VarDecl in the fact that only the former can
-    -- appear in contexts where a simple statement is expected.
+    -- semantically different from VarDecl in the fact that it allows variable
+    -- redeclaration under the condition that it must also declare a new
+    -- variable at the same time.
     | Assignment [expr] assignOp [expr]
     -- ^ An assignment is two lists of expressions separated by an assignment
     -- operator. Possible assignment operators include +=, <<= and =.

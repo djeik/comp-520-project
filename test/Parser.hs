@@ -2,8 +2,6 @@
 
 module Parser where
 
-import Text.PrettyPrint ( render )
-
 import Language.GoLite
 import Language.GoLite.SrcAnn
 import Language.GoLite.Syntax.Sugar

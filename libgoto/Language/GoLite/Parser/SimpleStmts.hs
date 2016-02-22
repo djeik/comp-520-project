@@ -1,6 +1,6 @@
 module Language.GoLite.Parser.SimpleStmts (
   simpleStmt
-, shortVarDecl
+, shortVarDeclP
 , assignStmt
 , incDecStmt
 , exprStmt
@@ -13,13 +13,13 @@ import Language.GoLite.Parser.Core
 simpleStmt :: Parser (Semi SrcAnnStatement)
 simpleStmt
     = try assignStmt
-    <|> shortVarDecl
+    <|> shortVarDeclP
     <|> exprStmt
 
 -- | Parses a short variable declaration: a list of identifiers followed by the
 -- operator \":=\", then by a list of expressions.
-shortVarDecl :: Parser (Semi SrcAnnStatement)
-shortVarDecl = do
+shortVarDeclP :: Parser (Semi SrcAnnStatement)
+shortVarDeclP = do
     ids@(i1:_) <-
         (lexeme identifier >>= noSemiP)
         `sepBy1`
