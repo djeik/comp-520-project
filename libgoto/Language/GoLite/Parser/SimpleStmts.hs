@@ -1,5 +1,9 @@
 module Language.GoLite.Parser.SimpleStmts (
   simpleStmt
+, shortVarDecl
+, assignStmt
+, incDecStmt
+, exprStmt
 ) where
 
 import Language.GoLite.Parser.Core

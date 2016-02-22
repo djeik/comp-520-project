@@ -58,7 +58,7 @@ floatGen = (\x y -> x ++ "." ++ y) <$> decimalGen <*> decimalGen
 -- | Generates rune literals (including escapes)
 runeGen :: Gen String
 runeGen = (surroundWith "'") <$> oneof [escape, normal] where
-    escape = (\c -> "\\" ++ [c]) <$> elements "abfnrtv\\"
+    escape = (\c -> "\\" ++ [c]) <$> elements "abfnrtv"
     normal = suchThat
                 (((:[]) . chr) <$> choose (1, 126)) --Singleton string in 1..126
                 (\c -> c /= "\n" && c /= "'" && c /= "\\")
@@ -113,16 +113,16 @@ instance Arbitrary BasicIdent where
 
 instance Arbitrary (Identity GoInt) where
     -- We don't have negative literals, only unary-minus expressions
-    arbitrary = Identity <$> arbitrarySizedNatural
+    arbitrary = Identity <$> arbitraryPositiveIntegral
 
 instance Arbitrary BasicType where
     arbitrary = typeGen
 
 instance Arbitrary BasicLiteral where
-    -- Use default arbitraries for ints and floats, but our own for strings and
-    -- runes to ensure we generate valid escape codes.
-    arbitrary = oneof [ liftM IntLit arbitrary,
-                        liftM FloatLit arbitrary,
+    -- Use our own generators for strings and runes to ensure we generate valid
+    -- escape codes. Also make sure that literals are positive.
+    arbitrary = oneof [ liftM IntLit arbitraryPositiveIntegral,
+                        liftM FloatLit (abs <$> arbitrary),
                         liftM StringLit (unsurround interpStringGen),
                         liftM RuneLit (fmap runeToChar runeGen)]
         where
@@ -130,3 +130,6 @@ instance Arbitrary BasicLiteral where
             runeToChar s = let c = s !! 1 in case c of
                 '\\' -> escapedChars Map.! (s !! 2)
                 _ -> c
+
+-- | Generates an arbitrary positive integer.
+arbitraryPositiveIntegral = abs <$> arbitraryBoundedIntegral
