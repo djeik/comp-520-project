@@ -5,7 +5,6 @@ module Parser where
 import Language.GoLite
 import Language.GoLite.SrcAnn
 import Language.GoLite.Syntax.Sugar
-import Language.GoLite.Pretty
 import Core
 import Stmt
 

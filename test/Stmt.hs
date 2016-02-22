@@ -17,6 +17,7 @@ statement = describe "stmt" $ do
                 describe "shortVarDecl" shortVariableDeclaration
                 describe "simpleStmt" simpleStatement
                 describe "varDecl" variableDeclaration
+                describe "typeDecl" typeDeclaration
 
 r = Right
 int = Fix. Literal . IntLit
@@ -212,6 +213,9 @@ variableDeclaration = do
         parseVarDecl "var x int; = 2" `shouldSatisfy` isLeft
         parseVarDecl "var x int\n = 2" `shouldSatisfy` isLeft
 
+        parseVarDecl "var x int;" `shouldSatisfy` isRight
+        parseVarDecl "var x int\n" `shouldSatisfy` isRight
+
     it "does not parse if any expression but the last has a semi" $ do
         parseVarDecl "var x, y = 2;, 3" `shouldSatisfy` isLeft
         parseVarDecl "var x, y = 2\n, 3" `shouldSatisfy` isLeft
@@ -233,3 +237,52 @@ variableDeclaration = do
         parseVarDecl "var x int 3" `shouldSatisfy` isLeft
         parseVarDecl "var (x 3;)" `shouldSatisfy` isLeft
         parseVarDecl "var (x int 3;)" `shouldSatisfy` isLeft
+
+typeDeclaration :: SpecWith ()
+typeDeclaration = do
+    let parseTyDecl = parseOnly (fmap (map bareStmt) typeDeclP)
+    let tyDeclStmt i t = Fix $ DeclStmt $ TypeDecl $ TypeDeclBody i t
+    let intSlice = sliceType $ namedType "int"
+    let boolSlice = sliceType $ namedType "bool"
+
+    it "parses simple type declarations" $ do
+        parseTyDecl "type a []int" `shouldBe`
+            r [ tyDeclStmt "a" intSlice]
+
+    it "parses distributed declarations (with zero, one or more specs)" $ do
+        parseTyDecl "type ()" `shouldBe` r []
+
+        parseTyDecl "type (a []int;)" `shouldBe` parseTyDecl "type a []int"
+
+        parseTyDecl "type (a []int; b []bool;)" `shouldBe`
+            r [ tyDeclStmt "a" intSlice,
+                tyDeclStmt "b" boolSlice ]
+
+    it "does not parse when not terminated by a semi" $ do
+        parseTyDecl "type () {}" `shouldSatisfy` isLeft
+        parseTyDecl "type (a []int;) {}" `shouldSatisfy` isLeft
+        parseTyDecl "type (a []int; b []bool;) {}" `shouldSatisfy` isLeft
+
+    it "does not parse when the type keyword has an explicit semi" $ do
+        parseTyDecl "type; a []int" `shouldSatisfy` isLeft
+        parseTyDecl "type\n a []int" `shouldSatisfy` isRight
+
+    it "does not parse when the identifier has a semi" $ do
+        parseTyDecl "type a; []int" `shouldSatisfy` isLeft
+        parseTyDecl "type a\n []int" `shouldSatisfy` isLeft
+        parseTyDecl "type (a; []int;)" `shouldSatisfy` isLeft
+        parseTyDecl "type (a\n []int;)" `shouldSatisfy` isLeft
+
+    it "does not parse when the type has no semi in a distributed decl" $ do
+        parseTyDecl "type (a []int)" `shouldSatisfy` isLeft
+        parseTyDecl "type (a []int b []int;)" `shouldSatisfy` isLeft
+        parseTyDecl "type (a []int; b []int)" `shouldSatisfy` isLeft
+
+    it "does not parse when any component (keyword, id, type) is missing"  $ do
+        parseTyDecl "a []int" `shouldSatisfy` isLeft
+        parseTyDecl "(a []int;)" `shouldSatisfy` isLeft
+        parseTyDecl "type []int" `shouldSatisfy` isLeft
+        parseTyDecl "type ([]int;)" `shouldSatisfy` isLeft
+        parseTyDecl "type a;" `shouldSatisfy` isLeft
+        parseTyDecl "type (a;)" `shouldSatisfy` isLeft
+
