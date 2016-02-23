@@ -480,6 +480,12 @@ instance
                 , prettyBrackets True i
                 ]
 
+instance (Pretty ident, Pretty decl) => Pretty (Package ident decl) where
+    pretty e = case e of
+        Package i decls ->
+            text "package" <+> pretty i $+$
+            vcat (pretty <$> decls)
+
 instance
     ( Pretty decl
     , Pretty funDecl
