@@ -24,14 +24,13 @@ statement = describe "stmt" $ do
 
 r :: b -> Either a b
 r = Right
-<<<<<<< HEAD
-int = Fix. Literal . IntLit
-varDeclStmt i t e = Fix $ DeclStmt $ VarDecl $ VarDeclBody i t e
-=======
 
 int :: GoInt -> Fix (ExprF id bin un (Literal a) ty)
 int = Sugar.literal . IntLit
->>>>>>> 5834fdb3c223531fac0051abc8cc41e28ab4b923
+
+varDeclStmt :: [id] -> Maybe ty -> [e]
+            -> Fix (StatementF (Declaration tyDecl (VarDecl id ty e)) ex i a c)
+varDeclStmt i t e = Fix $ DeclStmt $ VarDecl $ VarDeclBody i t e
 
 assign :: SpecWith ()
 assign = do
