@@ -26,7 +26,7 @@ shortVarDeclP = do
         `sepBy1`
         comma <* shortVarDeclarator
 
-    exprs <- semiTerminatedCommaList expr
+    exprs <- semiList (expr `sepBy` comma) noSemi (pure ())
 
     -- just for the purpose of getting the last expression in the list for
     -- constructing the source span
@@ -57,7 +57,8 @@ assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
                 op <- withSrcAnnF $ opAssign >>= noSemiP
                 pure (al, lhs, op)
 
-            (Ann ar rhs) <- withSrcAnnF $ semiTerminatedCommaList expr
+            (Ann ar rhs) <- withSrcAnnF $
+                                semiList (expr `sepBy` comma) noSemi (pure ())
 
             let a = SrcSpan (srcStart al) (srcEnd ar)
 
