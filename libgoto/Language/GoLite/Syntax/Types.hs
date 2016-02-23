@@ -531,8 +531,9 @@ instance
                 pretty op <+>
                 sep (punctuate comma (pretty <$> moreExprs))
             PrintStmt exprs ->
-                text "print" <+>
-                sep (punctuate comma (pretty <$> exprs)) <>
+                text "print" <> prettyParens True (
+                    sep (punctuate comma (pretty <$> exprs))
+                ) <>
                 semi
             ReturnStmt mexpr ->
                 text "return" <+> pretty mexpr <> semi
