@@ -22,6 +22,8 @@ module Language.GoLite.Pretty
 , prettyBrackets
 , prettyBraces
 , indentLevel
+, goLiteStyle
+, renderGoLite
 ) where
 
 import Language.GoLite.Precedence
@@ -91,3 +93,15 @@ prettyBraces = flip prettyIf braces
 
 indentLevel :: Num a => a
 indentLevel = 4
+
+-- | Renders a 'Doc' with GoLite-specific settings.
+--
+-- In particular, line length is set to infinity to avoid dangerous line
+-- wrapping that could introduce erroneous semicolons.
+renderGoLite :: Doc -> String
+renderGoLite = renderStyle goLiteStyle
+
+goLiteStyle :: Style
+goLiteStyle = style
+    { lineLength = maxBound
+    }

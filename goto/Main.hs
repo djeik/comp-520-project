@@ -15,4 +15,4 @@ main = do
     let ex = parseOnly stmt "stdin" stdin
     putStrLn $ case ex of
         Left e -> ppShow e
-        Right r -> render (vcat $ pretty <$> r)
+        Right r -> renderGoLite (vcat $ pretty <$> r)
