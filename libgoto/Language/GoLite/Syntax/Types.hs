@@ -433,12 +433,12 @@ instance
             ) => ExprF id bin un lit ty (Int, Doc) -> (Int, Doc)
         f e = case e of
             BinaryOp op (dl, l) (dr, r) -> (precedence op,) $
-                prettyParens (dl > precedence op) l <+>
+                prettyParens (dl < precedence op) l <+>
                 pretty op <+>
-                prettyParens (dr > precedence op) r
+                prettyParens (dr < precedence op) r
             UnaryOp op (dp, p) -> (precedence op,) $
                 pretty op <>
-                prettyParens (dp > precedence op) p
+                prettyParens (dp < precedence op) p
             Literal l -> (6, pretty l)
             Variable x -> (6, pretty x)
             Slice (ep, ex) lo hi up -> (6,) $
