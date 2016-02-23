@@ -12,7 +12,7 @@ module Language.GoLite.Parser.SimpleStmts (
 , shortVarDeclP
 , assignStmt
 , incDecStmt
-, exprStmt
+, exprStmtP
 ) where
 
 import Language.GoLite.Parser.Core
@@ -24,7 +24,7 @@ simpleStmt =
         emptyStmtP
     <|> assignStmt
     <|> shortVarDeclP
-    <|> exprStmt
+    <|> exprStmtP
 
 
 -- | Parses an empty statement. An empty statement is a semicolon by itself.
@@ -114,8 +114,8 @@ incDecStmt opParse op = do
 --
 -- TODO: Go only allows certain kinds of expressions to act as statements. We
 -- need to introduce a check that causes invalid expressions to raise errors.
-exprStmt :: Parser (Semi SrcAnnStatement)
-exprStmt = do
+exprStmtP :: Parser (Semi SrcAnnStatement)
+exprStmtP = do
     e <- expr
 
     condUnSemiP e isValidExprForStmt "Illegal expression in statement context."

@@ -24,6 +24,7 @@ statement :: SpecWith ()
 statement = describe "stmt" $ do
                 describe "assignStmt" assign
                 describe "shortVarDecl" shortVariableDeclaration
+                describe "exprStmt" expressionStatement
                 describe "simpleStmt" simpleStatement
                 describe "varDecl" variableDeclaration
                 describe "typeDecl" typeDeclaration
@@ -149,6 +150,31 @@ shortVariableDeclaration = do
         parseShortVarDecl "x := 1 {}" `shouldSatisfy` isLeft
         parseShortVarDecl "x, y := 1, 2 {}" `shouldSatisfy` isLeft
 
+expressionStatement :: SpecWith()
+expressionStatement = do
+    let parseExprStmt = parseOnly (fmap bareStmt $ exprStmtP >>= unSemiP)
+
+    it "parses function calls as statements" $ do
+        parseExprStmt "f();" `shouldBe`
+            (r (exprStmt (call (variable "f") Nothing [])))
+
+    it "requires a semi on the expression" $ do
+        parseExprStmt "f() {}" `shouldSatisfy` isLeft
+
+    it "does not parse other expressions as statements" $ do
+        parseExprStmt "aVariable;" `shouldSatisfy` isLeft
+        parseExprStmt "2;" `shouldSatisfy` isLeft
+        parseExprStmt "1.1;" `shouldSatisfy` isLeft
+        parseExprStmt "\"StringLit\"" `shouldSatisfy` isLeft
+        parseExprStmt "aStruct.aField;" `shouldSatisfy` isLeft
+        parseExprStmt "[]typ(convert);" `shouldSatisfy` isLeft
+        parseExprStmt "indexing[2];" `shouldSatisfy` isLeft
+        parseExprStmt "binary + operator" `shouldSatisfy` isLeft
+        parseExprStmt "-unaryMinus" `shouldSatisfy` isLeft
+        parseExprStmt "slice[low:high]" `shouldSatisfy` isLeft
+        parseExprStmt "slice[low:high:max]" `shouldSatisfy` isLeft
+        parseExprStmt "assertion.([]typ)" `shouldSatisfy` isLeft
+
 simpleStatement :: SpecWith ()
 simpleStatement = do
     let parseSimpleStmt = parseOnly (fmap bareStmt $ simpleStmt >>= unSemiP)
@@ -156,8 +182,10 @@ simpleStatement = do
     it "parses any kind of simple statement" $ do
         parseSimpleStmt "x := 2" `shouldSatisfy` isRight
         parseSimpleStmt "f()" `shouldSatisfy` isRight
-        parseSimpleStmt " x = 2" `shouldSatisfy` isRight
-        parseSimpleStmt " x += 2" `shouldSatisfy` isRight
+        parseSimpleStmt "x = 2" `shouldSatisfy` isRight
+        parseSimpleStmt "x += 2" `shouldSatisfy` isRight
+        parseSimpleStmt ";" `shouldSatisfy` isRight
+        parseSimpleStmt "" `shouldSatisfy` isLeft
 
 variableDeclaration :: SpecWith()
 variableDeclaration = do
