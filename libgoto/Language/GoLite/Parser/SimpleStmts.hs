@@ -8,6 +8,7 @@ module Language.GoLite.Parser.SimpleStmts (
 
 import Language.GoLite.Parser.Core
 
+
 -- | Parses a simple statement. In some contexts (such as the initializer for
 -- \"if\" and \"switch\" statements), only simple statements are allowed.
 simpleStmt :: Parser (Semi SrcAnnStatement)
@@ -99,9 +100,19 @@ incDecStmt opParse op = do
 exprStmt :: Parser (Semi SrcAnnStatement)
 exprStmt = do
     e <- expr
+
+    condUnSemiP e isValidExprForStmt "Illegal expression in statement context."
+
     pure $ do
         e' <- e
 
         let a = topAnn e'
 
         pure $ Fix $ Ann a $ ExprStmt e'
+
+-- | Checks whether an expression can be used in statement context.
+-- This is not entirely correct since some built-ins are disallowed but we need
+-- the symbol table to rule out those cases.
+isValidExprForStmt :: SrcAnnExpr -> Bool
+isValidExprForStmt (Fix (Ann _ (Call _ _ _))) = True
+isValidExprForStmt _ = False

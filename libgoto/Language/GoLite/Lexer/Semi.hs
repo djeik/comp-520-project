@@ -14,6 +14,7 @@ module Language.GoLite.Lexer.Semi
 , noSemiP
 , unSemi
 , unSemiP
+, condUnSemiP
   -- ** Semi-based parsers
 , semicolon
 , semisym
@@ -114,8 +115,17 @@ unSemi s = runExcept $ evalStateT (runSemi s) Nothing
 
 -- | Runs a computation in the "Semi" monad, returning the parse result in the
 -- "Parser" monad or reinterpreting the error as a parse error if any.
+--
+-- Implemented in terms of "condUnSemiP".
 unSemiP :: Semi a -> Parser a
-unSemiP s = case unSemi s of
+unSemiP s = condUnSemiP s (\_ -> True) ""
+
+-- | Runs a computation in the "Semi" monad. Semi errors are reinterpreted as
+-- Parser errors. If the computation succeeds, applies a predicate to the
+-- result. If the predicate passes, the result is returned in the Parser monad;
+-- otherwise, a parse error with the given message is raised.
+condUnSemiP :: Semi a -> (a -> Bool) -> String -> Parser a
+condUnSemiP s p m = case unSemi s of
     Left UnexpectedSemicolon ->
         failure [Unexpected ";", Unexpected "newline"]
 
@@ -125,7 +135,7 @@ unSemiP s = case unSemi s of
     Left NoSemicolonDetection ->
         failure [Message "No semicolon detection performed!"]
 
-    Right x -> pure x
+    Right x -> if p x then pure x else failure [Message m]
 
 -- | Consumes whitespace until reaching the end of line/file.
 eventuallyEol :: Parser ()

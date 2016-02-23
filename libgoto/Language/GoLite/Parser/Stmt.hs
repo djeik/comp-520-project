@@ -8,7 +8,7 @@ module Language.GoLite.Parser.Stmt
 , printStmt
 , returnStmt
 , ifStmt
-, switchStmt
+, switchStmtP
 , fallthroughStmtP
 , forStmt
 , breakStmtP
@@ -19,6 +19,8 @@ import Language.GoLite.Parser.Core
 import Language.GoLite.Parser.SimpleStmts
 import Language.GoLite.Parser.Decl
 
+import Control.Monad ( void )
+
 stmt :: Parser [SrcAnnStatement]
 stmt =  varDeclP
     <|> typeDeclP
@@ -26,7 +28,7 @@ stmt =  varDeclP
         [ printStmt
         , returnStmt
         , ifStmt
-        , switchStmt
+        , switchStmtP
         , fallthroughStmtP
         , forStmt
         , breakStmtP
@@ -95,10 +97,10 @@ else_ = (kwElse >>= unSemiP) >> blockP <|> fmap (:[]) ifStmt
 -- | Parses a switch statement. It consists of the \"switch\" keyword, followed
 -- by an optional initializer simple statement, an optional expression, then a
 -- potentially empty list of case clauses enclosed in brackets.
-switchStmt :: Parser SrcAnnStatement
-switchStmt = do
-    (Ann l _) <- withSrcAnnConst kwSwitch
-    initializer <- optional (simpleStmt >>= requireSemiP)
+switchStmtP :: Parser SrcAnnStatement
+switchStmtP = do
+    (Ann l _) <- withSrcAnnConst (kwSwitch >>= noSemiP)
+    initializer <- optional (try $ simpleStmt >>= requireSemiP)
     e <- optional (expr >>= noSemiP)
     (Ann r clauses) <- withSrcAnnF $ (braces $ many caseClause) >>= requireSemiP
 
@@ -110,7 +112,7 @@ switchStmt = do
 caseClause :: Parser (SrcAnnCaseHead, [SrcAnnStatement])
 caseClause = do
     head_ <- caseHead <* colon
-    stmts <- many stmt
+    stmts <- stmt `manyTill` lookAhead (try $ void caseHead <|> void closeBrace)
     pure $ (head_, concat stmts)
     -- Each statement parser may produce multiple statements, so use concat.
 
@@ -120,7 +122,7 @@ caseHead :: Parser SrcAnnCaseHead
 caseHead = default_ <|> case_ where
     default_ = (kwDefault >>= noSemiP) *> pure CaseDefault
     case_ = do
-        kwCase
+        kwCase >>= noSemiP
         exprs <- (expr >>= noSemiP) `sepBy1` comma
         pure $ CaseExpr exprs
 

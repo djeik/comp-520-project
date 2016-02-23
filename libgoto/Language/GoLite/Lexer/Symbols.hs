@@ -129,7 +129,7 @@ opBitwiseAndNotEq = semiAssignOp "&^=" BitwiseAndNotEq
 
 -- | Parses an assignment operator
 opAssign :: Parser (Semi (AssignOp a))
-opAssign = choice
+opAssign = label "assignment operator" $ choice
     [ opAssignSimple
     , opPlusEq
     , opMinusEq
