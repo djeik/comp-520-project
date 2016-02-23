@@ -356,9 +356,18 @@ switchStatement = do
         parseSwitch "switch {}" `shouldBe`
             r (switchStmt Nothing Nothing [])
 
+        parseSwitch "switch ; {}" `shouldBe`
+            r (switchStmt (Just emptyStmt) Nothing [])
+
         parseSwitch "switch 2 > 1 {}" `shouldBe`
             r (switchStmt
                 Nothing
+                (Just $ binaryOp GreaterThan (int 2) (int 1))
+                [])
+
+        parseSwitch "switch ; 2 > 1 {}" `shouldBe`
+            r (switchStmt
+                (Just emptyStmt)
                 (Just $ binaryOp GreaterThan (int 2) (int 1))
                 [])
 
@@ -471,10 +480,6 @@ switchStatement = do
     it "does not parse if the expression has a semi" $ do
         parseSwitch "switch x > 2; {}" `shouldSatisfy` isLeft
         parseSwitch "switch x > 2\n {}" `shouldSatisfy` isLeft
-
-    it "does not parse if the switch keyword has an explicit semi" $ do
-        parseSwitch "switch; {}" `shouldSatisfy` isLeft
-        parseSwitch "switch\n {}" `shouldSatisfy` isRight
 
     it "does not parse if there is no block" $ do
         parseSwitch "switch" `shouldSatisfy` isLeft

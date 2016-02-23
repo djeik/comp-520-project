@@ -17,14 +17,21 @@ module Language.GoLite.Parser.SimpleStmts (
 
 import Language.GoLite.Parser.Core
 
-
 -- | Parses a simple statement. In some contexts (such as the initializer for
 -- \"if\" and \"switch\" statements), only simple statements are allowed.
 simpleStmt :: Parser (Semi SrcAnnStatement)
-simpleStmt
-    = assignStmt
+simpleStmt =
+        emptyStmtP
+    <|> assignStmt
     <|> shortVarDeclP
     <|> exprStmt
+
+
+-- | Parses an empty statement. An empty statement is a semicolon by itself.
+emptyStmtP :: Parser (Semi SrcAnnStatement)
+emptyStmtP = do
+    (Ann a _ ) <- withSrcAnnF (symbol ";")
+    pure $ semiPresent $ Fix $ Ann a $ EmptyStmt
 
 -- | Parses a short variable declaration: a list of identifiers followed by the
 -- operator \":=\", then by a list of expressions.

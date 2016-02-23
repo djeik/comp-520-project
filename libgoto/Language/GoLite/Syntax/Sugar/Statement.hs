@@ -84,3 +84,7 @@ shortVarDecl is es = Fix $ ShortVarDecl is es
 -- | Constructs a statement tree for 'Block'.
 block :: f ~ Fix (StatementF d e i a c) => [f] -> f
 block ss = Fix $ Block ss
+
+-- | Constructs a statement tree for the empty statement
+emptyStmt :: Fix (StatementF d e i a c)
+emptyStmt = Fix EmptyStmt

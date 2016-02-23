@@ -20,6 +20,7 @@ module Language.GoLite.Lexer.Semi
   -- ** Semi introduction
 , withDetectSemicolon
 , withDetectExplicitSemicolon
+, semiPresent
   -- ** Semi elimination
 , requireSemi
 , requireSemiP
@@ -28,6 +29,7 @@ module Language.GoLite.Lexer.Semi
 , unSemi
 , unSemiP
 , condUnSemiP
+, semiAbsent
   -- ** Semi-based parsers
 , semicolon
 , semisym
@@ -169,6 +171,18 @@ withDetectExplicitSemicolon p = do
     pure $ do
         put (Just t)
         pure q
+
+-- | Wraps a value in the "Semi" monad, setting the state to True.
+semiPresent :: a -> Semi a
+semiPresent x = do
+    put (Just True)
+    pure x
+
+-- | Wraps a value in the "Semi" monad, setting the state to False.
+semiAbsent :: a -> Semi a
+semiAbsent x = do
+    put (Just False)
+    pure x
 
 -- | Runs a parser and performs a semicolon detection, introducing a
 -- computation in the "Semi" monad.

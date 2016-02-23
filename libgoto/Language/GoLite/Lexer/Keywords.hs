@@ -52,45 +52,48 @@ kwContinue = semisym "continue"
 kwFallthrough :: Parser (Semi Keyword)
 kwFallthrough = semisym "fallthrough"
 
--- | Parses the \"print\" keyword, checking for a semicolon.
+-- | Parses the \"print\" keyword, checking for an explicit semicolon.
 kwPrint :: Parser (Semi Keyword)
 kwPrint = explicitSemisym "print"
 
--- | Parses the \"println\" keyword, checking for a semicolon.
+-- | Parses the \"println\" keyword, checking for an explicit semicolon.
 kwPrintLn :: Parser (Semi Keyword)
 kwPrintLn = explicitSemisym "println"
 
--- | Parses the \"read\" keyword, checking for a semicolon.
+-- | Parses the \"read\" keyword, checking for an explicit semicolon.
 kwRead :: Parser (Semi Keyword)
 kwRead = explicitSemisym "read"
 
--- | Parses the \"var\" keyword, checking for a semicolon.
+-- | Parses the \"var\" keyword, checking for an explicit semicolon.
 kwVar :: Parser (Semi Keyword)
 kwVar = explicitSemisym "var"
 
--- | Parses the \"struct\" keyword, checking for a semicolon.
+-- | Parses the \"struct\" keyword, checking for an explicit semicolon.
 kwStruct :: Parser (Semi Keyword)
 kwStruct = explicitSemisym "struct"
 
--- | Parses the \"type\" keyword, checking for a semicolon.
+-- | Parses the \"type\" keyword, checking for an explicit semicolon.
 kwType :: Parser (Semi Keyword)
 kwType = explicitSemisym "type"
 
--- | Parses the \"if\" keyword, checking for a semicolon.
-kwIf :: Parser (Semi Keyword)
-kwIf = explicitSemisym "if"
+-- | Parses the \"if\" keyword. Does not check for a semicolon, since an if
+-- statement may contain an optional initializer.
+kwIf :: Parser Keyword
+kwIf = symbol "if"
 
--- | Parses the \"else\" keyword, checking for a semicolon.
+-- | Parses the \"else\" keyword, checking for an explicit semicolon.
 kwElse :: Parser (Semi Keyword)
 kwElse = explicitSemisym "else"
 
--- | Parses the \"for\" keyword, checking for a semicolon.
-kwFor :: Parser (Semi Keyword)
-kwFor = explicitSemisym "for"
+-- | Parses the \"for\" keyword. Does not check for a semicolon, since a for
+-- statement may contain an optional initializer.
+kwFor :: Parser Keyword
+kwFor = symbol "for"
 
--- | Parses the \"switch\" keyword, checking for a semicolon.
-kwSwitch :: Parser (Semi Keyword)
-kwSwitch = explicitSemisym "switch"
+-- | Parses the \"switch\" keyword. Does not check for a semicolon, since a
+-- switch statement may contain an optional initializer.
+kwSwitch :: Parser Keyword
+kwSwitch = symbol "switch"
 
 -- | Parses the \"case\" keyword, checking for a semicolon.
 kwCase :: Parser (Semi Keyword)

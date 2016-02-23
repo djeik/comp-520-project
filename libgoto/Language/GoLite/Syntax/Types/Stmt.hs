@@ -69,6 +69,9 @@ data StatementF decl expr ident assignOp caseHead f
     -- ^ Transfer control to the next case clause in a switch statement.
     | Block [f]
     -- ^ An explicit block, which can be used to influence scoping.
+    | EmptyStmt
+    -- ^ An empty statement. Does not have any semantic value, but can be
+    -- inserted by semicolons.
     deriving (Eq, Read, Show, Functor)
 
 -- | Prints a recursive statement structure bottom-up by dispatching to the

@@ -99,7 +99,7 @@ returnStmt = do
 -- cannot be a semicolon between the expression and the block.
 ifStmt :: Parser SrcAnnStatement
 ifStmt = do
-    (Ann l _) <- withSrcAnnConst $ kwIf >>= unSemiP
+    (Ann l _) <- withSrcAnnConst $ kwIf
 
     initializer <- optional (simpleStmt >>= requireSemiP)
     cond <- expr >>= noSemiP
@@ -119,7 +119,7 @@ else_ = (kwElse >>= unSemiP) >> blockP <|> fmap (:[]) ifStmt
 -- potentially empty list of case clauses enclosed in brackets.
 switchStmtP :: Parser SrcAnnStatement
 switchStmtP = do
-    (Ann l _) <- withSrcAnnConst (kwSwitch >>= noSemiP)
+    (Ann l _) <- withSrcAnnConst kwSwitch
     initializer <- optional (try $ simpleStmt >>= requireSemiP)
     e <- optional (expr >>= noSemiP)
     (Ann r clauses) <- withSrcAnnF $ (braces $ many caseClause) >>= requireSemiP
@@ -153,7 +153,7 @@ caseHead = default_ <|> case_ where
 -- initializer and expression must end with a semicolon.
 forStmt :: Parser SrcAnnStatement
 forStmt = do
-    (Ann l _) <- withSrcAnnConst $ kwFor >>= noSemiP
+    (Ann l _) <- withSrcAnnConst kwFor
     (Fix (Ann r s)) <- infiniteFor <|> fullFor <|> simpleFor
     let a = SrcSpan (srcStart l) (srcEnd r)
     pure $ Fix $ Ann a s
