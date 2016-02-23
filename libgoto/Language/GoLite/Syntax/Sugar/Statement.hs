@@ -69,3 +69,6 @@ exprStmt = Fix . ExprStmt
 shortVarDecl :: [ident] -> [expr] -> Fix (StatementF d expr ident a c)
 shortVarDecl is es = Fix $ ShortVarDecl is es
 
+block :: f ~ Fix (StatementF d e i a c) => [f] -> f
+block ss = Fix $ Block ss
+

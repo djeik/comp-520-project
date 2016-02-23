@@ -3,7 +3,8 @@
 module Language.GoLite.Parser.Stmt
 ( stmt
 , expr
-, block
+, blockStmt
+, blockP -- used in function declarations
 , printStmt
 , returnStmt
 , ifStmt
@@ -30,6 +31,7 @@ stmt =  varDeclP
         , forStmt
         , breakStmtP
         , continueStmtP
+        , blockStmt
         , (simpleStmt >>= requireSemiP) ])
 
 printStmt :: Parser SrcAnnStatement
@@ -79,7 +81,7 @@ ifStmt = do
 
     initializer <- optional (simpleStmt >>= requireSemiP)
     cond <- expr >>= noSemiP
-    thens <- block
+    thens <- blockP
     (Ann r elses) <- withSrcAnnF $ optional else_
 
     let a = SrcSpan (srcStart l) (srcEnd r)
@@ -88,7 +90,7 @@ ifStmt = do
 -- | Parses the else part of an if statement. It's the \"else\" keyword followed
 -- either by a block or another if statement.
 else_ :: Parser [SrcAnnStatement]
-else_ = (kwElse >>= unSemiP) >> block <|> fmap (:[]) ifStmt
+else_ = (kwElse >>= unSemiP) >> blockP <|> fmap (:[]) ifStmt
 
 -- | Parses a switch statement. It consists of the \"switch\" keyword, followed
 -- by an optional initializer simple statement, an optional expression, then a
@@ -140,7 +142,7 @@ forStmt = do
 infiniteFor :: Parser SrcAnnStatement
 infiniteFor = do
     (try . lookAhead . symbol_) "{"
-    (Ann a b) <- withSrcAnnF block
+    (Ann a b) <- withSrcAnnF blockP
     pure $ Fix $ Ann a $ ForStmt Nothing Nothing Nothing b
 
 -- | Parses a full for loop, which may contain an initializer simple statement,
@@ -161,7 +163,7 @@ fullFor = do
             <*> optional (expr >>= requireSemiP)
             <*> optional (simpleStmt >>= noSemiP)
 
-    (Ann r b) <- withSrcAnnF block
+    (Ann r b) <- withSrcAnnF blockP
 
     let a = SrcSpan (srcStart l) (srcEnd r)
 
@@ -175,20 +177,28 @@ simpleFor = do
         e <- expr >>= noSemiP
         lookAhead $ symbol_ "{" -- Make sure a block begins next.
         pure e
-    (Ann a b) <- withSrcAnnF block
+    (Ann a b) <- withSrcAnnF blockP
     pure $ Fix $ Ann a $ ForStmt Nothing (Just e) Nothing b
 
 -- | Parses a block, which is a potentially empty list of statements enclosed in
 -- braces.
-block :: Parser [SrcAnnStatement]
-block = do
-        symbol "{"
-        -- Here we're not applying rule 2 of semicolon omission because we don't
-        -- have to and it makes things simpler.
-        stmts <- many stmt
-        closeBrace >>= requireSemiP
-        -- Each statement parser may produce multiple statements.
-        pure $ concat stmts
+blockP :: Parser [SrcAnnStatement]
+blockP = do
+    symbol "{"
+    -- Here we're not applying rule 2 of semicolon omission because we don't
+    -- have to and it makes things simpler.
+    stmts <- many stmt
+    closeBrace >>= requireSemiP
+
+    --let a = SrcSpan (srcStart s) (srcEnd e)
+    -- Each statement parser may produce multiple statements.
+    pure $ concat stmts
+
+-- | Parses a block, wrapped as a statement.
+blockStmt :: Parser SrcAnnStatement
+blockStmt = do
+    (Ann a b) <- withSrcAnnF blockP
+    pure $ Fix $ Ann a $ Block b
 
 -- | Parses a break statement, which consists of the \"break\" keyword.
 breakStmtP :: Parser SrcAnnStatement

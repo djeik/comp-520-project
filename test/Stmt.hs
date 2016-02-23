@@ -19,9 +19,11 @@ statement = describe "stmt" $ do
                 describe "varDecl" variableDeclaration
                 describe "typeDecl" typeDeclaration
                 describe "break/continue/fallthrough" simpleKeywordStmts
+                describe "block" blockStatement
 
 r = Right
 int = Fix. Literal . IntLit
+varDeclStmt i t e = Fix $ DeclStmt $ VarDecl $ VarDeclBody i t e
 
 assign :: SpecWith ()
 assign = do
@@ -145,7 +147,6 @@ variableDeclaration :: SpecWith()
 variableDeclaration = do
     let parseVarDecl = parseOnly (fmap (map bareStmt) varDeclP)
     let justInt = Just $ Fix $ NamedType "int"
-    let varDeclStmt i t e = Fix $ DeclStmt $ VarDecl $ VarDeclBody i t e
 
     it "parses the three forms of declaration with one variable" $ do
         parseVarDecl "var x int = 2" `shouldBe`
@@ -287,7 +288,7 @@ typeDeclaration = do
         parseTyDecl "type a;" `shouldSatisfy` isLeft
         parseTyDecl "type (a;)" `shouldSatisfy` isLeft
 
-simpleKeywordStmts :: SpecWith()
+simpleKeywordStmts :: SpecWith ()
 simpleKeywordStmts = do
     let parseStmt = parseOnly (fmap (map bareStmt) stmt)
     it "parses the keywords `break`, `continue` and `fallthrough`" $ do
@@ -299,3 +300,35 @@ simpleKeywordStmts = do
         parseStmt "break {}" `shouldSatisfy` isLeft
         parseStmt "continue {}" `shouldSatisfy` isLeft
         parseStmt "fallthrough {}" `shouldSatisfy` isLeft
+
+blockStatement :: SpecWith ()
+blockStatement = do
+    let parseBlock = parseOnly (fmap bareStmt blockStmt)
+    it "parses a block containing one, many or no statements" $ do
+        parseBlock "{}" `shouldBe` r (block [])
+        parseBlock "{x++\n}" `shouldBe`
+            r (block [assignment [variable "x"] PlusEq [int 1]])
+
+        parseBlock "{x++\ny++\n}" `shouldBe`
+            r (block [ assignment [variable "x"] PlusEq [int 1],
+                assignment [variable "y"] PlusEq [int 1] ])
+
+    it "doesn't parse if one of the enclosing statements don't have a semi" $ do
+        parseBlock "{x++}" `shouldSatisfy` isLeft
+        parseBlock "{x++; y++}" `shouldSatisfy` isLeft
+
+    it "doesn't parse if the block doesn't have a semi" $ do
+        parseBlock "{} {}" `shouldSatisfy` isLeft
+
+    it "parses nested blocks" $ do
+        parseBlock "{x++;{y++;{z++;};};}" `shouldBe`
+            r (block [(assignment [variable "x"] PlusEq [int 1]),
+                block [(assignment [variable "y"] PlusEq [int 1]),
+                 block [(assignment [variable "z"] PlusEq [int 1])]]])
+
+    it "handles statements parsers that return multiple statements" $ do
+        parseBlock "{var (x = 2; y = 3;); x++;}" `shouldBe`
+            r (block [
+                varDeclStmt ["x"] Nothing [int 2],
+                varDeclStmt ["y"] Nothing [int 3],
+                (assignment [variable "x"] PlusEq [int 1])])

@@ -138,6 +138,8 @@ data StatementF decl expr ident assignOp caseHead f
     -- ^ Jump to the beginning of a loop.
     | FallthroughStmt
     -- ^ Transfer control to the next case clause in a switch statement.
+    | Block [f]
+    -- ^ An explicit block, which can be used to influence scoping.
     deriving (Eq, Read, Show, Functor)
 
 -- | The head of a case.
@@ -581,6 +583,10 @@ instance
                 ) <+>
                 text "{" $+$
                 nest indentLevel (vcat body) $+$
+                text "}"
+            Block ss ->
+                text "{" $+$
+                nest indentLevel (vcat ss) $+$
                 text "}"
 
 instance

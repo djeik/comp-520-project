@@ -48,7 +48,7 @@ funDecl = do
     name <- (kwFunc >>= noSemiP) >> lexeme identifier >>= noSemiP
     params <- (parens $ (field >>= noSemiP) `sepBy` comma) >>= noSemiP
     ret <- optional (type_ >>= noSemiP)
-    b <- block
+    b <- blockP
 
     pure $ FunDecl name params ret b
 
