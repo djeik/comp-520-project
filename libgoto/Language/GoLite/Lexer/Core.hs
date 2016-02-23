@@ -1,3 +1,16 @@
+{-|
+Module      : Language.GoLite.Lexer.Core
+Description : Basic lexer combinators
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+
+Defines the basic lexeme and symbol lexers used throughout the lexer and
+parser. Megaparsec modules are reexported to avoid needing to import them in
+all lexer and parser modules.
+-}
+
 module Language.GoLite.Lexer.Core
 ( sc
 , symbol

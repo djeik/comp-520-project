@@ -2,7 +2,7 @@ module Main where
 
 import qualified Language.GoLite as G
 import Language.GoLite.Pretty
-import Language.GoLite.SrcAnn
+import Language.GoLite.Syntax.SrcAnn
 
 import Options.Applicative
 import Text.Show.Pretty

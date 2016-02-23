@@ -1,3 +1,16 @@
+{-|
+Module      : Language.GoLite.Lexer.Semi
+Description : Monadic semicolon handling
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+
+This module defines the 'Semi' monad, which is a simple state and exception
+monad, as well as parser combinators for introducing and eliminating 'Semi'
+values in a 'Parser' context.
+-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Language.GoLite.Lexer.Semi
@@ -34,7 +47,7 @@ data SemiError
     | ExpectedSemicolon
     | NoSemicolonDetection
 
--- | Represent explicit or implicit semicolons.
+-- | Represents explicit or implicit semicolons.
 --
 -- Parsers that parse values wrapped in "Semi" will detect implicit or explicit
 -- semicolons. They do so with the `withDetectSemicolon` combinator.

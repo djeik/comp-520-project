@@ -1,3 +1,15 @@
+{-|
+Module      : Language.GoLite
+Description : Core GoLite module
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+
+This module merely reexports the most important submodules for dealing with
+GoLite code.
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language.GoLite

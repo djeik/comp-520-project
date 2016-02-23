@@ -1,10 +1,19 @@
+{-|
+Module      : Language.GoLite.Parser.Expression
+Description : GoLite expression parser
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+-}
+
 module Language.GoLite.Parser.Expression
 ( expr
 ) where
 
-import Language.GoLite.Syntax.Types
 import Language.GoLite.Lexer
-import Language.GoLite.SrcAnn
+import Language.GoLite.Syntax.SrcAnn
+import Language.GoLite.Syntax.Types
 
 import Control.Monad (void)
 
@@ -14,8 +23,7 @@ import Text.Megaparsec.Expr
 expr :: Parser (Semi SrcAnnExpr)
 expr = makeExprParser term table
 
--- | Parses a basic term of an expression, sufficiently wrapped so as to act as
--- an "Expr" in its own right.
+-- | Parses a basic term of an expression.
 term :: Parser (Semi SrcAnnExpr)
 term = operand <|> conversion
 

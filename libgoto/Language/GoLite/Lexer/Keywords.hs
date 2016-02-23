@@ -1,3 +1,12 @@
+{-|
+Module      : Language.GoLite.Lexer.Keywords
+Description : Lexers for GoLite keywords
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+-}
+
 module Language.GoLite.Lexer.Keywords
 ( -- * Keywords and symbols
   Keyword

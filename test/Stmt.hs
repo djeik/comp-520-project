@@ -1,14 +1,23 @@
+{-|
+Module      : Stmt
+Description : Tests for statements
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+-}
+
 {-# LANGUAGE OverloadedStrings #-}
 
 module Stmt
-(
-  statement
+( statement
 ) where
 
 import Language.GoLite
-import Language.GoLite.SrcAnn
 import Language.GoLite.Parser.SimpleStmts
+import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Sugar as Sugar
+
 import Core
 
 statement :: SpecWith ()

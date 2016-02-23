@@ -1,3 +1,12 @@
+{-|
+Module      : Language.GoLite.Parser.SimpleStmts
+Description : Parsers for simple statements
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+-}
+
 module Language.GoLite.Parser.SimpleStmts (
   simpleStmt
 , shortVarDeclP

@@ -1,3 +1,12 @@
+{-|
+Module      : Language.GoLite.Lexer.Literal
+Description : GoLite literal lexers
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+-}
+
 module Language.GoLite.Lexer.Literal
 ( -- * Literal lexers
   literal
@@ -26,7 +35,7 @@ import Language.GoLite.Lexer.Semi
 import Language.GoLite.Lexer.Symbols
 import Language.GoLite.Lexer.Keywords
 
-import Language.GoLite.SrcAnn
+import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Types
 
 import qualified Data.Map.Strict as Map

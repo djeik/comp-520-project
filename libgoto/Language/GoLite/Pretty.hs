@@ -16,8 +16,6 @@ GoLite code.
 
 module Language.GoLite.Pretty 
 ( Pretty(..)
-, prettyPrefix
-, prettyInfix
 , prettyParens
 , prettyBrackets
 , prettyBraces
@@ -25,8 +23,6 @@ module Language.GoLite.Pretty
 , goLiteStyle
 , renderGoLite
 ) where
-
-import Language.GoLite.Precedence
 
 import Control.Applicative ( Const(..) )
 import Data.Functor.Identity
@@ -62,35 +58,26 @@ instance Pretty a => Pretty (Const a b) where
 
 deriving instance Pretty a => Pretty (Identity a)
 
--- | Pretty-prints an infix operator and its two operands.
-prettyInfix :: (HasPrecedence sym, Pretty sym, Pretty l, Pretty r)
-            => sym -> l -> r -> Doc
-prettyInfix sym l r
-    = prettyPrec (precedence sym) l
-    <+> pretty sym
-    <+> prettyPrec (precedence sym) r
-
--- | Pretty-prints a prefix operator and its operand.
-prettyPrefix :: (HasPrecedence sym, Pretty sym, Pretty p)
-             => sym -> p -> Doc
-prettyPrefix sym p
-    = pretty sym
-    <> prettyPrec (precedence sym) p
-
+-- | Selects a user-supplied 'Doc'-transforming function if the given boolean
+-- is true; else, the identity function for 'Doc' is selected.
 prettyIf :: Bool -> (Doc -> Doc) -> (Doc -> Doc)
 prettyIf b f = case b of
     True -> f
     False -> id
 
+-- | Wraps a 'Doc' in parentheses if the boolean is true.
 prettyParens :: Bool -> Doc -> Doc
 prettyParens = flip prettyIf parens
 
+-- | Wraps a 'Doc' in square brackets if the boolean is true.
 prettyBrackets :: Bool -> Doc -> Doc
 prettyBrackets = flip prettyIf brackets
 
+-- | Wraps a 'Doc' in braces if the boolean is true.
 prettyBraces :: Bool -> Doc -> Doc
 prettyBraces = flip prettyIf braces
 
+-- | The standard indentation level is four spaces.
 indentLevel :: Num a => a
 indentLevel = 4
 
@@ -101,6 +88,7 @@ indentLevel = 4
 renderGoLite :: Doc -> String
 renderGoLite = renderStyle goLiteStyle
 
+-- | The rendering style for GoLite 'Doc's.
 goLiteStyle :: Style
 goLiteStyle = style
     { lineLength = maxBound

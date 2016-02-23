@@ -35,6 +35,7 @@ library
     recursion-schemes >=4.1 && <4.2
   exposed-modules:
     Language.GoLite
+    Language.GoLite.Annotation
     Language.GoLite.Lexer
     Language.GoLite.Lexer.Literal
     Language.GoLite.Parser
@@ -42,18 +43,17 @@ library
     Language.GoLite.Parser.SimpleStmts
     Language.GoLite.Pretty
     Language.GoLite.Syntax
-    Language.GoLite.Syntax.Types
+    Language.GoLite.Syntax.SrcAnn
     Language.GoLite.Syntax.Sugar
-    Language.GoLite.Syntax.Sugar.Type
-    Language.GoLite.Syntax.Sugar.Statement
     Language.GoLite.Syntax.Sugar.Declaration
-    Language.GoLite.Syntax.Sugar.Misc
     Language.GoLite.Syntax.Sugar.Expr
+    Language.GoLite.Syntax.Sugar.Misc
     Language.GoLite.Syntax.Sugar.Ops
-    Language.GoLite.Annotation
-    Language.GoLite.SrcAnn
+    Language.GoLite.Syntax.Sugar.Statement
+    Language.GoLite.Syntax.Sugar.Type
+    Language.GoLite.Syntax.Types
+    Language.GoLite.Syntax.Precedence
   other-modules:
-    Language.GoLite.Precedence
     Language.GoLite.Lexer.Core
     Language.GoLite.Lexer.Keywords
     Language.GoLite.Lexer.Semi
@@ -61,6 +61,11 @@ library
     Language.GoLite.Parser.Core
     Language.GoLite.Parser.Decl
     Language.GoLite.Parser.Stmt
+    Language.GoLite.Syntax.Types.Decl
+    Language.GoLite.Syntax.Types.Expr
+    Language.GoLite.Syntax.Types.Ops
+    Language.GoLite.Syntax.Types.Stmt
+    Language.GoLite.Syntax.Types.Type
 
 test-suite spec
   type:                exitcode-stdio-1.0

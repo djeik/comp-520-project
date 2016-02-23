@@ -1,3 +1,12 @@
+{-|
+Module      : Language.GoLite.Lexer.Symbols
+Description : Lexers for various symbols
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+-}
+
 module Language.GoLite.Lexer.Symbols
 ( -- * Simple symbols
   comma

@@ -1,13 +1,21 @@
 {-|
-Module      : Language.GoLite.SrcAnn
+Module      : Language.GoLite.Syntax.SrcAnn
 Description : GoLite syntax definitions with source annotations
 Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
 License     : MIT
 Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
+
+This module provides type synonyms for practically all the types available in
+"Language.GoLite.Syntax.Types" in which all the data is 'SrcSpan'-annotated
+using 'Language.GoLite.Annotation.Ann'.
+
+Also provided are parser combinators to facilitate capturing source position
+information during parsing as well as stripping functions for removing
+annotations from entire syntax trees.
 -}
 
-module Language.GoLite.SrcAnn
+module Language.GoLite.Syntax.SrcAnn
 ( -- * General source-annotated functors
   SrcSpan(..)
 , SrcAnn
@@ -45,6 +53,7 @@ module Language.GoLite.SrcAnn
 , SrcAnnGoFloat
 , SrcAnnGoRune
 , SrcAnnGoString
+  -- * Annotation stripping functions
 , barePackage
 , bareTopLevelDecl
 , bareFunDecl
@@ -55,7 +64,8 @@ module Language.GoLite.SrcAnn
 
 import Language.GoLite.Annotation
 import Language.GoLite.Lexer.Core
-import Language.GoLite.Syntax
+import Language.GoLite.Syntax.Basic
+import Language.GoLite.Syntax.Types
 
 import Control.Applicative
 import Data.Functor.Foldable
@@ -94,6 +104,8 @@ withSrcAnn f p = do
 withSrcAnnF :: Parser (f a) -> Parser (SrcAnn f a)
 withSrcAnnF = withSrcAnn id
 
+-- | Combines 'withSrcAnnF' and 'annPush' to create a source-span annotation of
+-- data wrapped within two functors.
 withPushSrcAnnF :: Functor f => Parser (f (g a)) -> Parser (f (SrcAnn g a))
 withPushSrcAnnF = fmap annPush . withSrcAnnF
 
@@ -104,6 +116,8 @@ withSrcAnnFix
     -> Parser (Fix (Ann SrcSpan f))
 withSrcAnnFix = fmap Fix . withSrcAnnF
 
+-- | Combines 'withPushSrcAnnF' and 'Fix' to add one more layer of annotated
+-- fixed-point structure.
 withPushSrcAnnFix
     :: Functor f
     => Parser (f (g (Fix (Ann SrcSpan g))))
@@ -200,27 +214,35 @@ bareType = cata phi where
     phi (Ann _ (StructType fields)) = Fix (StructType (map
                                     (\f -> ((map bare (fst f)), snd f)) fields))
 
+-- | 'Package' with source annotations.
 type SrcAnnPackage
     = Package SrcAnnIdent SrcAnnTopLevelDecl
 
+-- | 'TopLevelDecl' with source annotations.
 type SrcAnnTopLevelDecl
     = TopLevelDecl SrcAnnDeclaration SrcAnnFunDecl
 
+-- | 'VarDecl' with source annotations.
 type SrcAnnVarDecl
     = VarDecl SrcAnnIdent SrcAnnType SrcAnnExpr
 
+-- | 'TypeDecl' with source annotations.
 type SrcAnnTypeDecl
     = TypeDecl SrcAnnIdent SrcAnnType
 
+-- | 'FunDecl' with source annotations.
 type SrcAnnFunDecl
     = FunDecl SrcAnnIdent SrcAnnType SrcAnnStatement
 
+-- | 'TypeF' with source annotations.
 type SrcAnnTypeF
     = TypeF SrcAnnIdent SrcAnnGoInt
 
+-- | 'SrcAnnFix' with source annotations.
 type SrcAnnType
     = SrcAnnFix SrcAnnTypeF
 
+-- | 'Statement' with source annotations.
 type SrcAnnStatementF
     = StatementF
         SrcAnnDeclaration
@@ -229,44 +251,58 @@ type SrcAnnStatementF
         SrcAnnAssignOp
         SrcAnnCaseHead
 
+-- | 'SrcAnnFix' with source annotations.
 type SrcAnnStatement
     = SrcAnnFix SrcAnnStatementF
 
+-- | 'CaseHead' with source annotations.
 type SrcAnnCaseHead
     = CaseHead SrcAnnExpr
 
+-- | 'Declaration' with source annotations.
 type SrcAnnDeclaration
     = Declaration SrcAnnTypeDecl SrcAnnVarDecl
 
+-- | 'ExprF' with source annotations.
 type SrcAnnExprF
     = ExprF SrcAnnIdent SrcAnnBinaryOp SrcAnnUnaryOp SrcAnnLiteral SrcAnnType
 
+-- | 'SrcAnnFix' with source annotations.
 type SrcAnnExpr
     = SrcAnnFix SrcAnnExprF
 
+-- | 'BinaryOp' with source annotations.
 type SrcAnnBinaryOp
     = SrcAnn BinaryOp ()
 
+-- | 'AssignOp' with source annotations.
 type SrcAnnAssignOp
     = SrcAnn AssignOp ()
 
+-- | 'UnaryOp' with source annotations.
 type SrcAnnUnaryOp
     = SrcAnn UnaryOp ()
 
+-- | 'Literal' with source annotations.
 type SrcAnnLiteral
     = SrcAnn Literal ()
 
+-- | 'Ident' with source annotations.
 type SrcAnnIdent
     = SrcAnn Ident ()
 
+-- | '' with source annotations.
 type SrcAnnGoInt
     = SrcAnn (Const GoInt) ()
 
+-- | 'GoFloat' with source annotations.
 type SrcAnnGoFloat
     = SrcAnn (Const GoFloat) ()
 
+-- | 'GoRune' with source annotations.
 type SrcAnnGoRune
     = SrcAnn (Const GoRune) ()
 
+-- | 'GoString' with source annotations.
 type SrcAnnGoString
     = SrcAnn (Const GoString) ()

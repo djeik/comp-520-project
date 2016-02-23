@@ -1,5 +1,14 @@
-module Language.GoLite.Parser.Decl (
-  typeDeclP
+{-|
+Module      : Language.GoLite.Parser.Decl
+Description : Parsers for declarations
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+-}
+
+module Language.GoLite.Parser.Decl
+( typeDeclP
 , varDeclP
 ) where
 

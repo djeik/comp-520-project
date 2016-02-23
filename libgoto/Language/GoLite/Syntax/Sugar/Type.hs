@@ -11,15 +11,19 @@ module Language.GoLite.Syntax.Sugar.Type where
 
 import Language.GoLite.Syntax.Types
 
+-- | Constructs a type tree for a 'SliceType'.
 sliceType :: Fix (TypeF ident int) -> Fix (TypeF ident int)
 sliceType = Fix . SliceType
 
+-- | Constructs a type tree for an 'ArrayType'.
 arrayType :: int -> Fix (TypeF ident int) -> Fix (TypeF ident int)
 arrayType i t = Fix $ ArrayType i t
 
-namedType :: ident -> Fix (TypeF ident int)
-namedType = Fix . NamedType
-
+-- | Constructs a type tree for a 'StructType'.
 structType :: [([ident], Fix (TypeF ident int))] -> Fix (TypeF ident int)
 structType = Fix . StructType
+
+-- | Constructs a type tree for a 'NamedType'.
+namedType :: ident -> Fix (TypeF ident int)
+namedType = Fix . NamedType
 

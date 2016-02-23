@@ -8,12 +8,14 @@ module Lexer
 import qualified Text.Megaparsec.Lexer as L (charLiteral)
 
 import Language.GoLite hiding (structType) -- conflicts with sugar structType
-import Language.GoLite.Syntax.Sugar
 import Language.GoLite.Annotation ( bare )
-import Language.GoLite.SrcAnn ( bareType )
-import Text.PrettyPrint ( render )
 import Language.GoLite.Pretty
+import Language.GoLite.Syntax.SrcAnn ( bareType )
+import Language.GoLite.Syntax.Sugar
+
 import Core
+
+import Text.PrettyPrint ( render )
 
 lexer :: SpecWith ()
 lexer = describe "Lexer" $ do

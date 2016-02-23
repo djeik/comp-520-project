@@ -1,12 +1,23 @@
+{-|
+Module      : Language.GoLite.Parser
+Description : 
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+
+This module contains the top-most parser 'package' as well as parsers that
+combine both declarations and statements.
+-}
+
 module Language.GoLite.Parser
--- TODO revisit the list of exports
-(
-  package,
+( package
   -- * Declarations
-  topLevelDecl,
-  funDecl,
-  module Language.GoLite.Parser.Decl,
-  module Language.GoLite.Parser.Stmt
+, topLevelDecl
+, funDecl
+, module Language.GoLite.Parser.Decl
+  -- * Statements
+, module Language.GoLite.Parser.Stmt
 ) where
 
 import Language.GoLite.Parser.Core
@@ -51,5 +62,3 @@ funDecl = do
     b <- blockP
 
     pure $ FunDecl name params ret b
-
-

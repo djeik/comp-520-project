@@ -3,8 +3,9 @@
 module Parser where
 
 import Language.GoLite
-import Language.GoLite.SrcAnn
 import Language.GoLite.Syntax.Sugar
+import Language.GoLite.Syntax.SrcAnn
+
 import Core
 import Stmt
 

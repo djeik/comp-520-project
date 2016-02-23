@@ -1,3 +1,12 @@
+{-|
+Module      : Language.GoLite.Parser.Stmt
+Description : Parsers for statements
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+-}
+
 {-# LANGUAGE ViewPatterns #-}
 
 module Language.GoLite.Parser.Stmt
@@ -21,6 +30,11 @@ import Language.GoLite.Parser.Decl
 
 import Control.Monad ( void )
 
+-- | Parses a statement.
+--
+-- Some statement parsers produce several statements at once (specifically,
+-- distributed @type@ and @var@ declarations), so this parser takes care of
+-- wrapping the simpler statement parsers into singleton lists.
 stmt :: Parser [SrcAnnStatement]
 stmt =  varDeclP
     <|> typeDeclP
@@ -34,8 +48,14 @@ stmt =  varDeclP
         , breakStmtP
         , continueStmtP
         , blockStmt
-        , (simpleStmt >>= requireSemiP) ])
+        , simpleStmt >>= requireSemiP
+        ]
+    )
 
+-- | Parses a print statement.
+--
+-- @println@ is internally represented as a @print@ statement in which a
+-- synthetic @"\n"@ is appended to the expression list to print.
 printStmt :: Parser SrcAnnStatement
 printStmt = do
     (Ann l (runIdentity -> hasLn)) <- withSrcAnnId $
