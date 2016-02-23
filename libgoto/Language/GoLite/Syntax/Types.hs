@@ -435,12 +435,12 @@ instance
             ) => ExprF id bin un lit ty (Int, Doc) -> (Int, Doc)
         f e = case e of
             BinaryOp op (dl, l) (dr, r) -> (precedence op,) $
-                prettyParens (dl > precedence op) l <+>
+                prettyParens (dl < precedence op) l <+>
                 pretty op <+>
-                prettyParens (dr > precedence op) r
+                prettyParens (dr < precedence op) r
             UnaryOp op (dp, p) -> (precedence op,) $
                 pretty op <>
-                prettyParens (dp > precedence op) p
+                prettyParens (dp < precedence op) p
             Literal l -> (6, pretty l)
             Variable x -> (6, pretty x)
             Slice (ep, ex) lo hi up -> (6,) $
@@ -481,6 +481,12 @@ instance
                 [ prettyParens (dex < 6) ex
                 , prettyBrackets True i
                 ]
+
+instance (Pretty ident, Pretty decl) => Pretty (Package ident decl) where
+    pretty e = case e of
+        Package i decls ->
+            text "package" <+> pretty i $+$
+            vcat (pretty <$> decls)
 
 instance
     ( Pretty decl
@@ -533,11 +539,11 @@ instance
                 pretty op <+>
                 sep (punctuate comma (pretty <$> moreExprs))
             PrintStmt exprs ->
-                text "print" <+>
-                sep (punctuate comma (pretty <$> exprs)) <>
-                semi
+                text "print" <> prettyParens True (
+                    sep (punctuate comma (pretty <$> exprs))
+                )
             ReturnStmt mexpr ->
-                text "return" <+> pretty mexpr <> semi
+                text "return" <+> pretty mexpr
             IfStmt minit cond body mbody ->
                 text "if" <+> pretty minit <+> pretty cond <+> text "{" $+$
                 nest indentLevel (
@@ -548,16 +554,16 @@ instance
                     Just elseBody ->
                         text "else {" <+> vcat elseBody
                     Nothing -> empty
-            BreakStmt -> text "break" <> semi
-            ContinueStmt -> text "continue" <> semi
-            FallthroughStmt -> text "fallthrough" <> semi
+            BreakStmt -> text "break"
+            ContinueStmt -> text "continue"
+            FallthroughStmt -> text "fallthrough"
             SwitchStmt ini expr cases ->
                 text "switch" <+>
                 (case ini of
                     Just i -> pretty i <> semi
                     Nothing -> empty) <+>
                 pretty expr <+>
-                text "{" <+>
+                text "{" $+$
                 nest indentLevel (
                     vcat (
                         map (
@@ -565,7 +571,7 @@ instance
                                 pretty chead $+$ nest indentLevel (vcat body)
                         ) cases
                     )
-                ) <>
+                ) $+$
                 text "}"
             ForStmt ini expr step body ->
                 text "for" <+>
@@ -578,7 +584,7 @@ instance
                     Nothing -> empty
                 ) <+>
                 (case step of
-                    Just step' -> pretty step' <> semi
+                    Just step' -> pretty step'
                     Nothing -> empty
                 ) <+>
                 text "{" $+$
@@ -616,9 +622,13 @@ instance
         VarDeclBody idents mty exprs ->
             text "var" <+>
             sep (punctuate comma (pretty <$> idents)) <+>
-            pretty mty <+>
-            text "=" <+>
-            sep (punctuate comma (pretty <$> exprs))
+            pretty mty <>
+            (if null exprs
+                then empty
+                else
+                    text " =" <+>
+                    sep (punctuate comma (pretty <$> exprs))
+            )
 
 instance Pretty expr => Pretty (CaseHead expr) where
     pretty e = case e of

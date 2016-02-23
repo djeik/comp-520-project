@@ -8,7 +8,7 @@ module Stmt
 import Language.GoLite
 import Language.GoLite.SrcAnn
 import Language.GoLite.Parser.SimpleStmts
-import Language.GoLite.Syntax.Sugar
+import Language.GoLite.Syntax.Sugar as Sugar
 import Core
 
 statement :: SpecWith ()
@@ -21,9 +21,16 @@ statement = describe "stmt" $ do
                 describe "break/continue/fallthrough" simpleKeywordStmts
                 describe "block" blockStatement
 
+r :: b -> Either a b
 r = Right
+<<<<<<< HEAD
 int = Fix. Literal . IntLit
 varDeclStmt i t e = Fix $ DeclStmt $ VarDecl $ VarDeclBody i t e
+=======
+
+int :: GoInt -> Fix (ExprF id bin un (Literal a) ty)
+int = Sugar.literal . IntLit
+>>>>>>> 5834fdb3c223531fac0051abc8cc41e28ab4b923
 
 assign :: SpecWith ()
 assign = do

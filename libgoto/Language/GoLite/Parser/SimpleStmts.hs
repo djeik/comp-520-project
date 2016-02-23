@@ -12,7 +12,7 @@ import Language.GoLite.Parser.Core
 -- \"if\" and \"switch\" statements), only simple statements are allowed.
 simpleStmt :: Parser (Semi SrcAnnStatement)
 simpleStmt
-    = try assignStmt
+    = assignStmt
     <|> shortVarDeclP
     <|> exprStmt
 
@@ -51,8 +51,11 @@ assignStmt :: Parser (Semi SrcAnnStatement)
 assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
     <|>  try (incDecStmt (fmap (fmap (const ())) opDecrement) MinusEq)
     <|>  do
-            (Ann al lhs) <- withSrcAnnF $ (expr >>= noSemiP) `sepBy1` comma
-            op <- withSrcAnnF $ opAssign >>= noSemiP
+            (al, lhs, op) <- try $ do
+                (Ann al lhs) <- withSrcAnnF $ (expr >>= noSemiP) `sepBy1` comma
+                op <- withSrcAnnF $ opAssign >>= noSemiP
+                pure (al, lhs, op)
+
             (Ann ar rhs) <- withSrcAnnF $ semiTerminatedCommaList expr
 
             let a = SrcSpan (srcStart al) (srcEnd ar)
