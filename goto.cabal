@@ -93,4 +93,6 @@ executable goto
     megaparsec >= 4.2 && <4.4,
     pretty-show >=1.6 && <1.7,
     pretty >=1.1 && <1.2,
+    filepath >=1.4 && <1.5,
+    optparse-applicative >=0.12 && <0.13,
     goto
