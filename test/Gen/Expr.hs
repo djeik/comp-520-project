@@ -6,7 +6,7 @@ module Gen.Expr
 ) where
 
 import Gen.Core
-import Gen.Literal
+import Gen.Literal ()
 
 -- | Generates expressions.
 exprGen :: Gen BasicExpr

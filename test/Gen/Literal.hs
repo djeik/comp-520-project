@@ -132,4 +132,5 @@ instance Arbitrary BasicLiteral where
                 _ -> c
 
 -- | Generates an arbitrary positive integer.
+arbitraryPositiveIntegral :: Gen GoInt
 arbitraryPositiveIntegral = abs <$> arbitraryBoundedIntegral
