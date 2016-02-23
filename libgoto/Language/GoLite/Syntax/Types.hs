@@ -539,10 +539,9 @@ instance
             PrintStmt exprs ->
                 text "print" <> prettyParens True (
                     sep (punctuate comma (pretty <$> exprs))
-                ) <>
-                semi
+                )
             ReturnStmt mexpr ->
-                text "return" <+> pretty mexpr <> semi
+                text "return" <+> pretty mexpr
             IfStmt minit cond body mbody ->
                 text "if" <+> pretty minit <+> pretty cond <+> text "{" $+$
                 nest indentLevel (
@@ -553,16 +552,16 @@ instance
                     Just elseBody ->
                         text "else {" <+> vcat elseBody
                     Nothing -> empty
-            BreakStmt -> text "break" <> semi
-            ContinueStmt -> text "continue" <> semi
-            FallthroughStmt -> text "fallthrough" <> semi
+            BreakStmt -> text "break"
+            ContinueStmt -> text "continue"
+            FallthroughStmt -> text "fallthrough"
             SwitchStmt ini expr cases ->
                 text "switch" <+>
                 (case ini of
                     Just i -> pretty i <> semi
                     Nothing -> empty) <+>
                 pretty expr <+>
-                text "{" <+>
+                text "{" $+$
                 nest indentLevel (
                     vcat (
                         map (
@@ -570,7 +569,7 @@ instance
                                 pretty chead $+$ nest indentLevel (vcat body)
                         ) cases
                     )
-                ) <>
+                ) $+$
                 text "}"
             ForStmt ini expr step body ->
                 text "for" <+>
@@ -583,7 +582,7 @@ instance
                     Nothing -> empty
                 ) <+>
                 (case step of
-                    Just step' -> pretty step' <> semi
+                    Just step' -> pretty step'
                     Nothing -> empty
                 ) <+>
                 text "{" $+$
