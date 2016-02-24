@@ -60,16 +60,13 @@ shortVarDeclP = do
 
 -- | Parses an assignment statement: a list of expressions followed by an
 -- assignment operator (\"=\", \"+=\", etc.) and a list of expressions.
---
--- TODO: Only certain kinds of expressions are allowed on the left-hand side of
--- the assignment operator (namely, addressable expressions). We need to check
--- that this is the case and raise an error otherwise.
 assignStmt :: Parser (Semi SrcAnnStatement)
 assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
     <|>  try (incDecStmt (fmap (fmap (const ())) opDecrement) MinusEq)
     <|>  do
             (al, lhs, op) <- try $ do
-                (Ann al lhs) <- withSrcAnnF $ (expr >>= noSemiP) `sepBy1` comma
+                (Ann al lhs) <- withSrcAnnF $
+                                (addressableExpr >>= noSemiP) `sepBy1` comma
                 op <- withSrcAnnF $ opAssign >>= noSemiP
                 pure (al, lhs, op)
 
@@ -87,7 +84,7 @@ assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
 -- parsed to the same representation as \"x += 1\" or \"y -= 1\".
 incDecStmt :: Parser (Semi ()) -> AssignOp () -> Parser (Semi SrcAnnStatement)
 incDecStmt opParse op = do
-    e <- expr
+    e <- addressableExpr
 
     (Ann opSpan parsedOp) <- withSrcAnnF opParse
 

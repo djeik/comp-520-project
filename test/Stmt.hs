@@ -52,6 +52,7 @@ assign = do
 
         parseAssign "x ++" `shouldSatisfy` isRight
 
+
     it "parses e +=/-= 1 equivalently to e++/--" $ do
         parseAssign "x++;" `shouldBe` parseAssign "x += 1;"
         parseAssign "x--" `shouldBe` parseAssign "x -= 1;"
@@ -84,6 +85,36 @@ assign = do
     it "parses an assignment op" $ do
         parseAssign "a += a" `shouldBe`
             r (assignment [variable "a"] PlusEq [variable "a"])
+
+    it "parses assignment on addressable operand" $ do
+        parseAssign "struc.select++" `shouldBe`
+            r (assignment
+                [selector (variable "struc") "select"]
+                PlusEq
+                [int 1])
+
+        parseAssign "array[0]++" `shouldBe`
+            r (assignment
+                [index (variable "array") (int 0)]
+                PlusEq
+                [int 1])
+
+        parseAssign "*p++" `shouldBe`
+            r (assignment
+                [Fix $ UnaryOp Dereference (variable "p")]
+                PlusEq
+                [int 1])
+
+    it "does not parse an assignment if the operand is not addressable" $ do
+        parseAssign "(a + a) >>= 3" `shouldSatisfy` isLeft
+        parseAssign "-a /= 3" `shouldSatisfy` isLeft
+        parseAssign "6.nothing++" `shouldSatisfy` isLeft
+        parseAssign "[]int(nope) *= 2" `shouldSatisfy` isLeft
+        parseAssign "([]int(nope))[2]--" `shouldSatisfy` isLeft
+        parseAssign "a.([]int) &= 127" `shouldSatisfy` isLeft
+        parseAssign "a[:]++" `shouldSatisfy` isLeft
+        parseAssign "g()++" `shouldSatisfy` isLeft
+        parseAssign "`literally`--" `shouldSatisfy` isLeft
 
     it "does not parse an assignment with no expression on either side" $ do
         parseAssign "= a" `shouldSatisfy` isLeft
@@ -498,7 +529,7 @@ switchStatement = do
         parseSwitch "switch {case a, b\n, c: x++;}" `shouldSatisfy` isLeft
 
     it "does not parse if the initializer is not a simple statement" $ do
-        parseSwitch "switch {}; {}" `shouldSatisfy` isLeft
+        parseSwitch "switch switch {}; {}" `shouldSatisfy` isLeft
         parseSwitch "switch break; {}" `shouldSatisfy` isLeft
 
     it "does not parse if the initializer has no semi" $ do

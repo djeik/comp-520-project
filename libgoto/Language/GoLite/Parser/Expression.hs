@@ -9,6 +9,7 @@ Stability   : experimental
 
 module Language.GoLite.Parser.Expression
 ( expr
+, addressableExpr
 ) where
 
 import Language.GoLite.Lexer
@@ -19,9 +20,28 @@ import Control.Monad (void)
 
 import Text.Megaparsec.Expr
 
+-- | Parses an addressable expression
+addressableExpr :: Parser (Semi SrcAnnExpr)
+addressableExpr = do
+    e <- expr
+    condUnSemiP e isAddressable "Illegal non-addressable expression"
+    pure e
+
 -- | Parses an expression.
 expr :: Parser (Semi SrcAnnExpr)
 expr = makeExprParser term table
+
+-- | Determines whether an expression is addressable. Variables, dereferences,
+-- (known as "pointer indirections" in the spec), selectors on addressable
+-- expressions, and indexing operations on addressable expressions are all
+-- addressable. No other expression is addressable.
+isAddressable :: SrcAnnExpr -> Bool
+isAddressable (Fix (Ann _ e)) = case e of
+    (Variable _ ) -> True
+    (UnaryOp (Ann _ Dereference) _) -> True
+    (Selector e' _) -> isAddressable e'
+    (Index e' _) -> isAddressable e'
+    _ -> False
 
 -- | Parses a basic term of an expression.
 term :: Parser (Semi SrcAnnExpr)
