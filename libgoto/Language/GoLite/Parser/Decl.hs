@@ -23,8 +23,8 @@ typeDeclP = decl kwType typeSpec
 -- | Parses a type specification: an identifier followed by a type.
 typeSpec :: Parser (SrcAnnStatement)
 typeSpec = do
-    id_ <- lexeme identifier >>= noSemiP
-    typ <- lexeme type_ >>= requireSemiP
+    id_ <- identifier >>= noSemiP
+    typ <- type_ >>= requireSemiP
 
     let a = SrcSpan (srcStart (ann id_)) (srcEnd (topAnn typ))
 
@@ -54,7 +54,7 @@ decl kw spec = (kw >>= noSemiP) >> (manySpecs <|> oneSpec) where
 varSpec :: Parser (SrcAnnStatement)
 varSpec = do
     (Ann l ids) <- withSrcAnnF $
-        (lexeme identifier >>= noSemiP) `sepBy1` comma
+        (identifier >>= noSemiP) `sepBy1` comma
 
     typ <- optional (type_ >>= noSemiP)
 
@@ -68,7 +68,7 @@ varSpec = do
 -- TODO see if there's a way to make this cleaner?
 varSpecNoExpr :: Parser (SrcAnnStatement)
 varSpecNoExpr = do
-    (Ann b ids) <- withSrcAnnF $ (lexeme identifier >>= noSemiP) `sepBy1` comma
+    (Ann b ids) <- withSrcAnnF $ (identifier >>= noSemiP) `sepBy1` comma
     typ <- type_ >>= requireSemiP
 
     let a = SrcSpan (srcStart b) (srcEnd (topAnn typ))

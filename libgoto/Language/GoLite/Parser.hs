@@ -28,8 +28,7 @@ import Language.GoLite.Parser.Stmt
 -- identifier), followed by a list of top-level declarations.
 package :: Parser SrcAnnPackage
 package = do
-    name <- (kwPackage >>= noSemiP) >>
-            (lexeme identifier >>= requireSemiP)
+    name <- (kwPackage >>= noSemiP) >> (identifier >>= requireSemiP)
     decls <- many topLevelDecl
 
     pure $ Package name (concat decls)
@@ -56,7 +55,7 @@ fromDeclStmt _ = error "Not a DeclStmt"
 -- optional return type and a block.
 funDecl :: Parser SrcAnnFunDecl
 funDecl = do
-    name <- (kwFunc >>= noSemiP) >> lexeme identifier >>= noSemiP
+    name <- (kwFunc >>= noSemiP) >> (identifier >>= noSemiP)
     params <- (parens $ (field >>= noSemiP) `sepBy` comma) >>= noSemiP
     ret <- optional (type_ >>= noSemiP)
     b <- blockP

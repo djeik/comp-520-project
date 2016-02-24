@@ -147,8 +147,8 @@ table =
 -- its own right.
 operand :: Parser (Semi SrcAnnExpr)
 operand
-    = (fmap (dup Literal) <$> lexeme literal)
-    <|> (fmap (dup Variable) <$> lexeme identifier)
+    = (fmap (dup Literal) <$> literal)
+    <|> (fmap (dup Variable) <$> identifier)
     <|> parens (expr >>= noSemiP) where
         dup f x@(Ann a _) = Fix $ Ann a (f x)
 

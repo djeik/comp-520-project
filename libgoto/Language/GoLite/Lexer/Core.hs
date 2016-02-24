@@ -15,8 +15,10 @@ module Language.GoLite.Lexer.Core
 ( sc
 , symbol
 , symbol_
+, symbol__
 , lexeme
 , ($>)
+, HasNewline
   -- * Reexports for convenience
 , module Text.Megaparsec
 , module Text.Megaparsec.String
@@ -24,42 +26,62 @@ module Language.GoLite.Lexer.Core
 
 import Control.Monad ( void )
 
+import Data.Maybe ( isJust )
 import Text.Megaparsec
 import Text.Megaparsec.String
-import qualified Text.Megaparsec.Lexer as L
+
+-- | Track the presence of newlines with a boolean.
+type HasNewline = Bool
 
 -- | The \"fmap const\" operator replaces the contents of a "Functor" with a
 -- given value.
 ($>) :: Functor f => f a -> b -> f b
 f $> c = fmap (const c) f
 
--- | Consumes whitespace and comments.
-sc :: Parser ()
-sc = L.space (void spaceChar) lineComment blockComment
-  where lineComment  = L.skipLineComment "//"
-        blockComment = L.skipBlockComment "/*" "*/"
+-- | Consumes whitespace if any and performs a newline detection.
+sc :: Parser HasNewline
+sc = hidden $ (||) <$> (any id <$> many (choice [ch, lc, bc])) <*> (isJust <$> optional eof) where
+    ch = do
+        c <- spaceChar
+        pure $ case c of
+            '\n' -> True
+            _ -> False
+    lc = (try $ string "//") *> manyTill anyChar newline *> pure True
+    bc = (try $ string "/*") *> (any ('\n' ==) <$> manyTill anyChar (try $ string "*/"))
 
--- | Parses a verbatim string, allowing for potential whitespace before.
+-- | Parses a verbatim string, allowing for potential whitespace after and
+-- performing a newline detection.
 --
--- The string is also as-is by the parser.
-symbol :: String -> Parser String
+-- This parser can be backtracked out of until the whole string is parsed.
+--
+-- The string is returned as-is by the parser.
+symbol :: String -> Parser (HasNewline, String)
 symbol s = do
-    try $ do
-        sc
-        string s
-    pure s
+    try (string s)
+    n <- sc
+    pure (n, s)
 
 -- | Parses a verbatim string, allowing for potential whitespace before.
 --
--- This is a variant of "symbol" that does not return the parsed string.
-symbol_ :: String -> Parser ()
-symbol_ = void . symbol
+-- This is a variant of "symbol" that returns only the 'NewlineStatus'.
+symbol_ :: String -> Parser HasNewline
+symbol_ = fmap fst . symbol
 
--- | Wraps a parser with leading whitespace and comment handling to make it
+-- | Parses a verbatim string, allowing for potential whitespace after. The
+-- result is thrown away.
+symbol__ :: String -> Parser ()
+symbol__ = void . symbol
+
+-- | Wraps a parser with trailing whitespace and comment handling to make it
 -- properly act as a parser for a lexeme in the language.
 --
--- The result of the supplied parser is returned.
-lexeme :: Parser a -> Parser a
+-- The trailing whitespace handling is done by 'sc' which also performs newline
+-- detection.
+--
+-- The result of the supplied parser is returned alongside the determined
+-- 'NewlineStatus'.
+lexeme :: Parser a -> Parser (HasNewline, a)
 lexeme p = try $ do
-    sc
-    p
+    x <- p
+    s <- sc
+    pure (s, x)

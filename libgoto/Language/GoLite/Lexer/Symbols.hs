@@ -44,11 +44,11 @@ import Language.GoLite.Lexer.Semi
 import Language.GoLite.Syntax
 
 -- | Parses a comma symbol \",\".
-comma :: Parser ()
+comma :: Parser HasNewline
 comma = symbol_ ","
 
 -- | Parses a colon symbol \":\".
-colon :: Parser ()
+colon :: Parser HasNewline
 colon = symbol_ ":"
 
 -- | Parses the increment symbol \"++\", checking for a semicolon.

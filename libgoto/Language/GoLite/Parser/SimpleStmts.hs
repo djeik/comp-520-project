@@ -38,7 +38,7 @@ emptyStmtP = do
 shortVarDeclP :: Parser (Semi SrcAnnStatement)
 shortVarDeclP = do
     ids@(i1:_) <- try $
-        (lexeme identifier >>= noSemiP)
+        (identifier >>= noSemiP)
         `sepBy1`
         comma <* shortVarDeclarator
 

@@ -79,7 +79,7 @@ kwType = explicitSemisym "type"
 -- | Parses the \"if\" keyword. Does not check for a semicolon, since an if
 -- statement may contain an optional initializer.
 kwIf :: Parser Keyword
-kwIf = symbol "if"
+kwIf = snd <$> symbol "if"
 
 -- | Parses the \"else\" keyword, checking for an explicit semicolon.
 kwElse :: Parser (Semi Keyword)
@@ -88,12 +88,12 @@ kwElse = explicitSemisym "else"
 -- | Parses the \"for\" keyword. Does not check for a semicolon, since a for
 -- statement may contain an optional initializer.
 kwFor :: Parser Keyword
-kwFor = symbol "for"
+kwFor = snd <$> symbol "for"
 
 -- | Parses the \"switch\" keyword. Does not check for a semicolon, since a
 -- switch statement may contain an optional initializer.
 kwSwitch :: Parser Keyword
-kwSwitch = symbol "switch"
+kwSwitch = snd <$> symbol "switch"
 
 -- | Parses the \"case\" keyword, checking for a semicolon.
 kwCase :: Parser (Semi Keyword)

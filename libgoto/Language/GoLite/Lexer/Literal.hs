@@ -43,7 +43,7 @@ import Data.String ( fromString )
 
 -- | Parses a literal.
 literal :: Parser (Semi SrcAnnLiteral)
-literal = withDetectSemicolon $ withSrcAnnF $ do
+literal = withDetectSemicolon $ lexeme $ withSrcAnnF $ do
     label "literal" $ choice
         [ fmap FloatLit (try floatLiteral)
         , fmap IntLit integerLiteral
@@ -78,7 +78,7 @@ octalLiteral = label "octal integer literal" $ do
 -- with at least one of digits `0` through `f` (case-insensitive)
 hexLiteral :: Parser Int
 hexLiteral = label "hexadecimal integer literal" $ do
-    try (symbol "0x") <|> try (symbol "0X")
+    try (string "0x") <|> try (string "0X")
     t <- some hexDigitChar
     return $ read ("0x" ++ t)
 
@@ -174,7 +174,7 @@ stringLiteral
 -- characters. `_` is considered a letter.
 identifier :: Parser (Semi SrcAnnIdent)
 identifier = p <?> "identifier" where
-    p = withDetectSemicolon $ withSrcAnn Ident $ do
+    p = withDetectSemicolon $ lexeme $ withSrcAnn Ident $ do
         c <- char '_' <|> letterChar
         cs <- many $ char '_' <|> alphaNumChar
         pure $ fromString (c:cs)
@@ -200,14 +200,14 @@ type_
         arrayType = label "array type" $ withPushSrcAnnFix $ do
             symbol_ "["
             i <- withSrcAnnConst $
-                lexeme (withDetectSemicolon integerLiteral) >>= noSemiP
+                withDetectSemicolon (lexeme integerLiteral) >>= noSemiP
             closeBracket >>= noSemiP
             s <- type_
             pure $ fmap (ArrayType i) s
 
         namedType :: Parser (Semi SrcAnnType)
         namedType = label "named type" $ withPushSrcAnnFix $ do
-            fmap NamedType <$> lexeme identifier
+            fmap NamedType <$> identifier
 
 -- | Parses a struct type, which is the keyword "struct" followed by a list of
 -- fields enclosed in braces.
@@ -225,7 +225,7 @@ structType = label "struct type" $ withPushSrcAnnFix $ do
 -- followed by a type.
 field :: Parser (Semi ([SrcAnnIdent], SrcAnnType))
 field = do
-    ids <- (lexeme identifier >>= noSemiP) `sepBy1` comma
+    ids <- (identifier >>= noSemiP) `sepBy1` comma
     typ <- type_
     pure $ do
         typ' <- typ

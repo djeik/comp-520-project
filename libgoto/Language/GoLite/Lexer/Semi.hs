@@ -19,7 +19,6 @@ module Language.GoLite.Lexer.Semi
 , SemiError(..)
   -- ** Semi introduction
 , withDetectSemicolon
-, withDetectExplicitSemicolon
 , semiPresent
   -- ** Semi elimination
 , requireSemi
@@ -152,25 +151,19 @@ condUnSemiP s p m = case unSemi s of
 
     Right x -> if p x then pure x else failure [Message m]
 
--- | Consumes whitespace until reaching the end of line/file.
-eventuallyEol :: Parser ()
-eventuallyEol = hidden $ void $ manyTill spaceChar (void eol <|> eof)
-
--- | Performs a semicolon detection.
-detectSemicolon :: Parser Bool
-detectSemicolon = isJust <$> optional (semicolon <|> try eventuallyEol)
-
--- | Runs a parser and performs an explicit semicolon detection, introducing a
--- computation in the "Semi" monad. The difference with `withDetectSemicolon`
--- is that this does not check for end-of-lines, so it is used in conjunction
--- with tokens that do not trigger semicolon insertion (e.g. some keywords).
-withDetectExplicitSemicolon :: Parser a -> Parser (Semi a)
-withDetectExplicitSemicolon p = do
-    q <- p
+-- | Runs a parser that performs a newline check and performs a semicolon
+-- detection, introducing a computation in the "Semi" monad.
+withDetectSemicolon :: Parser (HasNewline, a) -> Parser (Semi a)
+withDetectSemicolon p = do
+    (n, q) <- p
     t <- isJust <$> optional semicolon
-    pure $ do
-        put (Just t)
-        pure q
+    pure $ put (Just $ n || t) *> pure q
+
+withDetectExplicitSemicolon :: Parser (HasNewline, a) -> Parser (Semi a)
+withDetectExplicitSemicolon p = do
+    (_, q) <- p
+    t <- isJust <$> optional semicolon
+    pure $ put (Just t) *> pure q
 
 -- | Wraps a value in the "Semi" monad, setting the state to True.
 semiPresent :: a -> Semi a
@@ -184,18 +177,8 @@ semiAbsent x = do
     put (Just False)
     pure x
 
--- | Runs a parser and performs a semicolon detection, introducing a
--- computation in the "Semi" monad.
-withDetectSemicolon :: Parser a -> Parser (Semi a)
-withDetectSemicolon p = do
-    q <- p
-    t <- detectSemicolon
-    pure $ do
-        put (Just t)
-        pure q
-
 -- | Parses a semicolon symbol \";\".
-semicolon :: Parser ()
+semicolon :: Parser HasNewline
 semicolon = symbol_ ";"
 
 -- | Parses a string and performs semicolon detection.
