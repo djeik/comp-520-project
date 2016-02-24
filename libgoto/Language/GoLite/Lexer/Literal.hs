@@ -7,6 +7,8 @@ Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
 -}
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Language.GoLite.Lexer.Literal
 ( -- * Literal lexers
   literal
@@ -173,12 +175,19 @@ stringLiteral
 -- An identifier starts with an letter, followed by any number of alphanumeric
 -- characters. `_` is considered a letter.
 identifier :: Parser (Semi SrcAnnIdent)
-identifier = p <?> "identifier" where
+identifier = label "identifier" $ do
+    p' <- p
+    condUnSemiP p' (\(Ann _ x) -> x `notElem` keywords) "Unexpected keyword."
+    pure p'
+    where
     p = withDetectSemicolon $ lexeme $ withSrcAnn Ident $ do
-        notFollowedBy (lexeme anyKeyword)
         c <- char '_' <|> letterChar
         cs <- many $ char '_' <|> alphaNumChar
         pure $ fromString (c:cs)
+    -- Fred: I know this is awfully ugly, I'll revisit it after this milestone.
+    keywords = ["break", "return", "continue", "fallthrough",
+            "print", "println", "read", "var", "struct", "type", "if", "else",
+            "for", "switch", "case", "default", "package", "func"]
 
 -- | Parses a type.
 -- A type can be either a slice type (empty brackets followed by a type), an

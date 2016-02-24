@@ -73,6 +73,21 @@ assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
             (Ann ar rhs) <- withSrcAnnF $
                                 semiList (expr `sepBy` comma) noSemi (pure ())
 
+            -- Both sides must have the same length.
+            condUnSemiP
+                rhs
+                (\rhs' -> length rhs' == length lhs)
+                "Assignments must have the same number of operands on each side"
+
+            -- In an assignment operation (e.g. +=), there should only be one
+            -- operand.
+            condUnSemiP
+                rhs
+                (\rhs' -> case op of
+                            (Ann _ Assign) -> True
+                            _ -> length rhs' == 1)
+                "Assignment operations may have only one operand."
+
             let a = SrcSpan (srcStart al) (srcEnd ar)
 
             pure $ do

@@ -142,6 +142,16 @@ assign = do
         parseAssign "a = a {}" `shouldSatisfy` isLeft
         parseAssign "a += a {}" `shouldSatisfy` isLeft
 
+    it "does not parse when the number of operands differs on each side" $ do
+        parseAssign "a, b = 1" `shouldSatisfy` isLeft
+        parseAssign "a = 1, 2" `shouldSatisfy` isLeft
+        parseAssign "a, b += 1" `shouldSatisfy` isLeft
+        parseAssign "a += 1, 2" `shouldSatisfy` isLeft
+
+    it "does not parse when there is more than one operand in an assign-op" $ do
+        parseAssign "a, b += 3, 4" `shouldSatisfy` isLeft
+        parseAssign "a, b = 3, 4" `shouldSatisfy` isRight
+
 shortVariableDeclaration :: SpecWith ()
 shortVariableDeclaration = do
     let parseShortVarDecl = parseOnly (fmap bareStmt $ shortVarDeclP >>= unSemiP)
