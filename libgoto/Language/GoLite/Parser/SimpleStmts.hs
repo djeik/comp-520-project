@@ -13,6 +13,7 @@ module Language.GoLite.Parser.SimpleStmts (
 , assignStmt
 , incDecStmt
 , exprStmtP
+, emptyStmtP
 ) where
 
 import Language.GoLite.Parser.Core

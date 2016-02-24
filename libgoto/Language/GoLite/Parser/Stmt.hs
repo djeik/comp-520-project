@@ -19,7 +19,7 @@ module Language.GoLite.Parser.Stmt
 , ifStmt
 , switchStmtP
 , fallthroughStmtP
-, forStmt
+, forStmtP
 , breakStmtP
 , continueStmtP
 ) where
@@ -44,7 +44,7 @@ stmt =  varDeclP
         , ifStmt
         , switchStmtP
         , fallthroughStmtP
-        , forStmt
+        , forStmtP
         , breakStmtP
         , continueStmtP
         , blockStmt
@@ -151,10 +151,10 @@ caseHead = default_ <|> case_ where
 -- an initializer simple statement followed by an expression and another simple
 -- statement. In this last case, all the components are optional, and the
 -- initializer and expression must end with a semicolon.
-forStmt :: Parser SrcAnnStatement
-forStmt = do
+forStmtP :: Parser SrcAnnStatement
+forStmtP = do
     (Ann l _) <- withSrcAnnConst kwFor
-    (Fix (Ann r s)) <- infiniteFor <|> fullFor <|> simpleFor
+    (Fix (Ann r s)) <- infiniteFor <|> simpleFor <|> fullFor
     let a = SrcSpan (srcStart l) (srcEnd r)
     pure $ Fix $ Ann a s
 
@@ -169,20 +169,17 @@ infiniteFor = do
 
 -- | Parses a full for loop, which may contain an initializer simple statement,
 -- an expression and a post-iteration simple statement. All those components
--- are optional. The initializer and expression must end with a semicolon.
---
--- TODO We need to support cases where the initializer or expression are not
--- present but semicolons are, e.g.:
---      `for ; x < 2; { `
---      `for ;; y-- {`
---      `for ;; {`
--- ... and so on.
+-- are optional. The initializer and expression must end with a semicolon,
+-- the post-iteration must not. The post-iteration statement cannot be a
+-- variable declaration.
 fullFor :: Parser SrcAnnStatement
 fullFor = do
     (Ann l (runIdentity -> (initializer, cond, post))) <- withSrcAnnId $
         (,,)
             <$> optional (simpleStmt >>= requireSemiP)
-            <*> optional (expr >>= requireSemiP)
+            -- This looks funky but it's an easy way to encode that there's
+            -- either an expression, or just a semicolon.
+            <*> (emptyStmtP $> Nothing <|> fmap Just (expr >>= requireSemiP))
             <*> optional (simpleStmt >>= noSemiP)
 
     (Ann r b) <- withSrcAnnF blockP
