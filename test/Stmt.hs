@@ -130,6 +130,12 @@ assign = do
         parseAssign "a a" `shouldSatisfy` isLeft
         parseAssign "a << a" `shouldSatisfy` isLeft
 
+    it "does not parse when the operator has an explicit semi" $ do
+        parseAssign "a =; a" `shouldSatisfy` isLeft
+        parseAssign "a +=; a" `shouldSatisfy` isLeft
+        parseAssign "a =\n a" `shouldSatisfy` isRight
+        parseAssign "a +=\n a" `shouldSatisfy` isRight
+
     it "does not parse when any expression but the rightmost has a semi" $ do
         parseAssign "a; = a" `shouldSatisfy` isLeft
         parseAssign "a\n = a" `shouldSatisfy` isLeft
@@ -172,6 +178,10 @@ shortVariableDeclaration = do
     it "does not parse when either side has no elements" $ do
         parseShortVarDecl "x :=" `shouldSatisfy` isLeft
         parseShortVarDecl ":= 2" `shouldSatisfy` isLeft
+
+    it "does not parse when sides have differing lengths" $ do
+        parseShortVarDecl "x, y := 1" `shouldSatisfy` isLeft
+        parseShortVarDecl "x := 1, 2" `shouldSatisfy` isLeft
 
     it "does not parse when any identifier has a semi" $ do
         parseShortVarDecl "x; := 1" `shouldSatisfy` isLeft
@@ -324,6 +334,17 @@ variableDeclaration = do
         parseVarDecl "var x int 3" `shouldSatisfy` isLeft
         parseVarDecl "var (x 3;)" `shouldSatisfy` isLeft
         parseVarDecl "var (x int 3;)" `shouldSatisfy` isLeft
+
+    it "does not parse if there is no type nor expressions" $ do
+        parseVarDecl "var x" `shouldSatisfy` isLeft
+        parseVarDecl "var x, y" `shouldSatisfy` isLeft
+
+    it "does not parse if either side has a different number of expressions" $ do
+        parseVarDecl "var x = 1, 2" `shouldSatisfy` isLeft
+        parseVarDecl "var x, y = 2" `shouldSatisfy` isLeft
+        parseVarDecl "var x int = 1, 2" `shouldSatisfy` isLeft
+        parseVarDecl "var x, y int = 2" `shouldSatisfy` isLeft
+
 
 typeDeclaration :: SpecWith ()
 typeDeclaration = do

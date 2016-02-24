@@ -61,6 +61,11 @@ varSpec = do
     (Ann r exprs) <- withSrcAnnF $ opAssignSimple >>
                 (semiList (expr `sepBy1` comma) noSemi requireSemi >>= unSemiP)
 
+    if length ids /= length exprs then
+        failure [Message "Variable declarations must have the same number of operands on each side"]
+    else
+        pure ()
+
     let a = SrcSpan (srcStart l) (srcEnd r)
 
     pure $ Fix $ Ann a $ DeclStmt (VarDecl (VarDeclBody ids typ exprs))

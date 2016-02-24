@@ -51,6 +51,11 @@ shortVarDeclP = do
         [] -> failure [Expected "expression list"]
         xs -> pure $ last xs
 
+    condUnSemiP
+        exprs
+        (\es -> length es == length ids)
+        "Short variable declarations must have the same number of operands on each side"
+
     pure $ do
         exprs' <- exprs
 

@@ -73,13 +73,13 @@ closeBrace = semisym "}"
 
 -- | Parses a short variable declarator \":=\", checking for a semicolon.
 shortVarDeclarator :: Parser (Semi String)
-shortVarDeclarator = semisym ":="
+shortVarDeclarator = explicitSemisym ":="
 
 -- | Creates a parser that will consume the given string and return the
 --   appropriate assignment operator, checking for a semicolon.
 semiAssignOp :: String -> AssignOp a -> Parser (Semi (AssignOp a))
 semiAssignOp s op = do
-                    x <- semisym s
+                    x <- explicitSemisym s
                     pure (x $> op)
 
 -- | Parses an assignment operator \"=\", checking for a semicolon.
