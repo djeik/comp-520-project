@@ -62,8 +62,8 @@ shortVarDeclP = do
 -- assignment operator (\"=\", \"+=\", etc.) and a list of expressions.
 assignStmt :: Parser (Semi SrcAnnStatement)
 assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
-    <|>  try (incDecStmt (fmap (fmap (const ())) opDecrement) MinusEq)
-    <|>  do
+    <|> try (incDecStmt (fmap (fmap (const ())) opDecrement) MinusEq)
+    <|> do
             (al, lhs, op) <- try $ do
                 (Ann al lhs) <- withSrcAnnF $
                                 (addressableExpr >>= noSemiP) `sepBy1` comma

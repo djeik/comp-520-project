@@ -82,9 +82,13 @@ interpStringGen
 
 -- | Generates identifiers.
 identGen :: Gen String
-identGen = (:) <$> start <*> rest where
+identGen = suchThat identGen' notKw where
+    identGen' = (:) <$> start <*> rest
     start = elements $ '_' : ['a'..'z'] ++ ['A'..'Z']
     rest = sized . flip replicateM . oneof $ [start, elements ['0'..'9']]
+    notKw  = \c -> c `notElem` ["break", "return", "continue", "fallthrough",
+            "print", "println", "read", "var", "struct", "type", "if", "else",
+            "for", "switch", "case", "default", "package", "func"]
 
 -- | Generates types, which may contain other generated types.
 typeGen :: Gen BasicType
@@ -97,7 +101,6 @@ typeGen = sized typeGen' where
     -- The types become impossibly long if we don't reduce size exponentially.
     typeGen' n = let n' = n `div` 2 in
                     Fix <$> oneof [
-                        liftM NamedType arbitrary,
                         liftM SliceType (typeGen' $ n'),
                         liftM2 ArrayType arbitrary (typeGen' n'),
                         liftM StructType (vectorOf n' (fieldGen n'))]

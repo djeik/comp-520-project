@@ -294,11 +294,13 @@ call :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
 call = do
     try $ symbol "("
     (ty, exprs) <- arguments
-    (Ann b _) <- withSrcAnnF closeParen
+    (Ann b p) <- withSrcAnnF closeParen
 
     pure $ \e -> do
         y <- e
         noSemi
+
+        _ <- p -- Force semi evaluation on closing paren
 
         let a = SrcSpan (srcStart (topAnn y)) (srcEnd b)
 

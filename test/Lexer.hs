@@ -15,8 +15,6 @@ import Language.GoLite.Syntax.Sugar
 
 import Core
 
-import Text.PrettyPrint ( render )
-
 lexer :: SpecWith ()
 lexer = describe "Lexer" $ do
     testDecimalLiteral
@@ -346,31 +344,31 @@ testType = describe "type_" $ do
             Right (structType [ (["foo"], sliceType $ namedType "ty"),
                         (["bar"], arrayType (idf 4) (namedType "ki"))])
         -- Nested structs
-        parseOnly type' "struct { in struct { inn struct {}}}" `shouldBe`
+        parseOnly type' "struct { in struct { inn struct {};};}" `shouldBe`
             Right (structType [ (["in"],
                     (structType [ (["inn"],
                         structType [])]))])
 
     it "does not parse structs with invalid fields" $ do
         -- Missing identifier
-        parseOnly type' "struct { []int32 }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { []int32; }" `shouldSatisfy` isLeft
         -- Missing type
-        parseOnly type' "struct { foo }" `shouldSatisfy` isLeft
-        parseOnly type' "struct { foo, bar }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo; }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo, bar; }" `shouldSatisfy` isLeft
         -- Invalid type
-        parseOnly type' "struct { foo [-1]int32 }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo [-1]int32; }" `shouldSatisfy` isLeft
         -- Identifier with semi
-        parseOnly type' "struct { foo; int32 }" `shouldSatisfy` isLeft
-        parseOnly type' "struct { foo\n int32 }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo; int32; }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo\n int32; }" `shouldSatisfy` isLeft
         -- Spurious comma
-        parseOnly type' "struct { foo, bar, []int32 }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo, bar, []int32; }" `shouldSatisfy` isLeft
         -- Missing comma
-        parseOnly type' "struct { foo bar []int32 }" `shouldSatisfy` isLeft
-        parseOnly type' "struct { foo bar, []int32 }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo bar []int32; }" `shouldSatisfy` isLeft
+        parseOnly type' "struct { foo bar, []int32; }" `shouldSatisfy` isLeft
 
     it "does not parse invalid structs" $ do
         -- Missing struct
-        parseOnly type' "{ foo []int32 }" `shouldSatisfy` isLeft
+        parseOnly type' "{ foo []int32; }" `shouldSatisfy` isLeft
         -- Missing braces
         parseOnly type' "struct {" `shouldSatisfy` isLeft
         parseOnly type' "struct }" `shouldSatisfy` isLeft
@@ -381,4 +379,4 @@ testType = describe "type_" $ do
 
     prop "parses any kind of valid type" $ do
         forAll typeGen $
-            \t -> parseOnly type' (render $ pretty t) `shouldBe` Right t
+            \t -> parseOnly type' (renderGoLite $ pretty t) `shouldBe` Right t

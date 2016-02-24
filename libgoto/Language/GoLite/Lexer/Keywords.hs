@@ -28,13 +28,37 @@ module Language.GoLite.Lexer.Keywords
 , kwDefault
 , kwPackage
 , kwFunc
+, anyKeyword
 ) where
 
 import Language.GoLite.Lexer.Core
 import Language.GoLite.Lexer.Semi
 
+import Control.Monad ( void )
+
 -- | Keywords are simply represented as "String"s.
 type Keyword = String
+
+-- | Parses any keyword. Used when dealing with identifiers.
+anyKeyword :: Parser ()
+anyKeyword = choice (map (void . try)
+                            [  kwBreak
+                            , kwReturn
+                            , kwContinue
+                            , kwFallthrough
+                            , kwPrint
+                            , kwPrintLn
+                            , kwRead
+                            , kwVar
+                            , kwStruct
+                            , kwType
+                            , kwElse
+                            , kwCase
+                            , kwDefault
+                            , kwPackage
+                            , kwFunc ]
+                ++ map (void . try) [kwIf, kwFor, kwSwitch])
+
 
 -- | Parses the \"break\" keyword, checking for a semicolon.
 kwBreak :: Parser (Semi Keyword)

@@ -175,6 +175,7 @@ stringLiteral
 identifier :: Parser (Semi SrcAnnIdent)
 identifier = p <?> "identifier" where
     p = withDetectSemicolon $ lexeme $ withSrcAnn Ident $ do
+        notFollowedBy (lexeme anyKeyword)
         c <- char '_' <|> letterChar
         cs <- many $ char '_' <|> alphaNumChar
         pure $ fromString (c:cs)
@@ -215,11 +216,11 @@ structType :: Parser (Semi SrcAnnType)
 structType = label "struct type" $ withPushSrcAnnFix $ do
     kwStruct >>= noSemiP
     symbol_ "{"
-    fields <- semiList (many field) requireSemi (pure ())
+    fields <- many (field >>= requireSemiP)
     b <- closeBrace
     pure $ do
         _ <- b -- Force semi detection at closing brace
-        fmap StructType fields
+        pure $ StructType fields
 
 -- | Parses a field of a struct, which is a non-empty list of identifiers
 -- followed by a type.
