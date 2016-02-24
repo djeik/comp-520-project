@@ -158,6 +158,7 @@ instance
                 text "{" $+$
                 nest indentLevel (vcat ss) $+$
                 text "}"
+            EmptyStmt -> empty
 
 -- | The head of a case.
 data CaseHead expr
