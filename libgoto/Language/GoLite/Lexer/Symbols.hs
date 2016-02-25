@@ -18,6 +18,9 @@ module Language.GoLite.Lexer.Symbols
 , parens
 , squareBrackets
 , braces
+, openParen
+, openBracket
+, openBrace
 , closeParen
 , closeBracket
 , closeBrace
@@ -59,13 +62,22 @@ opIncrement = semisym "++"
 opDecrement :: Parser (Semi String)
 opDecrement = semisym "--"
 
+openParen :: Parser ()
+openParen = symbol__ "("
+
 -- | Parses a closing parenthesis \")\", checking for a semicolon.
 closeParen :: Parser (Semi String)
 closeParen = semisym ")"
 
+openBracket :: Parser ()
+openBracket = symbol__ "["
+
 -- | Parses a closing bracket \"]\", checking for a semicolon.
 closeBracket :: Parser (Semi String)
 closeBracket = semisym "]"
+
+openBrace :: Parser ()
+openBrace = symbol__ "{"
 
 -- | Parses a closing brace \"}\", checking for a semicolon.
 closeBrace :: Parser (Semi String)

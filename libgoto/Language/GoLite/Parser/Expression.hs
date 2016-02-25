@@ -16,7 +16,7 @@ import Language.GoLite.Lexer
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Types
 
-import Control.Monad (void)
+import Data.List ( nub )
 
 import Text.Megaparsec.Expr
 
@@ -46,6 +46,60 @@ isAddressable (Fix (Ann _ e)) = case e of
 -- | Parses a basic term of an expression.
 term :: Parser (Semi SrcAnnExpr)
 term = operand <|> conversion
+
+-- | All the operators that exist in GoLite.
+ops :: [String]
+ops = nub
+    [ "+"
+    , "-"
+    , "!"
+    , "^"
+    , "*"
+    , "<-"
+    , "*"
+    , "/"
+    , "%"
+    , "<<"
+    , ">>"
+    , "&"
+    , "&^"
+    , "|"
+    , "^"
+    , "=="
+    , "!="
+    , "<"
+    , "<="
+    , ">"
+    , ">="
+    , "&&"
+    , "||"
+    , "++"
+    , "--"
+    , "="
+    , "+="
+    , "-="
+    , "|="
+    , "^="
+    , "*="
+    , "/="
+    , "%="
+    , "<<="
+    , ">>="
+    , "&="
+    , "&^="
+    ]
+
+-- | All the special characters.
+specials = (nub . concat) $ ops
+
+opLexeme :: String -> Parser ()
+opLexeme s = lexeme_ $ do
+    try (string s)
+    notFollowedBy $ do
+        cs <- some (oneOf specials)
+        if s ++ cs `elem` ops
+            then pure ()
+            else failure []
 
 -- | The operator precedence table for expressions.
 table :: [[Operator Parser (Semi SrcAnnExpr)]]
@@ -94,8 +148,7 @@ table =
             -> Operator Parser (Semi SrcAnnExpr)
         binary name f
             = InfixL $ do
-                (Ann a _) <- try $ withSrcAnnConst $
-                    symbol_ name <* notFollowedBy (incDecAssignEnd name)
+                (Ann a _) <- withSrcAnnConst $ try $ opLexeme name
                 pure $ \e1 e2 -> do
                     x <- e1
                     noSemi
@@ -112,7 +165,7 @@ table =
             -> Operator Parser (Semi SrcAnnExpr)
         prefix name f
             = Prefix $ do
-                (Ann a _) <- try $ withSrcAnnConst $ symbol_ name
+                (Ann a _) <- withSrcAnnConst $ try $ opLexeme name
                 pure $ \e -> do
                     x <- e
                     let s = topAnn x
@@ -129,19 +182,6 @@ table =
                     a' <- a c :: Semi SrcAnnExpr
                     noSemi
                     b (pure a')) qs
-
-        -- Succeeds if the next character is part of a longer operator that
-        -- isn't expected in the context of an expression (an assignment or
-        -- increment/decrement operator).
-        incDecAssignEnd :: String -> Parser ()
-        incDecAssignEnd name = void (char '=' <|> incDecEnd) where
-            incDecEnd = case name of
-                "+" -> char '+'
-                "-" -> char '-'
-                -- If not a plus or minus, we don't care
-                -- what the next character is.
-                _   -> failure []
-
 
 -- | Parses an operand, sufficiently wrapped so as to act as an expression in
 -- its own right.

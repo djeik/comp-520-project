@@ -101,8 +101,13 @@ ifStmt :: Parser SrcAnnStatement
 ifStmt = do
     (Ann l _) <- withSrcAnnConst $ kwIf
 
-    initializer <- optional (simpleStmt >>= requireSemiP)
-    cond <- expr >>= noSemiP
+    (initializer, cond) <- choice
+        [ try $ (,) <$> pure Nothing <*> (expr <* lookAhead openBrace >>= noSemiP)
+        , (,)
+            <$> (fmap Just $ simpleStmt >>= requireSemiP)
+            <*> (expr >>= noSemiP)
+        ]
+
     thens <- blockP
     (Ann r elses) <- withSrcAnnF $ optional else_
 

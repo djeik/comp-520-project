@@ -17,6 +17,7 @@ module Language.GoLite.Lexer.Core
 , symbol_
 , symbol__
 , lexeme
+, lexeme_
 , ($>)
 , HasNewline
   -- * Reexports for convenience
@@ -85,3 +86,9 @@ lexeme p = try $ do
     x <- p
     s <- sc
     pure (s, x)
+
+lexeme_ :: Parser a -> Parser a
+lexeme_ p = do
+    x <- p
+    _ <- sc
+    pure x

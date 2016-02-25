@@ -43,7 +43,7 @@ shortVarDeclP = do
         `sepBy1`
         comma <* shortVarDeclarator
 
-    exprs <- semiList (expr `sepBy` comma) noSemi (pure ())
+    exprs <- semiList (expr `sepBy1` comma) noSemi (pure ())
 
     -- just for the purpose of getting the last expression in the list for
     -- constructing the source span
