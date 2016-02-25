@@ -187,6 +187,11 @@ fullFor = do
             <*> (emptyStmtP $> Nothing <|> fmap Just (expr >>= requireSemiP))
             <*> optional (simpleStmt >>= noSemiP)
 
+    case post of
+        (Just (Fix (Ann _ (ShortVarDecl _ _)))) ->
+            failure [Message "Illegal short variable declaration in post-loop statement."]
+        _ -> pure ()
+
     (Ann r b) <- withSrcAnnF blockP
 
     let a = SrcSpan (srcStart l) (srcEnd r)
