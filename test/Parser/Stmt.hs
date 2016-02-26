@@ -52,12 +52,13 @@ simpleKeywordStmts = do
     it "parses the keywords `break`, `continue` and `fallthrough`" $ do
         parseStmt "break" `shouldBe` r [breakStmt]
         parseStmt "continue" `shouldBe` r [continueStmt]
-        parseStmt "fallthrough" `shouldBe` r [fallthroughStmt]
+
+        -- fallthrough is not supported
+        parseStmt "fallthrough" `shouldSatisfy` isLeft
 
     it "does not parses if the keywords are missing a semi" $ do
         parseStmt "break {}" `shouldSatisfy` isLeft
         parseStmt "continue {}" `shouldSatisfy` isLeft
-        parseStmt "fallthrough {}" `shouldSatisfy` isLeft
 
 blockStatement :: SpecWith ()
 blockStatement = do

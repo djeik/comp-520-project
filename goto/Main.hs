@@ -81,7 +81,7 @@ goto g = case g of
                 exitFailure
             Right r -> do
                 let s = renderGoLite (pretty r)
-                case parseOnly G.package "<pretty>" s of
+                case parseOnly G.packageP "<pretty>" s of
                     Left e -> do
                         putStrLn $ "failed to parse pretty-printed program"
                         putStrLn $ ppShow e
@@ -104,7 +104,7 @@ parseGoLiteFile f = do
     file <- case f of
         Stdin -> getContents
         FilePath f' -> readFile f'
-    pure $ parseOnly G.package (show f) file
+    pure $ parseOnly G.packageP (show f) file
 
 parseOnly :: G.Parser a -> String -> String -> Either G.ParseError a
 parseOnly m = G.parse (m <* G.lexeme G.eof)

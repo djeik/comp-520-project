@@ -247,11 +247,12 @@ breakStmtP = do
     pure $ Fix $ Ann a $ BreakStmt
 
 -- | Parses a fallthrough statement, which consists of the \"fallthrough\"
--- keyword.
+-- keyword. This parser always fails, since this keyword is unsupported in
+-- GoLite.
 fallthroughStmtP :: Parser SrcAnnStatement
 fallthroughStmtP = do
-    (Ann a _) <- withSrcAnnConst $ kwFallthrough >>= requireSemiP
-    pure $ Fix $ Ann a $ FallthroughStmt
+    withSrcAnnConst $ kwFallthrough >>= requireSemiP
+    failure [Message "fallthrough is not supported in GoLite"]
 
 -- | Parses a continue statement, which consists of the \"continue\" keyword.
 continueStmtP :: Parser SrcAnnStatement
