@@ -11,9 +11,9 @@ combine both declarations and statements.
 -}
 
 module Language.GoLite.Parser
-( package
+( packageP
   -- * Declarations
-, topLevelDecl
+, topLevelDeclP
 , funDecl
 , module Language.GoLite.Parser.Decl
   -- * Statements
@@ -26,18 +26,18 @@ import Language.GoLite.Parser.Stmt
 
 -- | Parses a package: the package header (`package` keyword followed by an
 -- identifier), followed by a list of top-level declarations.
-package :: Parser SrcAnnPackage
-package = do
+packageP :: Parser SrcAnnPackage
+packageP = do
     name <- (kwPackage >>= noSemiP) >> (identifier >>= requireSemiP)
-    decls <- many topLevelDecl
+    decls <- many topLevelDeclP
 
     pure $ Package name (concat decls)
 
 -- | Parses a top-level declaration: either a regular declaration (type/var) or
 -- a function declaration. Since declarations can be distributed, this returns
 -- a list.
-topLevelDecl :: Parser [SrcAnnTopLevelDecl]
-topLevelDecl = typ <|> var <|> fun
+topLevelDeclP :: Parser [SrcAnnTopLevelDecl]
+topLevelDeclP = typ <|> var <|> fun
     where
         typ = fmap (map fromDeclStmt) typeDeclP
         var = fmap (map fromDeclStmt) varDeclP

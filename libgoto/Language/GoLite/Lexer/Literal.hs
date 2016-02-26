@@ -11,7 +11,7 @@ Stability   : experimental
 
 module Language.GoLite.Lexer.Literal
 ( -- * Literal lexers
-  literal
+  literalP
 , decimalLiteral
 , octalLiteral
 , hexLiteral
@@ -28,7 +28,7 @@ module Language.GoLite.Lexer.Literal
   -- * Types
 , identifier
 , type_
-, structType -- Exported separately because some situations only allow this type
+, structTypeP -- Exported separately because some situations only allow this type
 , field -- Exported for reuse in function signatures.
 ) where
 
@@ -44,8 +44,8 @@ import qualified Data.Map.Strict as Map
 import Data.String ( fromString )
 
 -- | Parses a literal.
-literal :: Parser (Semi SrcAnnLiteral)
-literal = withDetectSemicolon $ lexeme $ withSrcAnnF $ do
+literalP :: Parser (Semi SrcAnnLiteral)
+literalP = withDetectSemicolon $ lexeme $ withSrcAnnF $ do
     label "literal" $ choice
         [ fmap FloatLit (try floatLiteral)
         , fmap IntLit integerLiteral
@@ -197,7 +197,7 @@ identifier = label "identifier" $ do
 type_ :: Parser (Semi SrcAnnType)
 type_
     = label "type"
-    $ sliceType <|> arrayType <|> structType <|> namedType where
+    $ sliceType <|> arrayType <|> structTypeP <|> namedType where
         sliceType :: Parser (Semi SrcAnnType)
         sliceType = label "slice type" $ withPushSrcAnnFix $ do
             try $ do
@@ -221,8 +221,8 @@ type_
 
 -- | Parses a struct type, which is the keyword "struct" followed by a list of
 -- fields enclosed in braces.
-structType :: Parser (Semi SrcAnnType)
-structType = label "struct type" $ withPushSrcAnnFix $ do
+structTypeP :: Parser (Semi SrcAnnType)
+structTypeP = label "struct type" $ withPushSrcAnnFix $ do
     kwStruct >>= noSemiP
     symbol_ "{"
     fields <- many (field >>= requireSemiP)

@@ -14,8 +14,8 @@ module Language.GoLite.Parser.Stmt
 , expr
 , blockStmt
 , blockP -- used in function declarations
-, printStmt
-, returnStmt
+, printStmtP
+, returnStmtP
 , ifStmtP
 , switchStmtP
 , fallthroughStmtP
@@ -39,8 +39,8 @@ stmt :: Parser [SrcAnnStatement]
 stmt =  varDeclP
     <|> typeDeclP
     <|> choice (map (fmap pure)
-        [ printStmt
-        , returnStmt
+        [ printStmtP
+        , returnStmtP
         , ifStmtP
         , switchStmtP
         , fallthroughStmtP
@@ -56,8 +56,8 @@ stmt =  varDeclP
 --
 -- @println@ is internally represented as a @print@ statement in which a
 -- synthetic @"\n"@ is appended to the expression list to print.
-printStmt :: Parser SrcAnnStatement
-printStmt = do
+printStmtP :: Parser SrcAnnStatement
+printStmtP = do
     (Ann l (runIdentity -> hasLn)) <- withSrcAnnId $
         (try $ kwPrintLn *> pure True) <|> (kwPrint *> pure False)
 
@@ -73,8 +73,8 @@ printStmt = do
         False -> exprs'
 
 -- | Parses a return statement.
-returnStmt :: Parser SrcAnnStatement
-returnStmt = do
+returnStmtP :: Parser SrcAnnStatement
+returnStmtP = do
     (Ann l s) <- withSrcAnnF kwReturn
     se <- optional expr
 
