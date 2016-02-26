@@ -12,7 +12,7 @@ func factfor(limit int) int {
 
 func factwhile(limit int) int {
     var acc int = 1;
-    
+
     i := 1
 
     for i <= limit {
@@ -25,8 +25,7 @@ func factwhile(limit int) int {
 func factrecursive(limit int) int {
     if limit == 0 {
         return 1
-    }
-    else {
+    } else {
         return limit * factrecursive(limit - 1);
     }
 }
@@ -35,7 +34,7 @@ func main() {
     limit := 100 /* hi
 
     */ println("Computing factorial three ways.")
-    
+
     println(factfor(limit))
     println(factwhile(limit))
     println(factrecursive(limit))
