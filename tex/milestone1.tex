@@ -1,6 +1,7 @@
 \documentclass[letterpaper,11pt]{article}
 
 \usepackage[margin=2.0cm]{geometry}
+\usepackage{hyperref}
 
 \title{Milestone \#1\\Compiler design -- COMP 520}
 \author{Jacob Errington \& Fr\'ed\'eric Lafrance}
@@ -10,6 +11,94 @@
 
 \maketitle
 
-% TODO
+\section{Overview}
+The project is managed, built, ran and tested using the \href{https://www.haskell.org/cabal/}{Cabal} package manager. Notably, the following commands are available:
+\begin{itemize}
+\item\texttt{cabal build}: Builds the main project
+\item\texttt{cabal test}: Builds and runs the tests
+\item\texttt{cabal repl}: Builds and runs the REPL, which allows manual testing.
+\item\texttt{cabal haddock}: Generates the HTML documentation for the project (\texttt{dist/doc} subfolder)
+\end{itemize}
+The code is organized as follows:
+\begin{itemize}
+\item \texttt{goto}: Main program.
+\item \texttt{libgoto/Language/GoLite}: Language definition
+	\begin{itemize}
+	\item \texttt{Syntax}: Datatypes and definitions for the AST
+			\begin{itemize}
+			\item \texttt{Sugar}: Type aliases
+			\item \texttt{Types}: Main type definitions
+			\item \texttt{SrcAnn.hs}: Definitions for annotated types, un-annotating code
+			\end{itemize}
+	\item \texttt{Lexer}: Basic lexeme parsing functions (literals, identifiers, etc.)
+	\item \texttt{Parser}: Complex parser functions (expressions, statements, declarations)
+	
+	\item \texttt{Annotation.hs}: Annotation framework
+	\item \texttt{Pretty.hs}: Basic pretty-printer definitions
+	\item \texttt{Parser.hs}: Top-level parsers
+	
+	\end{itemize}
+\item \texttt{test}: Unit tests
+	\begin{itemize}
+	\item \texttt{Gen}: Test-case generators
+	\item \texttt{Lexer}: Lexer unit tests
+	\item \texttt{Parser}: Parser unit tests
+	\end{itemize}
+
+\end{itemize}
+
+
+\section{Design decisions}
+
+Language and library choice.
+\\
+Main components (parsers, semi monad, fixed points)
+
+\section{Features pushed back to future weeding phases}
+
+Anything that requires looking at more than one AST node at a time has been deferred, as well as anything that requires a symbol table. This includes, but is not limited to:
+\begin{itemize}
+\item Analysis of terminating statements (i.e. code path coverage) in functions and \texttt{case} statements.
+\item Detection of semantically invalid statements (\texttt{break} outside loops/switches, \texttt{continue} outside loops).
+\item Misuse of built-in functions (specifically \texttt{append}).
+\item Redeclaration of reserved identifiers (e.g. Go builtins, \texttt{int}, \texttt{float}, etc.).
+\item Distinguishing some casts from function calls.
+\end{itemize}
+
+\section{Team organization}
+
+\textbf{Jacob} implemented the AST representation and types for most nodes, annotation strategy, expression parser, semicolon management and pretty-printer.
+\\
+\textbf{Fr\'ed\'eric} implemented most lexing functions, statement/declaration/top-level parsers, annotation stripping strategy, test generators and manual test cases.
+
+Documentation was joint work.
+
+\section{Resources used}
+
+\begin{itemize}
+\item \href{https://golang.org/ref/spec}{The Go specification}
+\item \href{http://www.sable.mcgill.ca/~hendren/520/2016/assignments/syntax.pdf}{The GoLite specification}
+\item \href{https://play.golang.org/}{The Go playground}
+\item The documentation and source code of the following Haskell packages:
+	\begin{itemize}
+	\item \href{https://hackage.haskell.org/package/megaparsec-4.3.0}{Megaparsec} (main parser library)
+	\item \href{https://hackage.haskell.org/package/hspec}{hspec} (unit test library) and the \href{http://hspec.github.io/}{associated manual}
+	\item \href{https://hackage.haskell.org/package/QuickCheck-2.8.2}{QuickCheck} (test-case generator library) and the \href{http://www.cse.chalmers.se/~rjmh/QuickCheck/manual.html}{associated manual}
+	\end{itemize}
+\item The following articles on building and working with generalized annotated syntax trees using functor fixed points and catamorphisms:
+	\begin{itemize}
+	\item \href{http://martijn.van.steenbergen.nl/journal/2010/06/24/generically-adding-position-information-to-a-datatype/}{\textit{Generically adding position information to a datatype}} and the associated \href{http://martijn.van.steenbergen.nl/projects/Selections.pdf}{thesis}
+	\item \href{http://blog.plover.com/prog/springschool95-2.html}{\texttt{data Mu f = In (f (Mu f))}}
+	\item \href{https://www.schoolofhaskell.com/user/edwardk/recursion-schemes/catamorphisms}{\textit{Catamorphisms}}
+	\item \href{http://comonad.com/reader/2009/incremental-folds/}{\textit{Reflecting on incremental folds}}
+	\end{itemize}
+\item Miscellaneous:
+	\begin{itemize}
+	\item \href{http://blog.ezyang.com/2014/05/parsec-try-a-or-b-considered-harmful/}{Parsec: \texttt{try a <|> b} considered harmful} (in order to generate better-quality error messages).
+	\item
+	\href{http://book.realworldhaskell.org/read}{Real-world Haskell}, which Fred bought a hardcopy of a while ago and needed a reason to read.
+	\end{itemize}
+\end{itemize}
+
 
 \end{document}
