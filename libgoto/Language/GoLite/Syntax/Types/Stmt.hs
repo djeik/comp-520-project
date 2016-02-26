@@ -116,7 +116,11 @@ instance
                 text "}" $+$
                 case mbody of
                     Just elseBody ->
-                        text "else {" <+> vcat elseBody
+                        text "else {" $+$
+                        nest indentLevel (
+                            vcat elseBody
+                        ) $+$
+                        text "}"
                     Nothing -> empty
             BreakStmt -> text "break"
             ContinueStmt -> text "continue"
