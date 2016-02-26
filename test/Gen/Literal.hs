@@ -60,8 +60,10 @@ runeGen :: Gen String
 runeGen = (surroundWith "'") <$> oneof [escape, normal] where
     escape = (\c -> "\\" ++ [c]) <$> elements "abfnrtv"
     normal = suchThat
-                (((:[]) . chr) <$> choose (1, 126)) --Singleton string in 1..126
-                (\c -> c /= "\n" && c /= "'" && c /= "\\")
+                -- Restrict the range of characters to those that are printable.
+                (((:[]) . chr) <$> choose (33, 126))
+                -- Don't pick a character that's illegal in a rune.
+                (\c -> c /= "'" && c /= "\\")
 
 -- | Generates raw string literals.
 rawStringGen :: Gen String

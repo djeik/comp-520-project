@@ -50,15 +50,15 @@ assign = do
             r (assignment [variable "a"] PlusEq [variable "a"])
 
     it "parses assignment on addressable operand" $ do
-        parseAssign "struc.select++" `shouldBe`
+        parseAssign "struc.selector++" `shouldBe`
             r (assignment
-                [selector (variable "struc") "select"]
+                [selector (variable "struc") "selector"]
                 PlusEq
                 [int 1])
 
-        parseAssign "array[0]++" `shouldBe`
+        parseAssign "arrayz[0]++" `shouldBe`
             r (assignment
-                [index (variable "array") (int 0)]
+                [index (variable "arrayz") (int 0)]
                 PlusEq
                 [int 1])
 
