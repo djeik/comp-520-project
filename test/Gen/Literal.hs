@@ -116,7 +116,8 @@ instance Arbitrary BasicIdent where
 
 instance Arbitrary (Identity GoInt) where
     -- We don't have negative literals, only unary-minus expressions
-    arbitrary = Identity <$> arbitraryPositiveIntegral
+    -- Also in order to avoid some errors, we restrict the range to 1024
+    arbitrary = Identity <$> ((flip mod) 1024) <$> arbitraryPositiveIntegral
 
 instance Arbitrary BasicType where
     arbitrary = typeGen
