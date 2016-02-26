@@ -18,6 +18,11 @@ The project is managed, built, ran and tested using the \href{https://www.haskel
 \item\texttt{cabal test}: Builds and runs the tests
 \item\texttt{cabal repl}: Builds and runs the REPL, which allows manual testing.
 \item\texttt{cabal haddock}: Generates the HTML documentation for the project (\texttt{dist/doc} subfolder)
+\item\texttt{cabal run}: Runs the compiler. It currently expects one of the following commands:
+	\begin{itemize}
+	\item\texttt{pretty}: Reads a program on \texttt{stdin} and prints the pretty-printer output, or any parse error.
+	\item\texttt{roundtrip}: Checks the pretty-print invariant (pretty(parse(pretty(parse(P)))) == pretty(parse(P)))
+	\end{itemize}
 \end{itemize}
 The code is organized as follows:
 \begin{itemize}
@@ -50,9 +55,17 @@ The code is organized as follows:
 
 \section{Design decisions}
 
-Language and library choice.
-\\
-Main components (parsers, semi monad, fixed points)
+Functional programming is taking the world by storm as a way to build bug-free software with minimal effort. The Haskell programming language strikes a balance between being practical and having an expressive type system.
+
+The Parsec library brought the idea of monadic parser combinators into the mainstream and essentially pioneered this kind of parsing as an alternative to the more traditional lexer/parser generators. Rather than describe the grammar of the language to parse in a domain-specific language, Parsec lets the programmer describe the parser in an intuitive embedded domain-specific language that benefits from the full strength of Haskell. We are using a fork of Parsec called Megaparsec that includes even more advanced combinators that greatly facilitate certain kinds of common parsers.
+
+We decided to write idiomatic Parsec code by having small, highly-combinable parsing functions (which we call parsers for short). Those were then put together to form the more complex statement, declaration and expression parsers.
+
+In order to handle semicolon insertion properly, we decided to use a State/Exception monad (the \texttt{Semi} monad) and write various combinators to make our parsers work with this monad. The benefits of this approach are twofold. First, we do not have to modify the underlying source file, therefore preserving position information for error messages. Second, we can write our parsers in a mostly semicolon-agnostic way, and combine them with the \texttt{Semi} monad whenever actual handling is required. This was useful to handle some tricky cases, such as simple statements always requiring semicolons except in the post-iteration position of a for loop, or blocks always requiring semicolons except in the case of an if/else statement, or even comments triggering semicolon insertion.
+
+Our abstract syntax tree is defined through algebraic data types. Notably, the basic definitions specify the shape, but not the data, of the AST. We can therefore use powerful general mechanisms to specify  what data should go in the tree: source-annotated, type-annotated or anything else we deem useful.
+
+Automated testing was done mainly with \texttt{hspec}, the consensus approach for unit tests in Haskell. We also leveraged \texttt{QuickCheck}, a library that provides a way to generate random test cases.
 
 \section{Features pushed back to future weeding phases}
 
