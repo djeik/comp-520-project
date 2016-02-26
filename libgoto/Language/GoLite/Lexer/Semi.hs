@@ -19,6 +19,7 @@ module Language.GoLite.Lexer.Semi
 , SemiError(..)
   -- ** Semi introduction
 , withDetectSemicolon
+, withDetectExplicitSemicolon
 , semiPresent
   -- ** Semi elimination
 , requireSemi
