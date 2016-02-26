@@ -90,6 +90,7 @@ ops = nub
     ]
 
 -- | All the special characters.
+specials :: [Char]
 specials = (nub . concat) $ ops
 
 opLexeme :: String -> Parser ()
