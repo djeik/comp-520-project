@@ -8,6 +8,8 @@ import Options.Applicative
 import Text.Show.Pretty
 import System.Exit ( exitFailure )
 
+import System.IO ( hPutStrLn, stderr )
+
 data InputFile
     = Stdin
     | FilePath FilePath
@@ -69,9 +71,9 @@ goto :: Goto -> IO ()
 goto g = case g of
     Pretty f -> do
         ex <- parseGoLiteFile f
-        putStrLn $ case ex of
-            Left e -> ppShow e
-            Right r -> renderGoLite (pretty r)
+        case ex of
+            Left e -> hPutStrLn stderr $ ppShow e
+            Right r -> putStrLn $ renderGoLite (pretty r)
     RoundTrip f -> do
         ex <- parseGoLiteFile f
         case ex of
