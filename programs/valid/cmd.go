@@ -42,7 +42,7 @@ func operate(op instruction, st state) state {
 func exec(program [128]instruction) {
 
     var pc = 0
-    var st state
+    var st struct { sp int; stk [66]int; }
 
     for pc < len(program) {
         if program[pc] == EXIT {
