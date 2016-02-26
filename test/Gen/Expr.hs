@@ -36,7 +36,7 @@ exprGen = sized exprGen' where
                             (maybeGen recGen)
                             (Just <$> recGen)
                             (Just <$> recGen),
-                liftM2 TypeAssertion recGen smallArbitrary,
+                liftM2 TypeAssertion (exprGen' 1) smallArbitrary,
                 -- Since a call with only a named type and no arguments looks
                 -- exactly like a call with one argument, we don't generate
                 -- calls with types. Those will be tested manually.

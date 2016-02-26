@@ -33,7 +33,6 @@ module Language.GoLite.Lexer.Semi
 , semicolon
 , semisym
 , explicitSemisym
-, semiList
 ) where
 
 import Language.GoLite.Lexer.Core
@@ -188,17 +187,3 @@ semisym = withDetectSemicolon . symbol
 -- | Parses a string and performs explicit semicolon detection.
 explicitSemisym :: String -> Parser (Semi String)
 explicitSemisym = withDetectExplicitSemicolon . symbol
-
--- | Transforms a parser producing a list of Semi elements into a parser
--- producing a Semi list of elements, with potentially different semicolon
--- checks for the last element versus the rest of the list.
-semiList :: Parser ([Semi a]) -> Semi () -> Semi () -> Parser (Semi [a])
-semiList p internal end = do
-    s <- p
-    pure $ foldr (\cur acc -> do
-                    acc' <- acc
-                    cur' <- cur
-                    case acc' of
-                            [] -> end
-                            _ -> internal
-                    pure $ cur':acc') (pure []) s

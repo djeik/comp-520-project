@@ -43,26 +43,22 @@ shortVarDeclP = do
         `sepBy1`
         comma <* shortVarDeclarator
 
-    exprs <- semiList (expr `sepBy1` comma) noSemi (pure ())
+    -- The try here is okay, since the very next thing we do after this is parse
+    -- an expression again, without a try.
+    rhs_a <- many (try ((expr >>= noSemiP) <* comma))
+    (Ann ar rhs_b) <- withSrcAnnF expr
 
-    -- just for the purpose of getting the last expression in the list for
-    -- constructing the source span
-    exprs_ <- unSemiP exprs
-    el <- case exprs_ of
-        [] -> failure [Expected "expression list"]
-        xs -> pure $ last xs
+    -- Both sides must have the same length.
+    if length ids == 1 + length rhs_a then pure ()
+    else failure [Message "Assignments need the same number of operands on each side"]
 
-    condUnSemiP
-        exprs
-        (\es -> length es == length ids)
-        "Short variable declarations must have the same number of operands on each side"
+    let a = SrcSpan (srcStart (ann i1)) (srcEnd ar)
 
     pure $ do
-        exprs' <- exprs
+        rhs_b' <- rhs_b
 
-        let a = SrcSpan (srcStart (ann i1)) (srcEnd (topAnn el))
 
-        pure $ Fix $ Ann a $ ShortVarDecl ids exprs'
+        pure $ Fix $ Ann a $ ShortVarDecl ids (rhs_a ++ [rhs_b'])
 
 -- | Parses an assignment statement: a list of expressions followed by an
 -- assignment operator (\"=\", \"+=\", etc.) and a list of expressions.
@@ -76,30 +72,27 @@ assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
                 op <- withSrcAnnF $ opAssign >>= noSemiP
                 pure (al, lhs, op)
 
-            (Ann ar rhs) <- withSrcAnnF $
-                                semiList (expr `sepBy` comma) noSemi (pure ())
+            -- The try here is okay, since the very next thing we do after this
+            -- is parse an expression again, without a try.
+            rhs_a <- many (try ((expr >>= noSemiP) <* comma))
+            (Ann ar rhs_b) <- withSrcAnnF expr
 
             -- Both sides must have the same length.
-            condUnSemiP
-                rhs
-                (\rhs' -> length rhs' == length lhs)
-                "Assignments must have the same number of operands on each side"
+            if length lhs == 1 + length rhs_a then pure ()
+            else failure [Message "Assignments need the same number of operands on each side"]
 
-            -- In an assignment operation (e.g. +=), there should only be one
-            -- operand.
-            condUnSemiP
-                rhs
-                (\rhs' -> case op of
-                            (Ann _ Assign) -> True
-                            _ -> length rhs' == 1)
-                "Assignment operations may have only one operand."
+            -- Both sides must have just 1 operand in the case of an assign-op.
+            if length lhs == 1 then pure ()
+            else case op of
+                (Ann _ Assign) -> pure ()
+                _ -> failure [Message "Assignment operations may have only one operand."]
+
 
             let a = SrcSpan (srcStart al) (srcEnd ar)
 
             pure $ do
-                rhs' <- rhs
-
-                pure $ Fix $ Ann a $ Assignment lhs op rhs'
+                rhs_b' <- rhs_b
+                pure $ Fix $ Ann a $ Assignment lhs op (rhs_a ++ [rhs_b'])
 
 -- | Parses an increment or decrement statement (\"x++\", \"y--\"). This is
 -- parsed to the same representation as \"x += 1\" or \"y -= 1\".

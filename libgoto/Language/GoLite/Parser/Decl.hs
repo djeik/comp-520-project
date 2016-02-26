@@ -58,17 +58,17 @@ varSpec = do
 
     typ <- optional (type_ >>= noSemiP)
 
-    (Ann r exprs) <- withSrcAnnF $ opAssignSimple >>
-                (semiList (expr `sepBy1` comma) noSemi requireSemi >>= unSemiP)
+    rhs_a <- opAssignSimple >> (try $ expr >>= noSemiP) `sepEndBy` comma
+    rhs_b@(Fix (Ann r _)) <- expr >>= requireSemiP
 
-    if length ids /= length exprs then
+    if length ids /= length rhs_a + 1 then
         failure [Message "Variable declarations must have the same number of operands on each side"]
     else
         pure ()
 
     let a = SrcSpan (srcStart l) (srcEnd r)
 
-    pure $ Fix $ Ann a $ DeclStmt (VarDecl (VarDeclBody ids typ exprs))
+    pure $ Fix $ Ann a $ DeclStmt (VarDecl (VarDeclBody ids typ (rhs_a ++ [rhs_b])))
 
 -- TODO see if there's a way to make this cleaner?
 varSpecNoExpr :: Parser (SrcAnnStatement)

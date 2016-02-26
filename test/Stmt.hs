@@ -663,7 +663,7 @@ forStatement = do
                 [emptyStmt])
 
     it "does not parse a loop with a short var decl in post position" $ do
-        parseFor "for ;; x: = 2 {}" `shouldSatisfy` isLeft
+        parseFor "for ;; x := 2 {}" `shouldSatisfy` isLeft
 
         -- Other simple statements are okay.
         parseFor "for ;; x++ {}" `shouldSatisfy` isRight

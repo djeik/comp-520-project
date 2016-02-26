@@ -107,7 +107,6 @@ ifStmt = do
             <$> (fmap Just $ simpleStmt >>= requireSemiP)
             <*> (expr >>= noSemiP)
         ]
-
     thens <- blockP
     (Ann r elses) <- withSrcAnnF $ optional else_
 
