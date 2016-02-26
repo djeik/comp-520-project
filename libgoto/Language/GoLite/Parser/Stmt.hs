@@ -16,7 +16,7 @@ module Language.GoLite.Parser.Stmt
 , blockP -- used in function declarations
 , printStmt
 , returnStmt
-, ifStmt
+, ifStmtP
 , switchStmtP
 , fallthroughStmtP
 , forStmtP
@@ -41,7 +41,7 @@ stmt =  varDeclP
     <|> choice (map (fmap pure)
         [ printStmt
         , returnStmt
-        , ifStmt
+        , ifStmtP
         , switchStmtP
         , fallthroughStmtP
         , forStmtP
@@ -97,8 +97,8 @@ returnStmt = do
 --
 -- If the optional initializer is present, it must have a semicolon. There
 -- cannot be a semicolon between the expression and the block.
-ifStmt :: Parser SrcAnnStatement
-ifStmt = do
+ifStmtP :: Parser SrcAnnStatement
+ifStmtP = do
     (Ann l _) <- withSrcAnnConst $ kwIf
 
     (initializer, cond) <- choice
@@ -107,16 +107,23 @@ ifStmt = do
             <$> (fmap Just $ simpleStmt >>= requireSemiP)
             <*> (expr >>= noSemiP)
         ]
-    thens <- blockP
+
+    -- The try here is OK, because if we fail in somewhere in the block, we'll
+    -- attempt parsing it again right away.
+    thens <- try (blockP <* (notFollowedBy kwElse) >>= requireSemiP)
+            <|> (blockP >>= noSemiP)
+
     (Ann r elses) <- withSrcAnnF $ optional else_
 
     let a = SrcSpan (srcStart l) (srcEnd r)
-    pure $ Fix $ Ann a $ IfStmt initializer cond thens elses
+    pure $ do
+
+        Fix $ Ann a $ IfStmt initializer cond thens elses
 
 -- | Parses the else part of an if statement. It's the \"else\" keyword followed
 -- either by a block or another if statement.
 else_ :: Parser [SrcAnnStatement]
-else_ = (kwElse >>= unSemiP) >> blockP <|> fmap (:[]) ifStmt
+else_ = (kwElse >>= noSemiP) >> (blockP >>= requireSemiP) <|> fmap (:[]) ifStmtP
 
 -- | Parses a switch statement. It consists of the \"switch\" keyword, followed
 -- by an optional initializer simple statement, an optional expression, then a
@@ -168,7 +175,7 @@ forStmtP = do
 infiniteFor :: Parser SrcAnnStatement
 infiniteFor = do
     (try . lookAhead . symbol_) "{"
-    (Ann a b) <- withSrcAnnF blockP
+    (Ann a b) <- withSrcAnnF (blockP >>= unSemiP)
     pure $ Fix $ Ann a $ ForStmt Nothing Nothing Nothing b
 
 -- | Parses a full for loop, which may contain an initializer simple statement,
@@ -191,7 +198,7 @@ fullFor = do
             failure [Message "Illegal short variable declaration in post-loop statement."]
         _ -> pure ()
 
-    (Ann r b) <- withSrcAnnF blockP
+    (Ann r b) <- withSrcAnnF (blockP >>= requireSemiP)
 
     let a = SrcSpan (srcStart l) (srcEnd r)
 
@@ -205,27 +212,31 @@ simpleFor = do
         e <- expr >>= noSemiP
         lookAhead $ symbol_ "{" -- Make sure a block begins next.
         pure e
-    (Ann a b) <- withSrcAnnF blockP
+    (Ann a b) <- withSrcAnnF (blockP >>= requireSemiP)
     pure $ Fix $ Ann a $ ForStmt Nothing (Just e) Nothing b
 
 -- | Parses a block, which is a potentially empty list of statements enclosed in
 -- braces.
-blockP :: Parser [SrcAnnStatement]
+blockP :: Parser (Semi [SrcAnnStatement])
 blockP = do
     symbol "{"
-    -- Here we're not applying rule 2 of semicolon omission because we don't
-    -- have to and it makes things simpler.
-    stmts <- many stmt
-    closeBrace >>= requireSemiP
 
-    --let a = SrcSpan (srcStart s) (srcEnd e)
+    stmts <- many stmt
+
+    -- All blocks require a semi, EXCEPT the block for ifs, which does not
+    -- require a semi if there is an else[-if] part to the statement. Therefore
+    -- we must keep track of semis on blocks.
+    b <- closeBrace
+
     -- Each statement parser may produce multiple statements.
-    pure $ concat stmts
+    pure $ do
+        _ <- b -- force semi evaluation on the brace.
+        pure $ concat stmts
 
 -- | Parses a block, wrapped as a statement.
 blockStmt :: Parser SrcAnnStatement
 blockStmt = do
-    (Ann a b) <- withSrcAnnF blockP
+    (Ann a b) <- withSrcAnnF (blockP >>= requireSemiP)
     pure $ Fix $ Ann a $ Block b
 
 -- | Parses a break statement, which consists of the \"break\" keyword.

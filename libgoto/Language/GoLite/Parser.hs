@@ -1,6 +1,6 @@
 {-|
 Module      : Language.GoLite.Parser
-Description : 
+Description :
 Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
 License     : MIT
 Maintainer  : goto@mail.jerrington.me
@@ -58,6 +58,6 @@ funDecl = do
     name <- (kwFunc >>= noSemiP) >> (identifier >>= noSemiP)
     params <- (parens $ (field >>= noSemiP) `sepBy` comma) >>= noSemiP
     ret <- optional (type_ >>= noSemiP)
-    b <- blockP
+    b <- blockP >>= requireSemiP
 
     pure $ FunDecl name params ret b
