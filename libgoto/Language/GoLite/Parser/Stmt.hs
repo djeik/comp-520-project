@@ -59,7 +59,8 @@ stmt =  varDeclP
 printStmtP :: Parser SrcAnnStatement
 printStmtP = do
     (Ann l (runIdentity -> hasLn)) <- withSrcAnnId $
-        (try $ kwPrintLn *> pure True) <|> (kwPrint *> pure False)
+            (try $ (kwPrintLn >>= noSemiP) *> pure True)
+        <|> ((kwPrint >>= noSemiP) *> pure False)
 
     (Ann r exprs) <- withSrcAnnF $ parens (expr `sepBy` comma) >>= requireSemiP
 

@@ -4,6 +4,7 @@ module Core
 , parseOnly
 , r
 , int
+, stringLit
 , module Control.Monad
 , module Test.Hspec
 , module Test.Hspec.QuickCheck
@@ -53,3 +54,7 @@ r = Right
 -- | Keystroke-saving synonym for `(literal . IntLit)`.
 int :: GoInt -> Fix (ExprF id bin un (Literal a) ty)
 int = Language.GoLite.Syntax.Sugar.literal . IntLit
+
+-- | Keystroke-saving synonym for `(literal . StringLit)`.
+stringLit :: GoString -> Fix (ExprF id bin un (Literal a) ty)
+stringLit = Language.GoLite.Syntax.Sugar.literal . StringLit

@@ -178,6 +178,7 @@ identifier :: Parser (Semi SrcAnnIdent)
 identifier = label "identifier" $ do
     p' <- p
     condUnSemiP p' (\(Ann _ x) -> x `notElem` keywords) "Unexpected keyword."
+
     pure p'
     where
     p = withDetectSemicolon $ lexeme $ withSrcAnn Ident $ do
@@ -185,9 +186,11 @@ identifier = label "identifier" $ do
         cs <- many $ char '_' <|> alphaNumChar
         pure $ fromString (c:cs)
     -- Fred: I know this is awfully ugly, I'll revisit it after this milestone.
-    keywords = ["break", "return", "continue", "fallthrough",
-            "print", "println", "read", "var", "struct", "type", "if", "else",
-            "for", "switch", "case", "default", "package", "func"]
+    keywords = ["break", "default", "func", "interface", "select", "case",
+                "defer", "go", "map", "struct", "chan", "else", "goto",
+                "package", "switch", "const", "fallthrough", "if", "range",
+                "type", "continue", "for", "import", "return", "var", "print",
+                "println"]
 
 -- | Parses a type.
 -- A type can be either a slice type (empty brackets followed by a type), an

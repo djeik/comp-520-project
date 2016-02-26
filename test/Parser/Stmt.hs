@@ -31,7 +31,7 @@ varDeclStmt :: [id] -> Maybe ty -> [e]
 varDeclStmt i t e = Fix $ DeclStmt $ VarDecl $ VarDeclBody i t e
 
 statement :: SpecWith ()
-statement = describe "stmt" $ do
+statement = do
                 describe "assignStmt" assign
                 describe "shortVarDecl" shortVariableDeclaration
                 describe "exprStmt" expressionStatement
@@ -43,6 +43,8 @@ statement = describe "stmt" $ do
                 describe "switchStmt" switchStatement
                 describe "forStmt" forStatement
                 describe "ifStmt" ifStatement
+                describe "returnStmt" returnStatement
+                describe "printStmt" printStatement
 
 simpleKeywordStmts :: SpecWith ()
 simpleKeywordStmts = do
@@ -88,3 +90,82 @@ blockStatement = do
                 varDeclStmt ["x"] Nothing [int 2],
                 varDeclStmt ["y"] Nothing [int 3],
                 (assignment [variable "x"] PlusEq [int 1])])
+
+    it "does not parse if there are no or missing braces" $ do
+        parseBlock "x++" `shouldSatisfy` isLeft
+        parseBlock "{x++" `shouldSatisfy` isLeft
+        parseBlock "x++;}" `shouldSatisfy` isLeft
+
+returnStatement :: SpecWith ()
+returnStatement = do
+    let parseReturn = parseOnly (fmap bareStmt returnStmtP)
+
+    it "parses return statements with or without an expression" $ do
+        parseReturn "return" `shouldBe` r (returnStmt Nothing)
+        parseReturn "return 3" `shouldBe` r (returnStmt $ Just (int 3))
+
+    it "does not parse return statements with more than one expression" $ do
+        parseReturn "return 3, 3" `shouldSatisfy` isLeft
+
+    it "does not parse if there is no `return` keyword" $ do
+        parseReturn "3, 3" `shouldSatisfy` isLeft
+        parseReturn "3" `shouldSatisfy` isLeft
+
+    it "needs a semi if there is no expr, or no semi if there is an expr" $ do
+        parseReturn "return; 3" `shouldSatisfy` isLeft
+        parseReturn "return\n 3" `shouldSatisfy` isLeft
+        parseReturn "return {}" `shouldSatisfy` isLeft
+
+printStatement :: SpecWith ()
+printStatement = do
+    let parsePrint = parseOnly (fmap bareStmt printStmtP)
+
+    it "parses print statements with or without expressions" $ do
+        parsePrint "print()" `shouldBe`
+            r (printStmt [])
+
+        parsePrint "print(3)" `shouldBe`
+            r (printStmt [int 3])
+
+        parsePrint "print(3, 4)" `shouldBe`
+            r (printStmt [int 3, int 4])
+
+        parsePrint "println()" `shouldBe`
+            r (printStmt [stringLit "\n"])
+
+        parsePrint "println(3)" `shouldBe`
+            r (printStmt [int 3, stringLit "\n"])
+
+        parsePrint "println(3, 4)" `shouldBe`
+            r (printStmt [int 3, int 4, stringLit "\n"])
+
+    it "does not parse if the keyword is missing" $ do
+        parsePrint "(3)" `shouldSatisfy` isLeft
+        parsePrint "(3, 4)" `shouldSatisfy` isLeft
+
+    it "does not parse if one of the expressions has a semi" $ do
+        parsePrint "print(3;)" `shouldSatisfy` isLeft
+        parsePrint "print(3;, 4)" `shouldSatisfy` isLeft
+        parsePrint "print(4, 3;)" `shouldSatisfy` isLeft
+        parsePrint "print(;)" `shouldSatisfy` isLeft
+        parsePrint "println(3;)" `shouldSatisfy` isLeft
+        parsePrint "println(3;, 4)" `shouldSatisfy` isLeft
+        parsePrint "println(4, 3;)" `shouldSatisfy` isLeft
+        parsePrint "println(;)" `shouldSatisfy` isLeft
+
+    it "does not parse if the parens are missing/malformed" $ do
+        parsePrint "print 3" `shouldSatisfy` isLeft
+        parsePrint "print(3" `shouldSatisfy` isLeft
+        parsePrint "print 3)" `shouldSatisfy` isLeft
+        parsePrint "println 3" `shouldSatisfy` isLeft
+        parsePrint "println(3" `shouldSatisfy` isLeft
+        parsePrint "println 3)" `shouldSatisfy` isLeft
+
+    it "does not parse if the keyword has an explicit semi" $ do
+        parsePrint "print; (3)" `shouldSatisfy` isLeft
+        parsePrint "print\n (3)" `shouldSatisfy` isRight
+        parsePrint "println; (3)" `shouldSatisfy` isLeft
+        parsePrint "println\n (3)" `shouldSatisfy` isRight
+
+
+
