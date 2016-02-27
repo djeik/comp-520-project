@@ -67,26 +67,29 @@ cmdParser
     ) $
     progDesc "Compiler for GoLite"
 
+noNewLines :: String -> String
+noNewLines = foldr (\a b -> (if a == '\n' then ' ' else a) : b) []
+
 goto :: Goto -> IO ()
 goto g = case g of
     Pretty f -> do
         ex <- parseGoLiteFile f
         case ex of
-            Left e -> hPutStrLn stderr $ ppShow e
+            Left e -> hPutStrLn stderr $ noNewLines $ show e
             Right r -> putStrLn $ renderGoLite (pretty r)
     RoundTrip f -> do
         ex <- parseGoLiteFile f
         case ex of
             Left e -> do
                 putStrLn $ "failed to parse input program"
-                putStrLn $ ppShow e
+                putStrLn $ noNewLines $ show e
                 exitFailure
             Right r -> do
                 let s = renderGoLite (pretty r)
                 case parseOnly G.packageP "<pretty>" s of
                     Left e -> do
                         putStrLn $ "failed to parse pretty-printed program"
-                        putStrLn $ ppShow e
+                        putStrLn $ noNewLines $ show e
                         putStrLn $ s
                         exitFailure
                     Right r' -> do
