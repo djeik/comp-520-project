@@ -107,13 +107,15 @@ table :: [[Operator Parser (Semi SrcAnnExpr)]]
 table =
     [ [ postfix (selector <|> index <|> sliceE <|> typeAssertion <|> call)
       ]
-    , [ prefix "+"  (\f -> UnaryOp (f Positive))
-      , prefix "-"  (\f -> UnaryOp (f Negative))
-      , prefix "!"  (\f -> UnaryOp (f LogicalNot))
-      , prefix "^"  (\f -> UnaryOp (f BitwiseNot))
-      , prefix "*"  (\f -> UnaryOp (f Dereference))
-      , prefix "&"  (\f -> UnaryOp (f Reference))
-      , prefix "<-" (\f -> UnaryOp (f Receive))
+    , [ prefix
+        [ ("+", \f -> UnaryOp (f Positive))
+        , ("-",  \f -> UnaryOp (f Negative))
+        , ("!",  \f -> UnaryOp (f LogicalNot))
+        , ("^",  \f -> UnaryOp (f BitwiseNot))
+        , ("*",  \f -> UnaryOp (f Dereference))
+        , ("&",  \f -> UnaryOp (f Reference))
+        , ("<-", \f -> UnaryOp (f Receive))
+        ]
       ]
     , [ binary "*"  (\f -> BinaryOp (f Times))
       , binary "/"  (\f -> BinaryOp (f Divide))
@@ -159,19 +161,46 @@ table =
                         f (Ann a) x y
 
         prefix
-            :: String
-            -> (   (UnaryOp () -> SrcAnnUnaryOp)
-                -> SrcAnnExpr
-                -> SrcAnnExprF SrcAnnExpr)
+            :: [
+                ( String
+                , (UnaryOp () -> SrcAnnUnaryOp) -> SrcAnnExpr -> SrcAnnExprF SrcAnnExpr
+                )
+            ]
             -> Operator Parser (Semi SrcAnnExpr)
-        prefix name f
+        prefix pops
             = Prefix $ do
-                (Ann a _) <- withSrcAnnConst $ try $ opLexeme name
-                pure $ \e -> do
-                    x <- e
-                    let s = topAnn x
-                    pure $ Fix $ Ann (SrcSpan (srcStart a) (srcEnd s)) $
-                        f (Ann a) x
+                let p = choice $ map (\(name, f) -> prefixOp name f ) pops
+                qs <- some p :: Parser [Semi SrcAnnExpr -> Semi SrcAnnExpr]
+                pure $ foldr1 (\a b c -> do
+                    b' <- b c
+                    a (pure b')) qs
+
+        prefixOp
+            :: String
+            -> ((UnaryOp () -> SrcAnnUnaryOp) -> SrcAnnExpr -> SrcAnnExprF SrcAnnExpr)
+            -> Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
+        prefixOp name f = do
+            (Ann a _) <- withSrcAnnF $ symbol name
+            let opAnn un = Ann a un
+            pure $ \e -> do
+                x@(Fix (Ann b _)) <- e
+                let a' = SrcSpan (srcStart a) (srcEnd b)
+                pure $ Fix (Ann a' (f opAnn x))
+
+        -- prefix
+        --     :: String
+        --     -> (   (UnaryOp () -> SrcAnnUnaryOp)
+        --         -> SrcAnnExpr
+        --         -> SrcAnnExprF SrcAnnExpr)
+        --     -> Operator Parser (Semi SrcAnnExpr)
+        -- prefix name f
+        --     = Prefix $ do
+        --         (Ann a _) <- withSrcAnnConst $ try $ opLexeme name
+        --         pure $ \e -> do
+        --             x <- e
+        --             let s = topAnn x
+        --             pure $ Fix $ Ann (SrcSpan (srcStart a) (srcEnd s)) $
+        --                 f (Ann a) x
 
         postfix
             :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
