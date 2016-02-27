@@ -144,16 +144,16 @@ instance
             ) => ExprF id bin un lit ty (Int, Doc) -> (Int, Doc)
         f e = case e of
             BinaryOp op (dl, l) (dr, r) -> (precedence op,) $
-                prettyParens (dl < precedence op) l <+>
+                prettyParens (dl <= precedence op) l <+>
                 pretty op <+>
-                prettyParens (dr < precedence op) r
+                prettyParens (dr <= precedence op) r
             UnaryOp op (dp, p) -> (precedence op,) $
                 pretty op <>
-                prettyParens (dp < precedence op) p
+                prettyParens (dp <= precedence op) p
             Literal l -> (6, pretty l)
             Variable x -> (6, pretty x)
             Slice (ep, ex) lo hi up -> (6,) $
-                prettyParens (ep < 6) ex <>
+                prettyParens (ep <= 6) ex <>
                 prettyBrackets True (
                     pretty (snd <$> lo) <>
                     text ":" <>
@@ -163,7 +163,7 @@ instance
                         Nothing -> empty
                 )
             Call (fp, fb) ty args -> (6,) $
-                prettyParens (fp < 6) (prettyPrec 6 fb) <>
+                prettyParens (fp <= 6) (prettyPrec 6 fb) <>
                 prettyParens True (
                     case args of
                         [] -> pretty ty
@@ -180,14 +180,14 @@ instance
             Conversion ty (_, p) -> (6,) $
                 pretty ty <> prettyParens True p
             Selector (ds, s) i -> (6,) $
-                prettyParens (ds < 6) s <> text "." <> pretty i
+                prettyParens (ds <= 6) s <> text "." <> pretty i
             TypeAssertion (dex, ex) ty -> (6,) $ cat
-                [ prettyParens (dex < 6) ex
+                [ prettyParens (dex <= 6) ex
                 , text "."
                 , prettyParens True (pretty ty)
                 ]
             Index (dex, ex) (_, i) -> (6,) $ cat
-                [ prettyParens (dex < 6) ex
+                [ prettyParens (dex <= 6) ex
                 , prettyBrackets True i
                 ]
 
