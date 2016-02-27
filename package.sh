@@ -19,10 +19,18 @@ mkdir "$dst"
 cp -vr "$d" "$dst/src"
 rm -rf $dst/src/{.cabal-sandbox,cabal.sandbox.config,.git,dist}
 
+sed 's/dist/src\/dist/' \
+    < "$dst/src/run_milestone1.sh" \
+    > "$dst/run_milestone1.sh"
+rm -v "$dst/src/run_milestone1.sh"
+chmod +x "$dst/run_milestone1.sh"
+
 # Make symlinks for the valid and invalid programs
 mkdir "$dst/programs"
-ln -vs "../src/programs/valid" "$dst/programs/valid"
-ln -vs "../src/programs/invalid-parse" "$dst/programs/invalid"
+mkdir "$dst/programs/valid"
+ln -vs "../src/programs/valid/brainfuck.go" "$dst/programs/valid"
+ln -vs "../src/programs/valid/cmd.go" "$dst/programs/valid"
+ln -vs "../src/programs/invalid" "$dst/programs/invalid"
 
 # Make a symlink for the README
 ln -vs "../src/README" "$dst"
