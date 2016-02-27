@@ -187,21 +187,6 @@ table =
                 let a' = SrcSpan (srcStart a) (srcEnd b)
                 pure $ Fix (Ann a' (f opAnn x))
 
-        -- prefix
-        --     :: String
-        --     -> (   (UnaryOp () -> SrcAnnUnaryOp)
-        --         -> SrcAnnExpr
-        --         -> SrcAnnExprF SrcAnnExpr)
-        --     -> Operator Parser (Semi SrcAnnExpr)
-        -- prefix name f
-        --     = Prefix $ do
-        --         (Ann a _) <- withSrcAnnConst $ try $ opLexeme name
-        --         pure $ \e -> do
-        --             x <- e
-        --             let s = topAnn x
-        --             pure $ Fix $ Ann (SrcSpan (srcStart a) (srcEnd s)) $
-        --                 f (Ann a) x
-
         postfix
             :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
             -> Operator Parser (Semi SrcAnnExpr)
