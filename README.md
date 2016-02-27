@@ -14,9 +14,9 @@ Team:
 Instructions
 ============
 
-1) Install Cabal
-2) Install project dependencies (`cabal install <library>`). `cabal build` will
-   tell you what is missing. Alternatively look in `goto.cabal` for the list
-   of `build-depends`
-3) Build: `cabal build`
-4) Run: ./run_milestone1 <file.go>
+* Run the `package` script to create a directory with the required structure.
+* Enter into the `src` directory of the newly created project directory and
+  initialize a cabal sandbox: `cabal sandbox init`.
+* Install the project dependencies: `cabal install --only-dependencies`
+* Build the binary: `cabal build` (prepare to wait a long time)
+* Run: `./run_milestone FILE`.
