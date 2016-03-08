@@ -62,6 +62,7 @@ opIncrement = semisym "++"
 opDecrement :: Parser (Semi String)
 opDecrement = semisym "--"
 
+-- | Parses a single opening parenthesis.
 openParen :: Parser ()
 openParen = symbol__ "("
 
@@ -69,6 +70,7 @@ openParen = symbol__ "("
 closeParen :: Parser (Semi String)
 closeParen = semisym ")"
 
+-- | Parses a single opening bracket.
 openBracket :: Parser ()
 openBracket = symbol__ "["
 
@@ -76,6 +78,7 @@ openBracket = symbol__ "["
 closeBracket :: Parser (Semi String)
 closeBracket = semisym "]"
 
+-- | Parses a single opening brace.
 openBrace :: Parser ()
 openBrace = symbol__ "{"
 

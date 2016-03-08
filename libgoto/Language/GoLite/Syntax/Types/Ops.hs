@@ -18,7 +18,7 @@ import Text.PrettyPrint
 
 -- | A binary operator.
 --
--- Derives Functor so that we can painlessly use 'Language.GoLite.Annotation'.
+-- Derives Functor so that we can painlessly use "Language.GoLite.Annotation".
 data BinaryOp a
     = LogicalOr | LogicalAnd
     | Equal | NotEqual | LessThan | LessThanEqual | GreaterThan | GreaterThanEqual
@@ -75,7 +75,7 @@ instance Pretty (BinaryOp a) where
 
 -- | A unary operator.
 --
--- Derives Functor so that we can painlessly use 'Language.GoLite.Annotation'.
+-- Derives Functor so that we can painlessly use "Language.GoLite.Annotation".
 data UnaryOp a
     = Positive
     | Negative
@@ -110,7 +110,7 @@ instance Pretty (UnaryOp a) where
 
 -- | An assignment operator.
 --
--- Derives Functor so that we can painlessly use 'Language.GoLite.Annotation'.
+-- Derives Functor so that we can painlessly use "Language.GoLite.Annotation".
 data AssignOp a
     = Assign
     | PlusEq | MinusEq | BitwiseOrEq | BitwiseXorEq

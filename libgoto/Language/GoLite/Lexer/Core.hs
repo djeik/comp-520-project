@@ -87,6 +87,8 @@ lexeme p = try $ do
     s <- sc
     pure (s, x)
 
+-- | Lexeme parser that gobbles up trailing whitespace, but throws away
+-- information from newline analysis.
 lexeme_ :: Parser a -> Parser a
 lexeme_ p = do
     x <- p

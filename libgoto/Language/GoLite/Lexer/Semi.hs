@@ -159,6 +159,9 @@ withDetectSemicolon p = do
     t <- isJust <$> optional semicolon
     pure $ put (Just $ n || t) *> pure q
 
+-- | Runs a parser that performs a newline analysis, and performs a semicolon
+-- detection requiring an explicit semicolon, introducing a computation in the
+-- "Semi" monad.
 withDetectExplicitSemicolon :: Parser (HasNewline, a) -> Parser (Semi a)
 withDetectExplicitSemicolon p = do
     (_, q) <- p

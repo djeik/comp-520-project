@@ -194,7 +194,7 @@ instance
 
 -- | A literal.
 --
--- Derives functor so that we can painlessly use 'Language.GoLite.Annotation'.
+-- Derives functor so that we can painlessly use "Language.GoLite.Annotation".
 data Literal a
     = IntLit GoInt
     | FloatLit GoFloat
