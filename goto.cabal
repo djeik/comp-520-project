@@ -55,6 +55,7 @@ library
     Language.GoLite.Syntax.Types
     Language.GoLite.Syntax.Precedence
     Language.GoLite.Syntax.Typecheck
+    Language.GoLite.Typecheck
   other-modules:
     Language.GoLite.Lexer.Core
     Language.GoLite.Lexer.Keywords
