@@ -5,13 +5,11 @@ Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
 License     : MIT
 Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
+
+The core definitions for the GoLite abstract syntax tree.
 -}
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Language.GoLite.Syntax.Types
 ( Package(..)
