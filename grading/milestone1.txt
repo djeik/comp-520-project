@@ -1,0 +1,51 @@
+                               ━━━━━━━━━
+                                TEAM 04
+                               ━━━━━━━━━
+
+
+Members
+═══════
+
+  • Jacob Errington (260636023)
+  • Frederic Lafrance (260580705)
+
+
+Q1
+══
+
+  • Total: 10/10
+    • Brainfuck and cmd: very nice, much better than fib and fact most
+      other teams have submitted :)
+
+
+Q2
+══
+
+  • Total: 20.6/30
+    • Valid programs: 7.6/16
+      • Recognized as valid: 127/269
+      • Recognized as invalid: 142/269
+        • Your parser fails on programs that have a comment before the
+          package declaration.
+    • Invalid programs: 9/10
+      • Recognized as invalid: 361/403
+        • A bunch were recognized as invalid due to the comment thing;
+          enjoy the free marks ;)
+      • Recognized as valid: 42/403
+    • Good error messages: 4/4
+      • Line and column numbers are included
+      • Error message explains the nature of the problem
+
+
+Q3
+══
+
+  • Total: 10/10
+    • Good report, especially liked the section on the design of the AST
+      (a problem with many good solutions that each have some downsides)
+
+
+Comments
+════════
+
+  • Good project, shame that a simple problem cost you many marks.
