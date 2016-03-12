@@ -6,8 +6,8 @@ License     : MIT
 Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
 
-This module contains the Weeder traversal, which throws errors on semantically
-invalid programs.
+This module contains the Weeder traversal. This traversal cannot be aborted.
+Non-fatal errors are accumulated in the state.
 -}
 
 {-# LANGUAGE TypeFamilies #-}
@@ -16,6 +16,8 @@ invalid programs.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Language.GoLite.Weeder where
+
+import Data.Maybe ( isJust )
 
 import Language.GoLite.Monad.Traverse
 import Language.GoLite.Syntax
@@ -26,8 +28,36 @@ import Data.Void ( Void )
 -- TODO
 type WeederException = (SrcSpan, String)
 
--- TODO
-type WeederState = String
+-- | Internal state used by the weeder. The only field of interest to the
+-- outside world is the "weedErrors" field.
+data WeederState
+    = WeederState
+        { funcHasReturn :: Bool
+        -- ^ Specifies whether the function we are in has a declared return type
+        -- or not. Outside of functions, the value is undetermined.
+        , forLevel :: Int
+        -- ^ Indicates the current level of for-loop nesting.
+        , switchLevel :: Int
+        -- ^ Indicates the current level of switch nesting.
+        , weedErrors :: [WeederException]
+        }
+    deriving (Show)
+
+setFuncHasReturn :: WeederState -> Bool -> WeederState
+setFuncHasReturn s b = s { funcHasReturn = b }
+
+incForLevel :: WeederState -> WeederState
+incForLevel s = s { forLevel = forLevel s + 1 }
+
+decForLevel :: WeederState -> WeederState
+decForLevel s = s { forLevel = forLevel s - 1 }
+
+incSwitchLevel :: WeederState -> WeederState
+incSwitchLevel s = s { switchLevel = switchLevel s + 1 }
+
+decSwitchLevel :: WeederState -> WeederState
+decSwitchLevel s = s { switchLevel = switchLevel s - 1 }
+
 
 newtype Weeder a
     = Weeder { runWeeder :: Traversal Void WeederState a }
@@ -39,15 +69,16 @@ newtype Weeder a
         , MonadError Void
         )
 
-
 instance MonadTraversal Weeder where
     type TraversalError Weeder = WeederException
     type TraversalState Weeder = WeederState
     type TraversalException Weeder = Void
 
-    reportError = undefined -- TODO add to list of errors in state
+    reportError e = do
+        s <- get
+        put s { weedErrors = e:(weedErrors s) }
 
-    getErrors = undefined -- TODO extract list of errors from state
+    getErrors s = weedErrors s
 
 
 -- | Weeds a package and its components. A package is invalid if its identifier
@@ -84,6 +115,10 @@ weedFunDecl (FunDecl (Ann a (Ident n)) pars rty bod) = do
                         reportError (a, "missing return at end of function")
                     else pure ()
         _ -> pure ()
+
+    s <- get
+    put $ setFuncHasReturn s (isJust rty)
+
 
 {- | Checks if a statement is terminating.
 
@@ -157,6 +192,26 @@ hasBreak (x:xs) = case x of
     _ -> hasBreak xs
 
 
--- Weeds a declaration (either variable or type)
+-- | Weeds a declaration (either variable or type).
+-- In a variable declaration, nil cannot be used as a value when no type is
+-- specified.
 weedDecl :: SrcAnnDeclaration -> Weeder ()
-weedDecl = undefined
+weedDecl (TypeDecl (TypeDeclBody _ _)) = pure ()
+weedDecl (VarDecl (VarDeclBody _ ty es)) = do
+    case ty of
+        Nothing -> errorOnNil es
+        _ -> pure ()
+
+    pure $ (void . map) weedExpr es
+    where
+        errorOnNil :: [SrcAnnExpr] -> Weeder ()
+        errorOnNil [] = pure ()
+        errorOnNil (x:xs) = do
+            case x of
+                (Fix (Ann _ (Variable (Ann a (Ident "nil"))))) ->
+                    reportError (a, "use of untyped nil")
+                _ -> pure ()
+            errorOnNil xs
+
+weedExpr :: SrcAnnExpr -> Weeder ()
+weedExpr = undefined
