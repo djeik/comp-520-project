@@ -16,8 +16,6 @@ invalid programs.
 
 module Language.GoLite.Weeder where
 
-import Control.Monad (void)
-
 import Language.GoLite.Monad.Traverse
 import Language.GoLite.Syntax
 import Language.GoLite.Syntax.SrcAnn
