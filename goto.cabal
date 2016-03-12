@@ -32,7 +32,8 @@ library
     containers >=0.5,
     mtl >=2.2 && <2.3,
     pretty >=1.1 && <1.2,
-    recursion-schemes >=4.1 && <4.2
+    recursion-schemes >=4.1 && <4.2,
+    bifunctors >=5.2 && <5.3
   exposed-modules:
     Language.GoLite
     Language.GoLite.Annotation

@@ -21,6 +21,8 @@ import Language.GoLite.Monad.Traverse
 import Language.GoLite.Syntax
 import Language.GoLite.Syntax.SrcAnn
 
+import Data.Void ( Void )
+
 -- TODO
 type WeederException = (SrcSpan, String)
 
@@ -28,24 +30,24 @@ type WeederException = (SrcSpan, String)
 type WeederState = String
 
 newtype Weeder a
-    = Weeder { runWeeder :: Traversal WeederException WeederState a }
+    = Weeder { runWeeder :: Traversal Void WeederState a }
     deriving
         ( Functor
         , Applicative
         , Monad
         , MonadState WeederState
-        , MonadError [WeederException]
+        , MonadError Void
         )
 
 
 instance MonadTraversal Weeder where
     type TraversalError Weeder = WeederException
+    type TraversalState Weeder = WeederState
+    type TraversalException Weeder = Void
 
     reportError = undefined -- TODO add to list of errors in state
 
     getErrors = undefined -- TODO extract list of errors from state
-
-    abortTraversal = throwError =<< getErrors
 
 
 -- | Weeds a package and its components. A package is invalid if its identifier
