@@ -26,7 +26,7 @@ import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.State
 
--- | Describes a syntax tree traversal.
+-- | The class of monads that perform traversals of syntax trees.
 class
     ( Monad m
     , MonadState (TraversalState m) m
@@ -50,6 +50,7 @@ class
     -- | Extracts the non-fatal errors from the traversal state.
     getErrors :: TraversalState m -> [TraversalError m]
 
+-- | Helper for common types of traversals.
 newtype Traversal e s a
     = Traversal
         { runTraversal
@@ -57,6 +58,7 @@ newtype Traversal e s a
                 StateT s
                     Identity
             ) a
+        -- ^ Extract the transformer stack from the 'Traversal' wrapper.
         }
     deriving
         ( Functor

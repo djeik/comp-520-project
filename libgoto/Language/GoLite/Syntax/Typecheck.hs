@@ -1,5 +1,5 @@
 {-|
-Module      : Language.GoLite.Monad.Traverse
+Module      : Language.GoLite.Syntax.Typecheck
 Description : GoLite syntax definitions with type and source annotations
 Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
 License     : MIT
@@ -13,11 +13,9 @@ module Language.GoLite.Syntax.Typecheck where
 
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Types
+import Language.GoLite.Types
 
 import Control.Applicative ( Const(..) )
-
--- The canonical form of a type.
-type Type = String
 
 -- | An annotation that consists of both type and source position information.
 type TySrcSpan = (Type, SrcSpan)

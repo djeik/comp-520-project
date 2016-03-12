@@ -58,6 +58,8 @@ library
     Language.GoLite.Syntax.Precedence
     Language.GoLite.Syntax.Typecheck
     Language.GoLite.Typecheck
+    Language.GoLite.Typecheck.Types
+    Language.GoLite.Types
     Language.GoLite.Weeder
   other-modules:
     Language.GoLite.Lexer.Core

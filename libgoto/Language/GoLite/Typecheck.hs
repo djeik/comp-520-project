@@ -1,3 +1,16 @@
+{-|
+Module      : Language.GoLite.Typecheck
+Description : Typechecking traversal logic
+Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
+License     : MIT
+Maintainer  : goto@mail.jerrington.me
+Stability   : experimental
+
+Defines the functions for typechecking a source-annotated syntax tree. The
+result is a typechecked syntax tree, as described in
+"Language.GoLite.Syntax.Typecheck".
+-}
+
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TupleSections #-}
@@ -11,93 +24,12 @@ import Language.GoLite.Monad.Traverse
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Typecheck
 import Language.GoLite.Syntax.Types
+import Language.GoLite.Types
+import Language.GoLite.Typecheck.Types
 
-import qualified Data.Map as M
 import Data.Bifunctor ( first )
+import qualified Data.Map as M
 import Data.Functor.Foldable ( cata )
-import Text.PrettyPrint
-
--- | The typecheck monad tracks errors in its state. Fatal errors cause a true
--- exception to the thrown (in the 'ExceptT' sense) whereas non-fatal errors
--- merely causes new errors to be accumulated in the state. Hence, when
--- analyzing the 'Either' that results from running the @ExceptT@, 'Left'
--- indicates a fatal error and 'Right' indicates either success or non-fatal
--- errors.
-newtype Typecheck a
-    = Typecheck { runTypecheck :: Traversal TypecheckError TypecheckState a }
-    deriving
-        ( Functor
-        , Applicative
-        , Monad
-        , MonadError TypecheckError
-        , MonadState TypecheckState
-        )
-
-data TypecheckState
-    = TypecheckState
-        { _errors :: [TraversalError Typecheck]
-        , _scopes :: [Scope]
-        }
-    deriving (Eq, Show)
-
--- | Regular typecheck/ing/ errors. (As opposed to typecheck/er/ errors.)
-data TypeError
-    = TypeMismatch
-        { mismatchExpectedType :: Type
-        -- ^ The expected type.
-        , mismatchActualType :: Type
-        -- ^ The actual type.
-        , mismatchExpr :: SrcAnnExpr
-        -- ^ The expression whose type is invalid.
-        , exceptionReason :: Doc
-        -- ^ A human-readable description of the error reason.
-        }
-    deriving (Eq, Show)
-
--- | All errors that can actually be thrown.
-data TypecheckError
-    = Abort
-    -- ^ The typecheck is simply aborted.
-    | ScopeImbalance
-    -- ^ More scopes were popped than were pushed.
-
--- | An entry in the symbol table.
-data SymbolInfo
-    -- | A variable in scope.
-    = SymbolInfo
-        { symLocation :: !SrcSpan
-        -- ^ The location of the symbol's definition.
-        , symType :: !Type
-        -- ^ The canonical type of the variable.
-        }
-    deriving (Eq, Ord, Show)
-
-type VariableInfo = SymbolInfo
-type TypeInfo = SymbolInfo
-
--- | Variables are identified by a string.
-type VariableName = String
-
--- | Types are identified by a string.
-type TypeName = String
-
--- | Scopes track definitions of symbols. In GoLite, there are two kinds of
--- symbols: variables and types. Since they live in separate namespaces, each
--- scope consists of two maps, once for each namespace.
-data Scope
-    = Scope
-        { scopeVariables :: M.Map VariableName SymbolInfo
-        , scopeTypes :: M.Map TypeName TypeInfo
-        }
-    deriving (Eq, Ord, Show)
-
-instance MonadTraversal Typecheck where
-    type TraversalError Typecheck = TypeError
-    type TraversalException Typecheck = TypecheckError
-    type TraversalState Typecheck = TypecheckState
-
-    reportError e = modify $ \s -> s { _errors = e : _errors s }
-    getErrors = _errors
 
 -- | Pushes a given scope onto the stack.
 pushScope :: Scope -> Typecheck ()
@@ -179,20 +111,24 @@ lookupType' name = do
 canonicalize :: SrcAnnType -> Typecheck Type
 canonicalize = error "unimplemented: type canonicalization"
 
+-- | Typechecks a source position-annotated 'Package'.
 typecheckPackage :: SrcAnnPackage -> Typecheck TySrcAnnPackage
 typecheckPackage (Package ident decls)
     = Package <$> pure ident <*> (mapM typecheckTopLevelDecl decls)
 
+-- | Typechecks a source position-annotated 'TopLevelDecl'.
 typecheckTopLevelDecl :: SrcAnnTopLevelDecl -> Typecheck TySrcAnnTopLevelDecl
 typecheckTopLevelDecl d = case d of
     TopLevelDecl decl -> TopLevelDecl <$> typecheckDecl decl
     TopLevelFun decl -> TopLevelFun <$> typecheckFun decl
 
+-- | Typechecks a source position-annotated 'Declaration'.
 typecheckDecl :: SrcAnnDeclaration -> Typecheck TySrcAnnDeclaration
 typecheckDecl d = case d of
     TypeDecl tyDeclBody -> TypeDecl <$> typecheckTypeDecl tyDeclBody
     VarDecl varDeclBody -> VarDecl <$> typecheckVarDecl varDeclBody
 
+-- | Typechecks a source position-annotated 'TypeDecl'.
 typecheckTypeDecl :: SrcAnnTypeDecl -> Typecheck SrcAnnTypeDecl
 typecheckTypeDecl d = case d of
     TypeDeclBody (Ann a (Ident i)) ty -> do
@@ -200,6 +136,7 @@ typecheckTypeDecl d = case d of
         declareType i $ SymbolInfo { symLocation = a, symType = ty' }
         pure $ TypeDeclBody (Ann a (Ident i)) ty
 
+-- | Typechecks a source position-annotated 'VarDecl'.
 typecheckVarDecl :: SrcAnnVarDecl -> Typecheck TySrcAnnVarDecl
 typecheckVarDecl d = case d of
     VarDeclBody idents mty exprs -> do
@@ -227,6 +164,7 @@ typecheckVarDecl d = case d of
         let (idents', exprs') = unzip ies'
         pure $ VarDeclBody idents' mty exprs'
 
+-- | Typechecks a source position-annotated 'FunDecl'.
 typecheckFun :: SrcAnnFunDecl -> Typecheck TySrcAnnFunDecl
 typecheckFun e = case e of
     FunDecl i@(Ann a (Ident name)) args mretty stmts -> do
@@ -241,10 +179,14 @@ typecheckFun e = case e of
 
         pure $ FunDecl i args mretty stmts'
 
+-- | Typechecks a source position-annotated fixed point of 'ExprF'.
 typecheckExpr :: SrcAnnExpr -> Typecheck TySrcAnnExpr
 typecheckExpr = cata f where
+    -- the boilerplate for reconstructing the tree but in which the branches
+    -- now contain type information along with source position information.
     wrap a = Fix . uncurry Ann . first (, a)
 
+    -- the monadic F-algebra that typechecks expressions bottom-up.
     f :: SrcAnn SrcAnnExprF (Typecheck TySrcAnnExpr) -> Typecheck TySrcAnnExpr
     f (Ann a e) = fmap (wrap a) $ case e of
         BinaryOp o me1 me2 ->
