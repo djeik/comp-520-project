@@ -39,6 +39,7 @@ library
     Language.GoLite.Lexer
     Language.GoLite.Lexer.Literal
     Language.GoLite.Monad.Traverse
+    Language.GoLite.Misc
     Language.GoLite.Parser
     Language.GoLite.Parser.Expression
     Language.GoLite.Parser.SimpleStmts

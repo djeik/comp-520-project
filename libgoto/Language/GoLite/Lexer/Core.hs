@@ -25,7 +25,7 @@ module Language.GoLite.Lexer.Core
 , module Text.Megaparsec.String
 ) where
 
-import Control.Monad ( void )
+import Language.GoLite.Misc ( ($>) )
 
 import Data.Maybe ( isJust )
 import Text.Megaparsec
@@ -33,11 +33,6 @@ import Text.Megaparsec.String
 
 -- | Track the presence of newlines with a boolean.
 type HasNewline = Bool
-
--- | The \"fmap const\" operator replaces the contents of a "Functor" with a
--- given value.
-($>) :: Functor f => f a -> b -> f b
-f $> c = fmap (const c) f
 
 -- | Consumes whitespace if any and performs a newline detection.
 sc :: Parser HasNewline
@@ -71,7 +66,7 @@ symbol_ = fmap fst . symbol
 -- | Parses a verbatim string, allowing for potential whitespace after. The
 -- result is thrown away.
 symbol__ :: String -> Parser ()
-symbol__ = void . symbol
+symbol__ s = symbol s $> ()
 
 -- | Wraps a parser with trailing whitespace and comment handling to make it
 -- properly act as a parser for a lexeme in the language.
