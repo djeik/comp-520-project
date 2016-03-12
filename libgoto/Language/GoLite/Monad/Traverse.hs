@@ -10,9 +10,20 @@ Defines a type family based approach for traversing general annotated syntax
 trees.
 -}
 
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Language.GoLite.Monad.Traverse where
+module Language.GoLite.Monad.Traverse (
+  module Control.Monad.Except
+, module Control.Monad.Identity
+, module Control.Monad.State
+, MonadTraversal (..)
+, Traversal
+) where
+
+import Control.Monad.Except
+import Control.Monad.Identity
+import Control.Monad.State
 
 -- | Describes a syntax tree traversal.
 class Monad m => MonadTraversal m where
@@ -26,3 +37,19 @@ class Monad m => MonadTraversal m where
 
     -- | Aborts the traversal.
     abortTraversal :: m a
+
+newtype Traversal e s a
+    = Traversal
+        { runTraversal
+            :: ExceptT [e] (
+                StateT s
+                    Identity
+            ) a
+        }
+    deriving
+        ( Functor
+        , Applicative
+        , Monad
+        , MonadError [e]
+        , MonadState s
+        )

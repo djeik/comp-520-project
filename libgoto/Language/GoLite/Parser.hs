@@ -31,6 +31,7 @@ packageP = do
     name <- (kwPackage >>= noSemiP) >> (identifier >>= requireSemiP)
     decls <- many topLevelDeclP
 
+
     pure $ Package name (concat decls)
 
 -- | Parses a top-level declaration: either a regular declaration (type/var) or

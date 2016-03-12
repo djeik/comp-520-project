@@ -1,36 +1,19 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Language.GoLite.Typecheck where
 
 import Language.GoLite.Monad.Traverse
 import Language.GoLite.Syntax.Typecheck
 
-import Control.Monad.Except
-import Control.Monad.Identity
-import Control.Monad.State
-
-newtype Typecheck a
-    = Typecheck
-        { runTypecheck
-            :: ExceptT [TypecheckException] (
-                StateT TypecheckState
-                    Identity
-            ) a
-        }
-    deriving
-        ( Functor
-        , Applicative
-        , Monad
-        , MonadError [TypecheckException]
-        , MonadState TypecheckState
-        )
-
 -- TODO
 type TypecheckException = String
 
 -- TODO
 type TypecheckState = String
+
+type Typecheck = Traversal TypecheckException TypecheckState
 
 instance MonadTraversal Typecheck where
     type TraversalError Typecheck = TypecheckException
