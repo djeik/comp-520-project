@@ -1,6 +1,6 @@
 {-|
 Module      : Language.GoLite.Parser
-Description :
+Description : High level parsers and re-exports
 Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
 License     : MIT
 Maintainer  : goto@mail.jerrington.me
