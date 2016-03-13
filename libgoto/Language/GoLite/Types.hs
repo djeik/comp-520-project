@@ -56,8 +56,17 @@ data GoTypeF f
     | SliceType f
     -- | A struct type.
     | StructType
-        { typeNamed :: M.Map SrcAnnIdent f
-        , typeBlanks :: [f]
+        { typeNamed :: M.Map SrcAnnIdent f }
+    -- | The type for the predeclared identifier "nil". No other expression has
+    -- this type.
+    | NilType
+    -- | An artificial type used for built-ins. It contains the actual type of
+    -- the built-in, but is not assignment-compatible with anything.
+    | BuiltinType f
+    -- | A function type.
+    | FuncType
+        { args :: [(SrcAnnIdent, f)]
+        , ret :: f
         }
     deriving (Functor)
 
