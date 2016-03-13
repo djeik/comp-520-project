@@ -57,6 +57,10 @@ newScope = pushScope $ Scope { scopeMap = M.empty }
 dropScope :: Typecheck ()
 dropScope = popScope $> ()
 
+withScope :: Typecheck a -> Typecheck a
+withScope m = newScope *> m <* dropScope
+
+
 -- | Gets the top scope.
 --
 -- if the scope stack is empty, throws 'EmptyScopeStack'.
