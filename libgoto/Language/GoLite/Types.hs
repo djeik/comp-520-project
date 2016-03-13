@@ -14,6 +14,7 @@ Defines the core types used in the internal representation of GoLite code.
 module Language.GoLite.Types where
 
 import Language.GoLite.Syntax.SrcAnn
+import qualified Language.GoLite.Syntax.Types as T
 
 import Data.Functor.Foldable
 import qualified Data.Map as M
@@ -49,12 +50,24 @@ data GoTypeF f
     = VoidType
     -- | The built-in integer number type.
     | IntType
+        { constantIsTyped :: Bool
+        }
     -- | The built-in unicode character type.
     | RuneType
+        { constantIsTyped :: Bool
+        }
     -- | The built-in string type.
     | StringType
+        { constantIsTyped :: Bool
+        }
     -- | The built-in floating point number type.
     | FloatType
+        { constantIsTyped :: Bool
+        }
+    -- | The built-in boolean type.
+    | BoolType
+        { constantIsTyped :: Bool
+        }
     -- | A statically-sized array of some type.
     | ArrayType Int f
     -- | A slice of some type.
@@ -68,8 +81,11 @@ data GoTypeF f
     -- | Types for built-in functions, which are unrepresentable in the go
     -- typesystem.
     | BuiltinType BuiltinType
+    -- | An alias for another type.
+    | AliasType SrcAnnIdent f
+    -- | The type of a function.
     | FuncType
-        { funcTypeArgs :: [(SrcAnnIdent, f)]
+        { funcTypeArgs :: [(SrcAnn Symbol (), f)]
         , funcTypeRet :: f
         }
     deriving (Eq, Functor, Ord, Show)
@@ -98,17 +114,50 @@ type Type = Fix GoTypeF
 voidType :: Type
 voidType = Fix VoidType
 
-intType :: Type
-intType = Fix IntType
+intType :: Bool -> Type
+intType = Fix . IntType
 
-runeType :: Type
-runeType = Fix RuneType
+untypedIntType :: Type
+untypedIntType = intType False
 
-stringType :: Type
-stringType = Fix StringType
+typedIntType :: Type
+typedIntType = intType True
 
-floatType :: Type
-floatType = Fix FloatType
+runeType :: Bool -> Type
+runeType = Fix . RuneType
+
+untypedRuneType :: Type
+untypedRuneType = runeType False
+
+typedRuneType :: Type
+typedRuneType = runeType True
+
+stringType :: Bool -> Type
+stringType = Fix . StringType
+
+untypedStringType :: Type
+untypedStringType = stringType False
+
+typedStringType :: Type
+typedStringType = stringType True
+
+floatType :: Bool -> Type
+floatType = Fix . FloatType
+
+untypedFloatType :: Type
+untypedFloatType = floatType False
+
+typedFloatType :: Type
+typedFloatType = floatType True
+
+boolType :: Bool -> Type
+boolType = Fix . BoolType
+
+untypedBoolType :: Type
+untypedBoolType = boolType False
+
+typedBoolType :: Type
+typedBoolType = boolType True
 
 arrayType :: Int -> Type -> Type
 arrayType n t = Fix $ ArrayType n t
@@ -122,7 +171,7 @@ nilType = Fix NilType
 builtin :: BuiltinType -> Type
 builtin = Fix . BuiltinType
 
-funcType :: [(SrcAnnIdent, Type)] -> Type -> Type
+funcType :: [(SrcAnn Symbol (), Type)] -> Type -> Type
 funcType args ret = Fix $ FuncType
     { funcTypeArgs = args
     , funcTypeRet = ret
@@ -138,3 +187,17 @@ data Scope
         { scopeMap :: M.Map SymbolName SymbolInfo
         }
     deriving (Eq, Ord, Show)
+
+data Symbol a
+    = NamedSymbol SymbolName
+    -- ^ A named symbol.
+    | Blank
+    -- ^ The blank identifier.
+    deriving (Eq, Ord, Read, Show)
+
+-- | Converts a raw identifier into a symbol.
+symbolFromIdent :: T.Ident a -> Symbol a
+symbolFromIdent i = case i of
+    T.Ident s -> if s == "_"
+        then Blank
+        else NamedSymbol s
