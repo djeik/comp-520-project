@@ -102,7 +102,7 @@ type TypeName = String
 -- scope consists of two maps, once for each namespace.
 data Scope
     = Scope
-        { scopeVariables :: M.Map VariableName SymbolInfo
+        { scopeVariables :: M.Map VariableName VariableInfo
         -- ^ The map of variables declared in this scope.
         , scopeTypes :: M.Map TypeName TypeInfo
         -- ^ The map of types declared in this scope.
