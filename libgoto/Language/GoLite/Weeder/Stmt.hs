@@ -14,8 +14,6 @@ module Language.GoLite.Weeder.Stmt
 , weedStmt
 ) where
 
-import Data.Maybe ( isNothing )
-
 import Language.GoLite.Weeder.Core
 import Language.GoLite.Weeder.Expr
 
@@ -26,17 +24,13 @@ weedDecl :: SrcAnnDeclaration -> Weeder ()
 weedDecl (TypeDecl (TypeDeclBody _ _)) = pure ()
 weedDecl (VarDecl (VarDeclBody _ ty es)) = do
 
-    when (isNothing ty) (errorOnNil es)
+    when (isNothing ty) (void $ mapM errorOnNil es)
     void $ mapM weedExpr es
     where
-        errorOnNil :: [SrcAnnExpr] -> Weeder ()
-        errorOnNil [] = pure ()
-        errorOnNil (x:xs) = do
-            case x of
-                (Fix (Ann _ (Variable (Ann a (Ident "nil"))))) ->
-                    reportError (a, "use of untyped nil")
-                _ -> pure ()
-            errorOnNil xs
+        errorOnNil :: SrcAnnExpr -> Weeder ()
+        errorOnNil e =
+            when ("nil" `isIdAsOperand` e)
+                (reportError (topAnn e, "use of untyped nil"))
 
 {- | Weeds a statement and its components.
 
@@ -84,7 +78,7 @@ weedStmt (Fix (Ann _ (Assignment lhs op rhs))) = do
     void $ mapM weedExpr rhs
     where
         weedExprAllowingBlanks :: SrcAnnExpr -> Weeder ()
-        weedExprAllowingBlanks e = when (not $ isBlankAsOperand e) (weedExpr e)
+        weedExprAllowingBlanks e = when (not ("_" `isIdAsOperand` e)) (weedExpr e)
 
 -- Print statement: weed the inner expressions
 weedStmt (Fix (Ann _ (PrintStmt es))) = pure $ (void . map) weedExpr es
@@ -106,7 +100,7 @@ weedStmt (Fix (Ann a (ReturnStmt (Just e)))) = do
 -- If statement: weed the initializer, expression, then statements and else
 -- statements.
 weedStmt (Fix (Ann _ (IfStmt init' e thens elses))) = do
-    pure $ void (weedStmt <$> init')
+    void $ pure (weedStmt <$> init')
     weedExpr e
     void $ mapM weedStmt thens
     void $ pure $ fmap (mapM weedStmt) elses
@@ -114,8 +108,8 @@ weedStmt (Fix (Ann _ (IfStmt init' e thens elses))) = do
 -- Switch statement: check that there is only one default clause, then weed the
 -- initializer, the expression and the clauses.
 weedStmt (Fix (Ann a (SwitchStmt init' e clauses))) = do
-    pure $ void (weedStmt <$> init')
-    pure $ void (weedExpr <$> e)
+    void $ pure (weedStmt <$> init')
+    void $ pure (weedExpr <$> e)
 
     let defs = filter isDefaultCase clauses
 
@@ -128,8 +122,8 @@ weedStmt (Fix (Ann a (SwitchStmt init' e clauses))) = do
 
 -- For statement: weed the pre-statement, condition, post-statement and body.
 weedStmt (Fix (Ann _ (ForStmt pre cond post body))) = do
-    pure $ void (weedStmt <$> pre)
-    pure $ void (weedExpr <$> cond)
+    void $ pure (weedStmt <$> pre)
+    void $ pure (weedExpr <$> cond)
     void $ pure (weedStmt <$> post)
 
     modify $ \s -> incForLevel s
@@ -176,7 +170,3 @@ errorIfIdIs :: String -> SrcAnnExpr -> String -> Weeder ()
 errorIfIdIs i (Fix (Ann _ (Variable (Ann a (Ident n))))) e =
     when (i == n) (reportError (a, e))
 errorIfIdIs _ _ _ = pure ()
-
-isBlankAsOperand :: SrcAnnExpr -> Bool
-isBlankAsOperand (Fix (Ann _ (Variable (Ann _ (Ident "_"))))) = True
-isBlankAsOperand _ = False

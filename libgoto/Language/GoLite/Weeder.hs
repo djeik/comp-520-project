@@ -12,17 +12,14 @@ declarations.
 
 module Language.GoLite.Weeder where
 
-import Data.Maybe ( isJust )
-
 import Language.GoLite.Weeder.Core
 import Language.GoLite.Weeder.Stmt
 
 -- | Weeds a package and its components. A package is invalid if its identifier
 -- is the blank one.
 weedPackage :: SrcAnnPackage -> Weeder ()
-weedPackage (Package (Ann a (Ident n)) tlds) = do
-    when (n == "_")
-        (reportError (a, "Package name may not be the blank identifier."))
+weedPackage (Package i tlds) = do
+    errorOnBlankIdentifier i "Package name may not be the blank identifier."
 
     void $ mapM weedTopLevelDecl tlds
 
