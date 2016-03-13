@@ -6,30 +6,82 @@ License     : MIT
 Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
 
-
+Defines the core types used in the internal representation of GoLite code.
 -}
+
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Language.GoLite.Types where
 
 import Language.GoLite.Syntax.SrcAnn
 
+import Data.Functor.Foldable
 import qualified Data.Map as M
 
 -- | An entry in the symbol table.
 data SymbolInfo
     -- | A symbol in scope.
     = SymbolInfo
-        { symLocation :: !SrcSpan
+        { symLocation :: !SymbolLocation
         -- ^ The location of the symbol's definition.
         , symType :: !Type
         -- ^ The canonical type of the symbol.
         }
     deriving (Eq, Ord, Show)
 
+-- | The location of a symbol.
+data SymbolLocation
+    -- | The symbol is built-in to the compiler.
+    = Builtin
+    -- | The symbol is in a source file.
+    | SourcePosition !SrcSpan
+    deriving (Eq, Ord, Show)
+
+-- | The base functor for a canonical representation of a GoLite type.
+data GoTypeF f
+    -- | The built-in void type.
+    = VoidType
+    -- | The built-in integer number type.
+    | IntType
+    -- | The built-in unicode character type.
+    | RuneType
+    -- | The built-in string type.
+    | StringType
+    -- | The built-in floating point number type.
+    | FloatType
+    -- | A statically-sized array of some type.
+    | ArrayType Int f
+    -- | A slice of some type.
+    | SliceType f
+    -- | A struct type.
+    | StructType
+        { typeNamed :: M.Map SrcAnnIdent f
+        , typeBlanks :: [f]
+        }
+    deriving (Functor)
+
+deriving instance Eq f => Eq (GoTypeF f)
+deriving instance Show f => Show (GoTypeF f)
+deriving instance Ord f => Ord (GoTypeF f)
+
 -- | A canonical representation of a GoLite type.
---
--- TODO
-type Type = String
+type Type = Fix GoTypeF
+
+voidType :: Type
+voidType = Fix VoidType
+
+intType :: Type
+intType = Fix IntType
+
+runeType :: Type
+runeType = Fix RuneType
+
+stringType :: Type
+stringType = Fix StringType
+
+floatType :: Type
+floatType = Fix FloatType
 
 -- | The information for a variable is the same as for any symbol.
 -- This synonym is meant only as a reminder.
