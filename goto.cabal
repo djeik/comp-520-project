@@ -61,6 +61,10 @@ library
     Language.GoLite.Typecheck.Types
     Language.GoLite.Types
     Language.GoLite.Weeder
+    Language.GoLite.Weeder.Core
+    Language.GoLite.Weeder.Expr
+    Language.GoLite.Weeder.Stmt
+    Language.GoLite.Weeder.Types
   other-modules:
     Language.GoLite.Lexer.Core
     Language.GoLite.Lexer.Keywords
