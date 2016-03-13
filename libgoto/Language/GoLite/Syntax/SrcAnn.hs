@@ -213,7 +213,7 @@ bareType = cata phi where
                                             ty)
     phi (Ann _ (NamedType i)) = Fix (NamedType (bare i))
     phi (Ann _ (StructType fields)) = Fix (StructType (map
-                                    (\f -> ((map bare (fst f)), snd f)) fields))
+                                    (\(i, ty) -> (bare i, ty)) fields))
 
 -- | 'Package' with source annotations.
 type SrcAnnPackage

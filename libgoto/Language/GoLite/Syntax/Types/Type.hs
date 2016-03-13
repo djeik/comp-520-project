@@ -28,7 +28,8 @@ data TypeF ident int f
     | NamedType ident
     -- ^ A named type is the category into which all other types fall. It is
     -- simply an identifier.
-    | StructType [([ident], f)]
+    | StructType [(ident, f)]
+    -- ^ A struct type represents a struct: a list of typed identifiers.
     deriving (Eq, Functor, Ord, Read, Show)
 
 -- | Prints a recursive type structure bottom-up.
@@ -45,7 +46,7 @@ instance
             NamedType n -> pretty n
             StructType t ->
                 text "struct" <+> prettyBraces True (
-                    sep $ map (\(ids, ty) ->
-                        sep (punctuate comma (map pretty ids)) <+> ty <> semi
+                    sep $ map (\(id, ty) ->
+                        (pretty id) <+> ty <> semi
                     ) t
                 )

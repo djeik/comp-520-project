@@ -46,6 +46,8 @@ weedFunDecl (FunDecl (Ann a (Ident n)) pars rty bod) = do
         && (bod == [] || (not $ isTerminating $ bareStmt (last bod))))
         (reportError (a, "missing return at end of function"))
 
+    weedFields pars
+
     void $ pure (weedType <$> rty)
 
     modify $ \s -> s { funcHasReturn = (isJust rty) }

@@ -20,7 +20,7 @@ arrayType :: int -> Fix (TypeF ident int) -> Fix (TypeF ident int)
 arrayType i t = Fix $ ArrayType i t
 
 -- | Constructs a type tree for a 'StructType'.
-structType :: [([ident], Fix (TypeF ident int))] -> Fix (TypeF ident int)
+structType :: [(ident, Fix (TypeF ident int))] -> Fix (TypeF ident int)
 structType = Fix . StructType
 
 -- | Constructs a type tree for a 'NamedType'.

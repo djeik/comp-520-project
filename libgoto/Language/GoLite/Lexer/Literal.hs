@@ -32,10 +32,13 @@ module Language.GoLite.Lexer.Literal
 , field -- Exported for reuse in function signatures.
 ) where
 
+
 import Language.GoLite.Lexer.Core
 import Language.GoLite.Lexer.Semi
 import Language.GoLite.Lexer.Symbols
 import Language.GoLite.Lexer.Keywords
+
+import Language.GoLite.Misc
 
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Types
@@ -232,7 +235,7 @@ structTypeP = label "struct type" $ withPushSrcAnnFix $ do
     b <- closeBrace
     pure $ do
         _ <- b -- Force semi detection at closing brace
-        pure $ StructType fields
+        pure $ StructType (concatMap (uncurry distTuple) fields)
 
 -- | Parses a field of a struct, which is a non-empty list of identifiers
 -- followed by a type.

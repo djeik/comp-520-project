@@ -76,12 +76,20 @@ data GoTypeF f
 
 -- | The types of builtins.
 data BuiltinType
-    -- | The type of the @make@ builtin.
-    = MakeType
+    -- | The type of the @append@ builtin.
+    = AppendType
+    -- | The type of the @cap@ builtin.
+    | CapType
+    -- | The type of the @copy@ builtin.
+    | CopyType
+    -- | The type of the @delete@ builtin.
+    | DeleteType
     -- | The type of the @len@ builtin.
     | LenType
-    -- | The type of the @append@ builtin.
-    | AppendType
+    -- | The type of the @make@ builtin.
+    | MakeType
+    -- | The type of the @panic@ builtin.
+    | PanicType
     deriving (Eq, Ord, Read, Show)
 
 -- | A canonical representation of a GoLite type.

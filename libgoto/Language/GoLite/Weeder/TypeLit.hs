@@ -11,6 +11,7 @@ Stability   : experimental
 
 module Language.GoLite.Weeder.TypeLit
 ( weedType
+, weedFields
 ) where
 
 import Language.GoLite.Weeder.Core
@@ -30,13 +31,18 @@ weedType (Fix (Ann _ (ArrayType _ t))) = weedType t
 -- Named type: nothing.
 weedType (Fix (Ann _ (NamedType _))) = pure ()
 -- Struct type: check that identifiers are unique, and weed inner types.
-weedType (Fix (Ann _ (StructType fields))) = do
+weedType (Fix (Ann _ (StructType fields))) = weedFields fields
+
+-- | Weeds a field. Checks that the field names are unique, and weeds the types.
+weedFields :: [(SrcAnnIdent, SrcAnnType)] -> Weeder ()
+weedFields fs = do
+    -- This is pretty ugly, but lets us pinpoint exactly where the duplicate
+    -- identifiers are.
     let s = S.empty
-    forM_ fields (\f -> do
-        weedType (snd f)
-        forM_ (fst f)
-            (\(Ann a (Ident n)) -> do
-                if n /= "_" && n `S.member` s then
-                    reportError (a, "duplicate struct field " ++ n)
-                else
-                    void $ pure $ S.insert n s))
+    forM_ fs (\f -> do
+        weedType $ snd f
+        let (Ann a (Ident n)) = fst f
+        if n /= "_" && n `S.member` s then
+            reportError (a, "duplicate name " ++ n)
+        else
+            void $ pure $ S.insert n s)
