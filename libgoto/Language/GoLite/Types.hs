@@ -10,7 +10,6 @@ Defines the core types used in the internal representation of GoLite code.
 -}
 
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 module Language.GoLite.Types where
 
@@ -62,23 +61,28 @@ data GoTypeF f
     | SliceType f
     -- | A struct type.
     | StructType
-        { typeNamed :: M.Map SrcAnnIdent f }
+        { structTypeFields :: M.Map SrcAnnIdent f }
     -- | The type for the predeclared identifier "nil". No other expression has
     -- this type.
     | NilType
-    -- | An artificial type used for built-ins. It contains the actual type of
-    -- the built-in, but is not assignment-compatible with anything.
-    | BuiltinType f
-    -- | A function type.
+    -- | Types for built-in functions, which are unrepresentable in the go
+    -- typesystem.
+    | BuiltinType BuiltinType
     | FuncType
-        { args :: [(SrcAnnIdent, f)]
-        , ret :: f
+        { funcTypeArgs :: [(SrcAnnIdent, f)]
+        , funcTypeRet :: f
         }
-    deriving (Functor)
+    deriving (Eq, Functor, Ord, Show)
 
-deriving instance Eq f => Eq (GoTypeF f)
-deriving instance Show f => Show (GoTypeF f)
-deriving instance Ord f => Ord (GoTypeF f)
+-- | The types of builtins.
+data BuiltinType
+    -- | The type of the @make@ builtin.
+    = MakeType
+    -- | The type of the @len@ builtin.
+    | LenType
+    -- | The type of the @append@ builtin.
+    | AppendType
+    deriving (Eq, Ord, Read, Show)
 
 -- | A canonical representation of a GoLite type.
 type Type = Fix GoTypeF
@@ -97,6 +101,24 @@ stringType = Fix StringType
 
 floatType :: Type
 floatType = Fix FloatType
+
+arrayType :: Int -> Type -> Type
+arrayType n t = Fix $ ArrayType n t
+
+sliceType :: Type -> Type
+sliceType = Fix . SliceType
+
+nilType :: Type
+nilType = Fix NilType
+
+builtin :: BuiltinType -> Type
+builtin = Fix . BuiltinType
+
+funcType :: [(SrcAnnIdent, Type)] -> Type -> Type
+funcType args ret = Fix $ FuncType
+    { funcTypeArgs = args
+    , funcTypeRet = ret
+    }
 
 -- | The name of a symbol is simply the string assigned to it by the
 -- programmer.
