@@ -14,6 +14,7 @@ module Language.GoLite.Weeder.Expr
 ) where
 
 import Language.GoLite.Weeder.Core
+import Language.GoLite.Weeder.TypeLit
 
 {-| Weeds an expression and its sub-expressions.
 
@@ -33,8 +34,10 @@ weedExpr (Fix (Ann _ (BinaryOp _ l r))) = do
 -- Unary operator: weed the operand.
 weedExpr (Fix (Ann _ (UnaryOp _ e))) = weedExpr e
 
--- Conversion: weed the operand.
-weedExpr (Fix (Ann _ (Conversion _ e))) = weedExpr e
+-- Conversion: weed the type and operand.
+weedExpr (Fix (Ann _ (Conversion ty e))) = do
+    weedType ty
+    weedExpr e
 
 -- Selector: check that the identifier is not the blank identifier, then weed
 -- the operand.
@@ -55,11 +58,13 @@ weedExpr (Fix (Ann _ (Slice e l h b))) = do
     void $ pure (weedExpr <$> h)
     void $ pure (weedExpr <$> b)
 
--- Type assertion: weed the expression being asserted.
-weedExpr (Fix (Ann _ (TypeAssertion e _))) = weedExpr e
+-- Type assertion: weed the expression and type being asserted.
+weedExpr (Fix (Ann _ (TypeAssertion e ty))) = do
+    weedExpr e
+    weedType ty
 
 -- Call: check that if a type is present, make is used. Then, weed the callee
--- and params expressions.
+-- and params expressions, as well as the type.
 weedExpr (Fix (Ann _ (Call callee ty params))) = do
     -- We can check for this here because assigning built-ins is illegal, so
     -- if we have a type in the call, we better be calling something called
@@ -70,7 +75,7 @@ weedExpr (Fix (Ann _ (Call callee ty params))) = do
         reportError (topAnn ty', "type is not an expression"))
 
     weedExpr callee
-
+    void $ pure (weedType <$> ty)
     void $ mapM weedExpr params
 
 -- Literals: literally nothing.

@@ -64,6 +64,7 @@ library
     Language.GoLite.Weeder.Core
     Language.GoLite.Weeder.Expr
     Language.GoLite.Weeder.Stmt
+    Language.GoLite.Weeder.TypeLit
     Language.GoLite.Weeder.Types
   other-modules:
     Language.GoLite.Lexer.Core

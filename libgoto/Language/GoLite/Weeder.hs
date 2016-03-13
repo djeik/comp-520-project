@@ -14,6 +14,7 @@ module Language.GoLite.Weeder where
 
 import Language.GoLite.Weeder.Core
 import Language.GoLite.Weeder.Stmt
+import Language.GoLite.Weeder.TypeLit
 
 -- | Weeds a package and its components. A package is invalid if its identifier
 -- is the blank one.
@@ -44,6 +45,8 @@ weedFunDecl (FunDecl (Ann a (Ident n)) pars rty bod) = do
         && isJust rty
         && (bod == [] || (not $ isTerminating $ bareStmt (last bod))))
         (reportError (a, "missing return at end of function"))
+
+    void $ pure (weedType <$> rty)
 
     modify $ \s -> s { funcHasReturn = (isJust rty) }
     void $ mapM weedStmt bod

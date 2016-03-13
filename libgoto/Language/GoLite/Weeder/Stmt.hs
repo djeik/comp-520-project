@@ -16,15 +16,17 @@ module Language.GoLite.Weeder.Stmt
 
 import Language.GoLite.Weeder.Core
 import Language.GoLite.Weeder.Expr
+import Language.GoLite.Weeder.TypeLit
 
--- | Weeds a declaration (either variable or type).
+-- | Weeds a declaration (either variable or type) and its components.
 -- In a variable declaration, nil cannot be used as a value when no type is
 -- specified.
 weedDecl :: SrcAnnDeclaration -> Weeder ()
-weedDecl (TypeDecl (TypeDeclBody _ _)) = pure ()
+weedDecl (TypeDecl (TypeDeclBody _ ty)) = weedType ty
 weedDecl (VarDecl (VarDeclBody _ ty es)) = do
 
     when (isNothing ty) (void $ mapM errorOnNil es)
+    void $ pure (weedType <$> ty)
     void $ mapM weedExpr es
     where
         errorOnNil :: SrcAnnExpr -> Weeder ()
