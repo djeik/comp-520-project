@@ -73,6 +73,9 @@ data TypeError
         { redeclOrigin :: SymbolInfo
         , redeclNew :: SymbolInfo
         }
+    | NotInScope
+        { notInScopeIdent :: SrcAnnIdent
+        }
     deriving (Eq, Show)
 
 data MismatchCause
@@ -88,16 +91,18 @@ typeErrorLocation e = case e of
         MismatchFunction ex -> case ex of
             FunDecl (Ann a _) _ _ _ -> SourcePosition a
     Redeclaration { redeclNew = d } -> symLocation d
+    NotInScope { notInScopeIdent = Ann a _ } -> SourcePosition a
 
 -- | All errors that can actually be thrown.
 data TypecheckError
-    = Abort
-    -- ^ The typecheck is simply aborted.
-    | ScopeImbalance
+    = ScopeImbalance
     -- ^ More scopes were popped than were pushed.
     | EmptyScopeStack
     -- ^ An attempt to modify the scope stack was made when the stack was
     -- empty.
+    | WeederInvariantViolation
+    -- ^ An illegal situation that should have been caught by a weeding pass
+    -- arose during typechecking.
 
 -- | Typechecking is a traversal requiring state and the possibility of fatal
 -- errors.
