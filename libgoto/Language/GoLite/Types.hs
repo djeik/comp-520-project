@@ -22,7 +22,13 @@ import qualified Data.Map as M
 -- | An entry in the symbol table.
 data SymbolInfo
     -- | A symbol in scope.
-    = SymbolInfo
+    = VariableInfo
+        { symLocation :: !SymbolLocation
+        -- ^ The location of the symbol's definition.
+        , symType :: !Type
+        -- ^ The canonical type of the symbol.
+        }
+    | TypeInfo
         { symLocation :: !SymbolLocation
         -- ^ The location of the symbol's definition.
         , symType :: !Type
@@ -92,34 +98,13 @@ stringType = Fix StringType
 floatType :: Type
 floatType = Fix FloatType
 
--- | The information for a variable is the same as for any symbol.
--- This synonym is meant only as a reminder.
-type VariableInfo = SymbolInfo
+-- | The name of a symbol is simply the string assigned to it by the
+-- programmer.
+type SymbolName = String
 
--- | The information for a type is the same as for any symbol.
--- This synonym is meant only as a reminder.
-type TypeInfo = SymbolInfo
-
--- | Variables are identified by a string.
-type VariableName = String
-
--- | Types are identified by a string.
-type TypeName = String
-
--- | The types of symbols in GoLite.
-data SymbolNamespace
-    = VariableSpace
-    | TypeSpace
-    deriving (Eq, Ord, Read, Show)
-
--- | Scopes track definitions of symbols. In GoLite, there are two kinds of
--- symbols: variables and types. Since they live in separate namespaces, each
--- scope consists of two maps, once for each namespace.
+-- | Scopes track definitions of symbols.
 data Scope
     = Scope
-        { scopeVariables :: M.Map VariableName VariableInfo
-        -- ^ The map of variables declared in this scope.
-        , scopeTypes :: M.Map TypeName TypeInfo
-        -- ^ The map of types declared in this scope.
+        { scopeMap :: M.Map SymbolName SymbolInfo
         }
     deriving (Eq, Ord, Show)

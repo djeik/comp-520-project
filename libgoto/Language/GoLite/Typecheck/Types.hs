@@ -72,7 +72,6 @@ data TypeError
     | Redeclaration
         { redeclOrigin :: SymbolInfo
         , redeclNew :: SymbolInfo
-        , redeclNamespace :: SymbolNamespace
         }
     deriving (Eq, Show)
 

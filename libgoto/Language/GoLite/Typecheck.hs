@@ -51,7 +51,7 @@ popScope = do
 
 -- | Pushes an empty scope onto the stack.
 newScope :: Typecheck ()
-newScope = pushScope $ Scope M.empty M.empty
+newScope = pushScope $ Scope { scopeMap = M.empty }
 
 -- | Pops a scope from the stack, discarding it.
 dropScope :: Typecheck ()
@@ -84,75 +84,35 @@ modifyTopScope f = do
 --
 -- If the variable already exists, then a non-fatal redeclaration error is
 -- raised and the insertion is not performed.
-declareVariable :: VariableName -> VariableInfo -> Typecheck ()
-declareVariable name info = modifyTopScope $ \s -> do
-    case M.lookup name (scopeVariables s) of
+declareSymbol :: SymbolName -> SymbolInfo -> Typecheck ()
+declareSymbol name info = modifyTopScope $ \(Scope m) -> do
+    case M.lookup name m of
         Just info' -> do
             reportError $ Redeclaration
                 { redeclOrigin = info'
                 , redeclNew = info
-                , redeclNamespace = VariableSpace
                 }
-            pure s -- return the scope unchanged
-        Nothing -> pure $ s
-            { scopeVariables = M.insert name info $ scopeVariables s
-            }
-
--- | Adds a type to the current scope.
---
--- If the type already exists, then a non-fatal redeclaration error is raised
--- and the insertion is not performed.
-declareType :: TypeName -> TypeInfo -> Typecheck ()
-declareType name info = modifyTopScope $ \s -> do
-    case M.lookup name (scopeTypes s) of
-        Just info' -> do
-            reportError $ Redeclaration
-                { redeclOrigin = info'
-                , redeclNew = info
-                , redeclNamespace = TypeSpace
-                }
-            pure s
-        Nothing -> pure $ s
-            { scopeTypes = M.insert name info $ scopeTypes s
-            }
+            pure (Scope m) -- return the scope unchanged
+        Nothing -> pure (Scope $ M.insert name info m)
 
 -- | Looks up a variable in the scope stack.
 --
 -- This function does not throw exceptions. It pushes errors into the
 -- typechecker /logic/ layer by using 'Maybe'. See 'lookupVariable\'' for a
 -- variant that uses exceptions.
-lookupVariable :: VariableName -> Typecheck (Maybe VariableInfo)
-lookupVariable name = foldr (<|>) Nothing . map (M.lookup name . scopeVariables) <$> gets _scopes
+lookupSymbol :: SymbolName -> Typecheck (Maybe SymbolInfo)
+lookupSymbol name = foldr (<|>) Nothing . map (M.lookup name . scopeMap) <$> gets _scopes
 
 -- | Looks up a variable in the current scope stack.
 --
 -- This function will throw an undeclared variable error if the identifier
 -- cannot be found in the stack.
-lookupVariable' :: VariableName -> Typecheck VariableInfo
-lookupVariable' name = do
-    m <- lookupVariable name
+lookupSymbol' :: SymbolName -> Typecheck SymbolInfo
+lookupSymbol' name = do
+    m <- lookupSymbol name
     case m of
         Just info -> pure info
         Nothing -> error "unimplemented: variable lookup error"
-
--- | Looks up a type in the current scope stack.
---
--- This function does not throw exceptions. It pushes errors into the
--- typechecker /logic/ layer by using 'Maybe'. See 'lookupType\'' for a variant
--- that uses exceptions.
-lookupType :: TypeName -> Typecheck (Maybe TypeInfo)
-lookupType = error "unimplemented: lookup variable"
-
--- | Looks up a type in the current scope stack.
---
--- This function will throw an undeclared type error if the identifier cannot
--- be found in the stack.
-lookupType' :: TypeName -> Typecheck TypeInfo
-lookupType' name = do
-    m <- lookupType name
-    case m of
-        Just info -> pure info
-        Nothing -> error "unimplemented: type lookup error"
 
 -- | Computes the canonical type representation for a source-annotated type.
 canonicalize :: SrcAnnType -> Typecheck Type
@@ -180,7 +140,7 @@ typecheckTypeDecl :: SrcAnnTypeDecl -> Typecheck SrcAnnTypeDecl
 typecheckTypeDecl d = case d of
     TypeDeclBody (Ann a (Ident i)) ty -> do
         ty' <- canonicalize ty
-        declareType i $ SymbolInfo { symLocation = SourcePosition a, symType = ty' }
+        declareSymbol i $ TypeInfo { symLocation = SourcePosition a, symType = ty' }
         pure $ TypeDeclBody (Ann a (Ident i)) ty
 
 -- | Typechecks a source position-annotated 'VarDecl'.
@@ -206,7 +166,7 @@ typecheckVarDecl d = case d of
                     -- assignment-compatibility rather than type equality.
                     when (ty /= ty') $ do
                         error "unimplemented: type mismatch error"
-            declareVariable i $ SymbolInfo
+            declareSymbol i $ VariableInfo
                 { symLocation = SourcePosition a
                 , symType = ty
                 }
@@ -325,7 +285,7 @@ typecheckExpr = cata f where
                 error "unimplemented: typecheck string literal" l x
 
         Variable x@(Ann _ (Ident i)) -> do
-            info <- lookupVariable' i
+            info <- lookupSymbol' i
             pure (symType info, Variable x)
 
     -- | Computes the canonical type of a binary operator expression.
