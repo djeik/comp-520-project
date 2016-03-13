@@ -181,17 +181,34 @@ typecheckVarDecl d = case d of
 -- | Typechecks a source position-annotated 'FunDecl'.
 typecheckFun :: SrcAnnFunDecl -> Typecheck TySrcAnnFunDecl
 typecheckFun e = case e of
-    FunDecl i@(Ann a (Ident name)) args mretty stmts -> do
+    FunDecl ident@(Ann a (Ident name)) args mretty stmts -> do
         -- construct the canonical type of the function
-        ty <- error "unimplemented: compute canonical declared function type" a name
-        -- declare the function
+        ty <- funcType
+            <$> forM args (\(i, t) -> (,)
+                <$> pure (annNat symbolFromIdent i)
+                <*> canonicalize t
+            )
+            <*> (case mretty of
+                Nothing -> pure voidType
+                Just t -> canonicalize t
+            )
 
-        newScope
-        -- declare the arguments
-        stmts' <- typecheckFunctionBody e ty stmts
-        dropScope
+        declareSymbol name $ VariableInfo
+            { symLocation = SourcePosition a
+            , symType = ty
+            }
 
-        pure $ FunDecl i args mretty stmts'
+        stmts' <- withScope $ do
+            forM_ args $ \(Ann b (Ident argName), t) -> do
+                argTy <- canonicalize t
+                declareSymbol argName $ VariableInfo
+                    { symLocation = SourcePosition b
+                    , symType = argTy
+                    }
+
+            typecheckFunctionBody e ty stmts
+
+        pure $ FunDecl ident args mretty stmts'
 
 -- | Typechecks a source position-annotated fixed point of 'ExprF'.
 typecheckExpr :: SrcAnnExpr -> Typecheck TySrcAnnExpr
