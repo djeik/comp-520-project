@@ -5,7 +5,6 @@ import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
 
 import Options.Applicative
-import Text.Show.Pretty
 import System.Exit ( exitFailure )
 
 import System.IO ( hPutStrLn, stderr )
