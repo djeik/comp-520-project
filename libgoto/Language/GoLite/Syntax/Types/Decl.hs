@@ -119,7 +119,7 @@ instance
 
 -- | A function declaration.
 data FunDecl ident ty stmt
-    = FunDecl ident [([ident], ty)] (Maybe ty) [stmt]
+    = FunDecl ident [(ident, ty)] (Maybe ty) [stmt]
     deriving (Eq, Ord, Read, Show)
 
 -- | Prints the \"func\" keyword followed by the function name, its argument
@@ -142,4 +142,4 @@ instance
         )
         $+$ text "}" where
             prettyArgs = sep (punctuate comma (pa <$> args))
-            pa (ids, ty) = sep (punctuate comma (pretty <$> ids)) <+> pretty ty
+            pa (ident, ty) = pretty ident <+> pretty ty

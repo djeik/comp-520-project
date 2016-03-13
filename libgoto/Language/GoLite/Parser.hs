@@ -20,6 +20,7 @@ module Language.GoLite.Parser
 , module Language.GoLite.Parser.Stmt
 ) where
 
+import Language.GoLite.Misc ( distTuple )
 import Language.GoLite.Parser.Core
 import Language.GoLite.Parser.Decl
 import Language.GoLite.Parser.Stmt
@@ -61,4 +62,4 @@ funDecl = do
     ret <- optional (type_ >>= noSemiP)
     b <- blockP >>= requireSemiP
 
-    pure $ FunDecl name params ret b
+    pure $ FunDecl name (concatMap (uncurry distTuple) params) ret b

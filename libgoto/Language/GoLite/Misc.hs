@@ -10,9 +10,12 @@ Defines miscellaneous useful functions. We won't kid ourselves by calling this
 module \"Util\".
 -}
 
+{-# LANGUAGE TupleSections #-}
+
 module Language.GoLite.Misc
 ( ($>)
 , safeZip
+, distTuple
 ) where
 
 -- | The \"fmap const\" operator replaces the contents of a "Functor" with a
@@ -26,3 +29,6 @@ safeZip [] ys = ([], Just $ Right ys)
 safeZip xs [] = ([], Just $ Left xs)
 safeZip (x:xs) (y:ys) = ((x, y) : xys, z) where
     (xys, z) = safeZip xs ys
+
+distTuple :: [a] -> b -> [(a, b)]
+distTuple = flip $ \x -> map (, x)

@@ -146,10 +146,10 @@ bareTopLevelDecl (TopLevelFun f) = TopLevelFun (bareFunDecl f)
 
 -- | Removes source annotations from a function declaration.
 bareFunDecl :: SrcAnnFunDecl -> BasicFunDecl
-bareFunDecl (FunDecl fn pars rty bod) =
+bareFunDecl (FunDecl fn args rty bod) =
     FunDecl
         (bare fn)
-        (map (\p -> (map bare (fst p), bareType (snd p))) pars)
+        (map (\(ident, ty) -> (bare ident, bareType ty)) args)
         (bareType <$> rty)
         (map bareStmt bod)
 
