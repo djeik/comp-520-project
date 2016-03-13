@@ -112,7 +112,7 @@ data ExprF id bin un lit ty f
     | Call f (Maybe ty) [f]
     | Literal lit
     | Variable id
-    deriving (Eq, Read, Show, Functor)
+    deriving (Eq, Ord, Read, Show, Functor)
 
 -- | Prints a recursive expression structure bottom up by dispatching to the
 -- pretty-printers for any contained data. Internally, the pretty-printer
@@ -200,7 +200,7 @@ data Literal a
     | FloatLit GoFloat
     | RuneLit GoRune
     | StringLit GoString
-    deriving (Eq, Read, Show, Functor)
+    deriving (Eq, Ord, Read, Show, Functor)
 
 -- | Pretty-prints a literal by using the 'Show' instance for the underlying
 -- data.
@@ -212,7 +212,9 @@ instance Pretty (Literal a) where
         RuneLit x -> text $ show x
 
 -- | Identifiers are just wrapped strings.
-data Ident a = Ident String deriving (Eq, Read, Show, Functor)
+data Ident a
+    = Ident String
+    deriving (Eq, Functor, Ord, Read, Show)
 
 -- | Unwraps the string from the 'Ident' as displays it.
 instance Pretty (Ident a) where

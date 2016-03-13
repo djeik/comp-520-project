@@ -29,7 +29,7 @@ data TypeF ident int f
     -- ^ A named type is the category into which all other types fall. It is
     -- simply an identifier.
     | StructType [([ident], f)]
-    deriving (Eq, Read, Show, Functor)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 -- | Prints a recursive type structure bottom-up.
 instance

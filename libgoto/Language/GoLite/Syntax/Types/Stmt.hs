@@ -72,7 +72,7 @@ data StatementF decl expr ident assignOp caseHead f
     | EmptyStmt
     -- ^ An empty statement. Does not have any semantic value, but can be
     -- inserted by semicolons.
-    deriving (Eq, Read, Show, Functor)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 -- | Prints a recursive statement structure bottom-up by dispatching to the
 -- pretty-printers for any contained data.
@@ -179,7 +179,7 @@ data CaseHead expr
     --
     -- Otherwise, if any of the given expressions evaluates true, then the case
     -- is matched and its body is executed.
-    deriving (Eq, Read, Show)
+    deriving (Eq, Ord, Read, Show)
 
 -- | Prints a case head, either the text \"default:\" or the \"case\" keyword
 -- followed by the expressions to match on comma-separated.

@@ -36,7 +36,15 @@ data Ann x f a
         , bare :: f a
         -- ^ Extract only the data, discarding the annotation.
         }
-    deriving (Eq, Read, Show, Functor, P.Foldable, Traversable)
+    deriving
+        ( Eq
+        , Functor
+        , Ord
+        , P.Foldable
+        , Read
+        , Show
+        , Traversable
+        )
 
 -- | The fixed point of an annotated functor is a syntax tree annotated along
 -- its spine.

@@ -21,7 +21,7 @@ import Text.PrettyPrint
 -- | A package declaration.
 data Package ident topLevelDecl
     = Package ident [topLevelDecl]
-    deriving (Eq, Read, Show)
+    deriving (Eq, Ord, Read, Show)
 
 -- | Pretty-prints the package declaration followed by all the declarations in
 -- the package.
@@ -39,7 +39,7 @@ instance (Pretty ident, Pretty decl) => Pretty (Package ident decl) where
 data TopLevelDecl decl funDecl
     = TopLevelDecl decl
     | TopLevelFun funDecl
-    deriving (Eq, Read, Show)
+    deriving (Eq, Ord, Read, Show)
 
 -- | Simply dispatches to the 'Pretty' instances of the contained data.
 instance
@@ -56,7 +56,7 @@ instance
 data Declaration typeDecl varDecl
     = TypeDecl typeDecl
     | VarDecl varDecl
-    deriving (Eq, Read, Show)
+    deriving (Eq, Ord, Read, Show)
 
 -- | Simply dispatches to the 'Pretty' instances of the contained data and
 -- appends semicolons.
@@ -77,7 +77,7 @@ instance
 -- or expressions must have the same length as the identifier list.
 data VarDecl ident ty expr
     = VarDeclBody [ident] (Maybe ty) [expr]
-    deriving (Eq, Read, Show)
+    deriving (Eq, Ord, Read, Show)
 
 -- | Prints the \"var\" keyword followed by the identifiers comma-separated. If
 -- there is a type present it is printed. If there are expressions present, an
@@ -104,7 +104,7 @@ instance
 -- | A type declaration.
 data TypeDecl ident ty
     = TypeDeclBody ident ty
-    deriving (Eq, Read, Show)
+    deriving (Eq, Ord, Read, Show)
 
 -- | Prints the \"type\" keyword followed by the identifier to bind followed by
 -- the type to bind the identifier to.
@@ -120,7 +120,7 @@ instance
 -- | A function declaration.
 data FunDecl ident ty stmt
     = FunDecl ident [([ident], ty)] (Maybe ty) [stmt]
-    deriving (Eq, Read, Show)
+    deriving (Eq, Ord, Read, Show)
 
 -- | Prints the \"func\" keyword followed by the function name, its argument
 -- list wrapped in parentheses, and the body of statements one per line wrapped

@@ -25,7 +25,7 @@ data BinaryOp a
     | Plus | Minus | BitwiseOr | BitwiseXor
     | Times | Divide | Modulo
     | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseAndNot
-    deriving (Eq, Read, Show, Functor)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 -- | Associates a precedence with each binary operator.
 instance HasPrecedence (BinaryOp a) where
@@ -84,7 +84,7 @@ data UnaryOp a
     | Dereference
     | Reference
     | Receive
-    deriving (Eq, Read, Show, Functor)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 -- | Associates a precedence with each unary operator.
 instance HasPrecedence (UnaryOp a) where
@@ -116,7 +116,7 @@ data AssignOp a
     | PlusEq | MinusEq | BitwiseOrEq | BitwiseXorEq
     | TimesEq | DivideEq | ModuloEq
     | ShiftLeftEq | ShiftRightEq | BitwiseAndEq | BitwiseAndNotEq
-    deriving (Eq, Read, Show, Functor)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 -- | Lookup table.
 instance Pretty (AssignOp a) where
