@@ -27,6 +27,7 @@ module Language.GoLite.Typecheck.Types where
 
 import Language.GoLite.Monad.Traverse
 import Language.GoLite.Syntax.SrcAnn
+import Language.GoLite.Syntax.Types
 import Language.GoLite.Types
 
 import Text.PrettyPrint ( Doc )
@@ -63,12 +64,31 @@ data TypeError
         -- ^ The expected type.
         , mismatchActualType :: Type
         -- ^ The actual type.
-        , mismatchExpr :: SrcAnnExpr
+        , mismatchCause :: MismatchCause
         -- ^ The expression whose type is invalid.
-        , exceptionReason :: Doc
+        , errorReason :: Doc
         -- ^ A human-readable description of the error reason.
         }
+    | Redeclaration
+        { redeclOrigin :: SymbolInfo
+        , redeclNew :: SymbolInfo
+        , redeclNamespace :: SymbolNamespace
+        }
     deriving (Eq, Show)
+
+data MismatchCause
+    = MismatchExpr SrcAnnExpr
+    | MismatchFunction SrcAnnFunDecl
+    deriving (Eq, Ord, Show)
+
+-- | Determines the primary location of a type error.
+typeErrorLocation :: TypeError -> SymbolLocation
+typeErrorLocation e = case e of
+    TypeMismatch { mismatchCause = m } -> case m of
+        MismatchExpr ex -> SourcePosition $ topAnn ex
+        MismatchFunction ex -> case ex of
+            FunDecl (Ann a _) _ _ _ -> SourcePosition a
+    Redeclaration { redeclNew = d } -> symLocation d
 
 -- | All errors that can actually be thrown.
 data TypecheckError
@@ -76,6 +96,9 @@ data TypecheckError
     -- ^ The typecheck is simply aborted.
     | ScopeImbalance
     -- ^ More scopes were popped than were pushed.
+    | EmptyScopeStack
+    -- ^ An attempt to modify the scope stack was made when the stack was
+    -- empty.
 
 -- | Typechecking is a traversal requiring state and the possibility of fatal
 -- errors.

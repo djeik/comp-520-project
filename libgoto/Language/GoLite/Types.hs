@@ -97,6 +97,12 @@ type VariableName = String
 -- | Types are identified by a string.
 type TypeName = String
 
+-- | The types of symbols in GoLite.
+data SymbolNamespace
+    = VariableSpace
+    | TypeSpace
+    deriving (Eq, Ord, Read, Show)
+
 -- | Scopes track definitions of symbols. In GoLite, there are two kinds of
 -- symbols: variables and types. Since they live in separate namespaces, each
 -- scope consists of two maps, once for each namespace.
