@@ -16,6 +16,7 @@ combinators for working with annotations.
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Language.GoLite.Annotation where
 
@@ -45,6 +46,10 @@ data Ann x f a
         , Show
         , Traversable
         )
+
+annNat :: (forall b. f b -> g b) -> Ann x f a -> Ann x g a
+annNat p a = case a of
+    Ann x f -> Ann x (p f)
 
 -- | The fixed point of an annotated functor is a syntax tree annotated along
 -- its spine.
