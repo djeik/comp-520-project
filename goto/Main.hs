@@ -112,4 +112,4 @@ parseGoLiteFile f = do
     pure $ parseOnly G.packageP (show f) file
 
 parseOnly :: G.Parser a -> String -> String -> Either G.ParseError a
-parseOnly m = G.parse (m <* G.lexeme G.eof)
+parseOnly m = G.parse (G.sc >> m <* G.lexeme G.eof)
