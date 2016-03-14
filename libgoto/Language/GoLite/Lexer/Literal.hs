@@ -201,29 +201,29 @@ identifier = label "identifier" $ do
 -- type (an identifier) or a struct type (struct keyword, followed by a
 -- semi-separated list of fields enclosed in braces)
 type_ :: Parser (Semi SrcAnnType)
-type_
-    = label "type"
-    $ sliceType <|> arrayType <|> structTypeP <|> namedType where
-        sliceType :: Parser (Semi SrcAnnType)
-        sliceType = label "slice type" $ withPushSrcAnnFix $ do
-            try $ do
+type_ = (parens (type_ >>= noSemiP)) <|> type__  where
+    type__ = label "type"
+        $ sliceType <|> arrayType <|> structTypeP <|> namedType where
+            sliceType :: Parser (Semi SrcAnnType)
+            sliceType = label "slice type" $ withPushSrcAnnFix $ do
+                try $ do
+                    symbol_ "["
+                    closeBracket >>= noSemiP
+                s <- type_
+                pure $ SliceType <$> s
+
+            arrayType :: Parser (Semi SrcAnnType)
+            arrayType = label "array type" $ withPushSrcAnnFix $ do
                 symbol_ "["
+                i <- withSrcAnnConst $
+                    withDetectSemicolon (lexeme integerLiteral) >>= noSemiP
                 closeBracket >>= noSemiP
-            s <- type_
-            pure $ SliceType <$> s
+                s <- type_
+                pure $ fmap (ArrayType i) s
 
-        arrayType :: Parser (Semi SrcAnnType)
-        arrayType = label "array type" $ withPushSrcAnnFix $ do
-            symbol_ "["
-            i <- withSrcAnnConst $
-                withDetectSemicolon (lexeme integerLiteral) >>= noSemiP
-            closeBracket >>= noSemiP
-            s <- type_
-            pure $ fmap (ArrayType i) s
-
-        namedType :: Parser (Semi SrcAnnType)
-        namedType = label "named type" $ withPushSrcAnnFix $ do
-            fmap NamedType <$> identifier
+            namedType :: Parser (Semi SrcAnnType)
+            namedType = label "named type" $ withPushSrcAnnFix $ do
+                fmap NamedType <$> identifier
 
 -- | Parses a struct type, which is the keyword "struct" followed by a list of
 -- fields enclosed in braces.
