@@ -17,9 +17,13 @@ module Language.GoLite.Misc
 , safeZip
 , distTuple
 , unFix
+  -- * Convenience re-exports
+, isJust
+, isNothing
 ) where
 
 import Data.Functor.Foldable ( Fix(..) )
+import Data.Maybe ( isJust, isNothing )
 
 -- | The \"fmap const\" operator replaces the contents of a "Functor" with a
 -- given value.

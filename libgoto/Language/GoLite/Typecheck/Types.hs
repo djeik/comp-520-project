@@ -85,6 +85,12 @@ data TypeError
         { fieldIdent :: SrcAnnIdent
         , fieldExpr :: TySrcAnnExpr
         }
+    -- | The type has been checked successfully, but cannot be used in the
+    -- given expression.
+    | UnsatisfyingType
+        { unsatOffender :: Type
+        , unsatReason :: Doc
+        }
     deriving (Eq, Show)
 
 type MismatchCause = SrcAnn Maybe TySrcAnnExpr
@@ -105,7 +111,7 @@ data TypecheckError
     | EmptyScopeStack
     -- ^ An attempt to modify the scope stack was made when the stack was
     -- empty.
-    | WeederInvariantViolation
+    | WeederInvariantViolation Doc
     -- ^ An illegal situation that should have been caught by a weeding pass
     -- arose during typechecking.
 

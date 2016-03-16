@@ -22,15 +22,19 @@ module Language.GoLite.Syntax.Types
 , CaseHead(..)
 , Declaration(..)
 , ExprF(..)
-, BinaryOp(..)
-, UnaryOp(..)
-, AssignOp(..)
 , Literal(..)
 , Ident(..)
 , GoInt
 , GoFloat
 , GoRune
 , GoString
+  -- * Operators
+, BinaryOp(..)
+, UnaryOp(..)
+, AssignOp(..)
+, isComparisonOp
+, isLogicalOp
+, isArithmeticOp
   -- * Convenience reexports
 , Fix(..)
 , Identity(..)

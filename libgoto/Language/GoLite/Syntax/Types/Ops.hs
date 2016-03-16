@@ -27,6 +27,22 @@ data BinaryOp a
     | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseAndNot
     deriving (Eq, Functor, Ord, Read, Show)
 
+-- | Determines if a binary operator is a comparison operator (eq, less, etc.)
+isComparisonOp :: BinaryOp a -> Bool
+isComparisonOp o = o == Equal || o == NotEqual || o == LessThan
+        || o == LessThanEqual || o ==  GreaterThan || o == GreaterThanEqual
+
+-- | Determines if a binary operator is a logical operator (or, and)
+isLogicalOp :: BinaryOp a -> Bool
+isLogicalOp o = o == LogicalOr || o == LogicalAnd
+
+-- | Determines if a binary operator is an arithmetic operator (plus, multiply,
+-- shift, etc.)
+isArithmeticOp :: BinaryOp a -> Bool
+isArithmeticOp o = o == Plus || o == Minus || o == BitwiseOr || o == BitwiseXor
+        || o == Times || o == Divide || o == Modulo || o == ShiftLeft
+        || o == ShiftRight || o == BitwiseAnd || o == BitwiseAndNot
+
 -- | Associates a precedence with each binary operator.
 instance HasPrecedence (BinaryOp a) where
     precedence o = case o of

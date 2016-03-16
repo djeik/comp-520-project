@@ -174,13 +174,9 @@ typecheckVarDecl d = case d of
     VarDeclBody idents mty exprs -> do
         let (ies, rest) = safeZip idents exprs
 
-        case rest of
-            Nothing -> pure ()
-            Just e -> case e of
-                Left extraIdents ->
-                    error "unimplemented: too many identifiers error" extraIdents
-                Right extraExprs ->
-                    error "unimplemented: too many expressions error" extraExprs
+        unless (isNothing rest)
+            (throwError $ WeederInvariantViolation
+                        $ text "VarDecl with differing lengths on each side.")
 
         ies' <- forM ies $ \(Ann a (Ident i), expr) -> do
             (ty', expr') <- case mty of
@@ -403,9 +399,6 @@ typecheckExpr = cata f where
     typecheckConversion = error "unimplemented: typecheck conversion"
 
 -- | Typecheck the body of a function of a given type.
---
--- Also, this function verifies that for non-void functions, every branch
--- returns a value and that no statements follow a return statement.
 typecheckFunctionBody
     :: SrcAnnFunDecl
     -> Type
@@ -448,7 +441,7 @@ typecheckFunctionBody fun fty = mapM typecheckStmt where
                 Just e -> do
                     e' <- typecheckExpr e
                     let (ty, b) = topAnn e'
-
+                    -- TODO check that fty is not void, throw weeder invariant error otherwise
                     (fty, ty) <== TypeMismatch
                         { mismatchExpectedType = fty
                         , mismatchActualType = ty
@@ -456,17 +449,16 @@ typecheckFunctionBody fun fty = mapM typecheckStmt where
                         , errorReason = text "the types are not assignment compatible"
                         }
 
+                    when (fty == voidType)
+                        (throwError $ WeederInvariantViolation
+                                    $ text "Return with expr in void function")
+
                     pure $ ReturnStmt (Just e')
 
                 Nothing -> do
-                    if fty == voidType
-                        then pure ()
-                        else reportError $ TypeMismatch
-                            { mismatchExpectedType = fty
-                            , mismatchActualType = voidType
-                            , mismatchCause = Ann a Nothing
-                            , errorReason = text "no value is returned"
-                            }
+                    when (fty /= voidType)
+                        (throwError $ WeederInvariantViolation
+                                    $ text "Return with no expr in non-void function")
 
                     pure $ ReturnStmt Nothing
 
@@ -526,10 +518,27 @@ typecheckAssignment e1 e2 (Ann _ op) = do
     let (ty, _) = topAnn e1'
 
     e2' <- case op of
-        Assign -> requireExprType ty empty e2
-        _ -> error "unimplemented: other assignop cases"
+        Assign -> checkE2 ty
+        -- Special case for +=: allow typed string self-concat.
+        PlusEq -> (case ty of
+                    Fix (StringType True) -> checkE2 ty
+                    _ -> checkAndSatisfy ty isArithmetic
+                         $ text "operands to += must be string or arithmetic")
+        _ ->    -- All assign-ops are arithmetic
+                checkAndSatisfy ty isArithmetic
+                         $ text "operands to assignment operations must be \
+                                \arithmetic"
+
 
     pure (e1', e2')
+
+    where
+        -- Check that the second expression agrees in type with the first one.
+        checkE2 ty = requireExprType ty empty e2
+        -- Additionally check that the checked second type satisfies a predicate
+        checkAndSatisfy ty p d = do
+            checkE2 ty
+            requireTypeToSatisfy p d e2
 
 -- | Checks that an expression is assignment-compatible to a given type. If it
 -- isn't a 'TypeMismatch' error is reported with the given reason.
@@ -545,6 +554,18 @@ requireExprType t d e = do
         }
     pure e'
 
+-- Checks that the type of an expression satisfies a given predicate. If not,
+-- a 'UnsatisfyingType' error is reported with the given reason.
+requireTypeToSatisfy :: (Type -> Bool) -> Doc -> SrcAnnExpr -> Typecheck TySrcAnnExpr
+requireTypeToSatisfy p d e = do
+    e' <- typecheckExpr e
+    let (ty, b) = topAnn e'
+    unless (p ty)
+        (reportError UnsatisfyingType
+                        { unsatOffender = ty
+                        , unsatReason = d })
+    pure e'
+
 infixl 3 <==
 -- | The assignment compatibility assertion operator, pronounced \"compat\"
 -- verifies that the second type is assignment compatible to the first.
@@ -554,6 +575,17 @@ infixl 3 <==
 -- Whether an error is reported or not is returned.
 (<==) :: (Type, Type) -> TypeError -> Typecheck Bool
 (<==) (t1, t2) e
+    -- Special cases:
+    -- Nothing can be assigned to nil.
+    | isNilType t1 = e'
+    -- Nothing can be assigned to untyped constants.
+    | isUntyped t1 = e'
+    -- Functions cannot assign or be assigned.
+    | isFuncType t1 || isFuncType t2 = e'
+    -- Builtins cannot assign or be assigned.
+    | isBuiltinType t1 || isBuiltinType t2 = e'
+    -- End of special cases.
+
     -- (1.)
     | t1 == t2 = pure False
     -- (2.)
@@ -563,8 +595,9 @@ infixl 3 <==
     | isReferenceType t1 && isNilType t2 = pure False
     -- (4.)
     | isUntyped t2
-        = (t1, defaultType t2) <== e -- TODO "representable" !?
-    | otherwise = reportError e *> pure True
+        = (t1, defaultType t2) <== e
+    | otherwise = e'
+    where e' = reportError e *> pure True
 
 {- Assignability
  - -------------

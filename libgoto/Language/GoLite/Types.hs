@@ -130,6 +130,18 @@ isNilType (Fix t) = case t of
     NilType -> True
     _ -> False
 
+-- | Decides whether a type is a function type.
+isFuncType :: Type -> Bool
+isFuncType (Fix t) = case t of
+    FuncType _ _ -> True
+    _ -> False
+
+-- | Decides whether a type is one of the builtin types
+isBuiltinType :: Type -> Bool
+isBuiltinType (Fix t) = case t of
+    BuiltinType _ -> True
+    _ -> False
+
 -- | Decides whether the type is of an untyped constant.
 isUntyped :: Type -> Bool
 isUntyped (Fix t) = case t of
@@ -138,6 +150,38 @@ isUntyped (Fix t) = case t of
     StringType False -> True
     FloatType False -> True
     BoolType False -> True
+    _ -> False
+
+-- | Decides whether a type is ordered. All basic types except boolean are
+-- ordered. No other type is ordered.
+isOrdered :: Type -> Bool
+isOrdered (Fix t) = case t of
+    IntType _ -> True
+    FloatType _ -> True
+    RuneType _ -> True
+    StringType _-> True
+    _ -> False
+
+-- | Decides whether two types are comparable. Types are comparable iff they
+-- are identical, except in the following cases:
+--
+--    * Slice types are not comparable to each other.
+--    * Slice types can be compared to nil.
+isComparable :: Type -> Type -> Bool
+isComparable (Fix t) (Fix u) = case (t, u) of
+    (Slice _, Slice _) -> False
+    (Slice _, NilType) -> True
+    (NilType, Slice _) -> True
+    (_, _)-> t == u
+
+-- | Decides whether a type is arithmetic. An arithmetic type can have
+-- arithmetic operations (addition, multiplication, shift, etc.) applied to it.
+-- The types int, float and rune are arithmetic. No other type is arithmetic.
+isArithmetic :: Type -> Bool
+isArithmetic (Fix t) = case t of
+    IntType _ -> True
+    FloatType _ -> True
+    RuneType _ -> True
     _ -> False
 
 -- | Determines the default type of untyped types.
