@@ -16,7 +16,10 @@ module Language.GoLite.Misc
 ( ($>)
 , safeZip
 , distTuple
+, unFix
 ) where
+
+import Data.Functor.Foldable ( Fix(..) )
 
 -- | The \"fmap const\" operator replaces the contents of a "Functor" with a
 -- given value.
@@ -32,3 +35,6 @@ safeZip (x:xs) (y:ys) = ((x, y) : xys, z) where
 
 distTuple :: [a] -> b -> [(a, b)]
 distTuple = flip $ \x -> map (, x)
+
+unFix :: Fix f -> f (Fix f)
+unFix (Fix x) = x
