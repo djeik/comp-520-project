@@ -43,9 +43,20 @@ isAddressable (Fix (Ann _ e)) = case e of
     (Index e' _) -> isAddressable e'
     _ -> False
 
--- | Parses a basic term of an expression.
+-- | Parses a basic term of an expression: an operand or conversion, optionally
+-- followed by a postfix operator.
 term :: Parser (Semi SrcAnnExpr)
-term = operand <|> conversion
+term = do
+    e <- operand <|> conversion
+    withPostfixes (noSemiP e) <|> pure e
+
+-- | Transforms a parser into a new parser that additionally accepts at least
+-- one postfix operator.
+withPostfixes :: Parser SrcAnnExpr -> Parser (Semi SrcAnnExpr)
+withPostfixes e = do
+    e' <- e
+    e'' <- postfix e'
+    withPostfixes (noSemiP e'') <|> pure e''
 
 -- | All the operators that exist in GoLite.
 ops :: [String]
@@ -105,9 +116,7 @@ opLexeme s = lexeme_ $ do
 -- | The operator precedence table for expressions.
 table :: [[Operator Parser (Semi SrcAnnExpr)]]
 table =
-    [ [ postfix (selector <|> index <|> sliceE <|> typeAssertion <|> call)
-      ]
-    , [ prefix
+    [ [ prefix
         [ ("+", \f -> UnaryOp (f Positive))
         , ("-",  \f -> UnaryOp (f Negative))
         , ("!",  \f -> UnaryOp (f LogicalNot))
@@ -187,17 +196,6 @@ table =
                 let a' = SrcSpan (srcStart a) (srcEnd b)
                 pure $ Fix (Ann a' (f opAnn x))
 
-        postfix
-            :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
-            -> Operator Parser (Semi SrcAnnExpr)
-        postfix p
-            = Postfix $ do
-                qs <- some p :: Parser [Semi SrcAnnExpr -> Semi SrcAnnExpr]
-                pure $ foldr1 (\a b -> \c -> do
-                    a' <- a c :: Semi SrcAnnExpr
-                    noSemi
-                    b (pure a')) qs
-
 -- | Parses an operand, sufficiently wrapped so as to act as an expression in
 -- its own right.
 operand :: Parser (Semi SrcAnnExpr)
@@ -226,57 +224,56 @@ conversion = do
         s
         pure $ Fix $ Ann a $ Conversion t e
 
+-- | Given a left-hand expression, parses a postfix operator (either a selector,
+-- an indexing operation, a slice, a type assertion or a call).
+postfix :: SrcAnnExpr -> Parser (Semi SrcAnnExpr)
+postfix e = selector e <|> index e <|> sliceE e <|> typeAssertion e <|> call e
+
 -- | Parses a primary expression in the form of a "Selector".
 --
 -- This parser can be backtracked from until it parses a dot \".\" followed by
 -- an identifier.
-selector :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
-selector = do
+selector :: SrcAnnExpr -> Parser (Semi SrcAnnExpr)
+selector e = do
     ident <- try $ do
         symbol "."
         identifier
-    pure $ \e -> do
-        x <- e
-        noSemi
+    pure $ do
         i <- ident
 
         -- the source span of the selector expression starts before the
         -- expression to select in and ends after the identifier used to do the
         -- selection.
-        let a = SrcSpan (srcStart (topAnn x)) (srcEnd (ann i))
+        let a = SrcSpan (srcStart (topAnn e)) (srcEnd (ann i))
 
-        pure $ Fix $ Ann a $ Selector x i
+        pure $ Fix $ Ann a $ Selector e i
 
 -- | Parses a primary expression in the form of an "Index".
 --
 -- This parser can be backtracked from until the closing square bracket is
 -- parsed.
-index :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
-index = do
+index :: SrcAnnExpr -> Parser (Semi SrcAnnExpr)
+index e = do
     (Ann b e') <- try $ withSrcAnnF $ squareBrackets (expr >>= noSemiP)
-    pure $ \e -> do
-        x <- e
-        noSemi
+    pure $ do
         y <- e'
 
         -- the source span of the index expression starts before the expression
         -- to index in and ends after the square bracket
-        let a = SrcSpan (srcStart (topAnn x)) (srcEnd b)
+        let a = SrcSpan (srcStart (topAnn e)) (srcEnd b)
 
-        pure $ Fix $ Ann a $ Index x y
+        pure $ Fix $ Ann a $ Index e y
 
-sliceE :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
-sliceE = do
+sliceE :: SrcAnnExpr -> Parser (Semi SrcAnnExpr)
+sliceE e = do
     (Ann b s) <- withSrcAnnF sliceBody
 
-    pure $ \e -> do
-        y <- e
-        noSemi
-        (e1, e2, e3) <- s
+    pure $ do
+        (eMin, eMax, eBnd) <- s
 
-        let a = SrcSpan (srcStart (topAnn y)) (srcEnd b)
+        let a = SrcSpan (srcStart (topAnn e)) (srcEnd b)
 
-        pure $ Fix $ Ann a $ Slice y e1 e2 e3
+        pure $ Fix $ Ann a $ Slice e eMin eMax eBnd
 
 -- | Parses the body of a slice operator, specifically the part between the
 -- square brackets.
@@ -311,22 +308,20 @@ sliceBody = try $ squareBrackets (fromToStep <|> fromTo) where
 --
 -- This function can be backtracked from until both a dot (\".\") and an
 -- opening parenthesis (\"(\") are parsed.
-typeAssertion :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
-typeAssertion = do
+typeAssertion :: SrcAnnExpr -> Parser (Semi SrcAnnExpr)
+typeAssertion e = do
     try $ do
         symbol "."
         symbol "("
     t <- type_
     _ <- closeParen
 
-    pure $ \e -> do
-        y <- e
-        noSemi
+    pure $ do
         x <- t
 
-        let a = SrcSpan (srcStart (topAnn y)) (srcEnd (topAnn x))
+        let a = SrcSpan (srcStart (topAnn e)) (srcEnd (topAnn x))
 
-        pure $ Fix $ Ann a $ TypeAssertion y x
+        pure $ Fix $ Ann a $ TypeAssertion e x
 
 -- | Parses a function call argument list.
 arguments :: Parser (Maybe SrcAnnType, [SrcAnnExpr])
@@ -345,18 +340,15 @@ arguments = noType <|> withType where
 --
 -- This parser can be backtracked from until the opening parenthesis (\"(\") of
 -- the argument list is parsed.
-call :: Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
-call = do
+call :: SrcAnnExpr -> Parser (Semi SrcAnnExpr)
+call e = do
     try $ symbol "("
     (ty, exprs) <- arguments
     (Ann b p) <- withSrcAnnF closeParen
 
-    pure $ \e -> do
-        y <- e
-        noSemi
-
+    pure $ do
         _ <- p -- Force semi evaluation on closing paren
 
-        let a = SrcSpan (srcStart (topAnn y)) (srcEnd b)
+        let a = SrcSpan (srcStart (topAnn e)) (srcEnd b)
 
-        pure $ Fix $ Ann a $ Call y ty exprs
+        pure $ Fix $ Ann a $ Call e ty exprs
