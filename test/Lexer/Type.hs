@@ -104,31 +104,36 @@ testType = describe "type_" $ do
         parseOnly type' "struct\n{}" `shouldSatisfy` isRight
         -- One field, one type
         parseOnly type' "struct { foo int32; }" `shouldBe`
-            Right (structType [(["foo"], namedType "int32")])
+            Right (structType [("foo", namedType "int32")])
         -- Multiple fields, one type
         parseOnly type' "struct { foo, bar int32; }" `shouldBe`
-            Right (structType [(["foo", "bar"], namedType "int32")])
+            Right (structType [   ("foo", namedType "int32")
+                                , ("bar", namedType "int32")])
         -- Same, with some whitespace before the comma
         parseOnly type' "struct { foo , bar int32; }" `shouldBe`
-            Right (structType [(["foo", "bar"], namedType "int32")])
+            Right (structType [   ("foo", namedType "int32")
+                                , ("bar", namedType "int32")])
         parseOnly type' "struct { foo,\nbar int32; }" `shouldBe`
-            Right (structType [(["foo", "bar"], namedType "int32")])
+            Right (structType [   ("foo", namedType "int32")
+                                , ("bar", namedType "int32")])
         -- One field, multiple types
         parseOnly type' "struct { foo int32; bar int64; }" `shouldBe`
-            Right (structType [ (["foo"], namedType "int32"),
-                                (["bar"], namedType "int64")])
+            Right (structType [ ("foo", namedType "int32"),
+                                ("bar", namedType "int64")])
         -- Multiple fields, multiple types
         parseOnly type' "struct { foo, bar int32; baz, quux int64; }" `shouldBe`
-            Right (structType [ (["foo", "bar"], namedType "int32"),
-                                (["baz", "quux"], namedType "int64")])
+            Right (structType [ ("foo", namedType "int32")
+                              , ("bar", namedType "int32")
+                              , ("baz", namedType "int64")
+                              , ("quux", namedType "int64")])
         -- Fields with various inner types
         parseOnly type' "struct { foo []ty; bar [4]ki; }" `shouldBe`
-            Right (structType [ (["foo"], sliceType $ namedType "ty"),
-                        (["bar"], arrayType (idf 4) (namedType "ki"))])
+            Right (structType [ ("foo", sliceType $ namedType "ty"),
+                        ("bar", arrayType (idf 4) (namedType "ki"))])
         -- Nested structs
         parseOnly type' "struct { in struct { inn struct {};};}" `shouldBe`
-            Right (structType [ (["in"],
-                    (structType [ (["inn"],
+            Right (structType [ ("in",
+                    (structType [ ("inn",
                         structType [])]))])
 
     it "does not parse structs with invalid fields" $ do

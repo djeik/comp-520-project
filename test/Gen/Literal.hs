@@ -108,10 +108,8 @@ typeGen = sized typeGen' where
                         liftM StructType (vectorOf n' (fieldGen n'))]
 
 -- | Generates structure fields of a given size
-fieldGen :: Int -> Gen ([BasicIdent], BasicType)
-fieldGen x = liftM2 (,) (fieldGen' x) (resize 2 arbitrary) where
-    fieldGen' 0 = (:[]) <$> (resize 3 arbitrary)
-    fieldGen' n = (vectorOf n (resize 3 arbitrary))
+fieldGen :: Int -> Gen (BasicIdent, BasicType)
+fieldGen x = liftM2 (,) arbitrary (resize 2 arbitrary)
 
 instance Arbitrary BasicIdent where
    arbitrary = Ident <$> identGen
