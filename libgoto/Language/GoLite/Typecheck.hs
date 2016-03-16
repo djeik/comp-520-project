@@ -16,6 +16,7 @@ result is a typechecked syntax tree, as described in
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Language.GoLite.Typecheck where
 
@@ -23,11 +24,11 @@ import Language.GoLite.Misc
 import Language.GoLite.Monad.Traverse
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Typecheck
-import Language.GoLite.Syntax.Types
-import Language.GoLite.Types
+import Language.GoLite.Syntax.Types as T
+import Language.GoLite.Types as Ty
 import Language.GoLite.Typecheck.Types
 
-import Control.Applicative ( (<|>) )
+import Control.Applicative ( (<|>), Const(..) )
 import Data.Bifunctor ( first )
 import qualified Data.Map as M
 import Data.Functor.Foldable ( cata )
@@ -59,7 +60,6 @@ dropScope = popScope $> ()
 
 withScope :: Typecheck a -> Typecheck a
 withScope m = newScope *> m <* dropScope
-
 
 -- | Gets the top scope.
 --
@@ -101,26 +101,47 @@ declareSymbol name info = modifyTopScope $ \(Scope m) -> do
 
 -- | Looks up a variable in the scope stack.
 --
--- This function does not throw exceptions. It pushes errors into the
--- typechecker /logic/ layer by using 'Maybe'. See 'lookupVariable\'' for a
--- variant that uses exceptions.
+-- This function does not report any errors.
 lookupSymbol :: SymbolName -> Typecheck (Maybe SymbolInfo)
 lookupSymbol name = foldr (<|>) Nothing . map (M.lookup name . scopeMap) <$> gets _scopes
 
--- | Looks up a variable in the current scope stack.
---
--- This function will throw an undeclared variable error if the identifier
--- cannot be found in the stack.
-lookupSymbol' :: SymbolName -> Typecheck SymbolInfo
-lookupSymbol' name = do
-    m <- lookupSymbol name
-    case m of
-        Just info -> pure info
-        Nothing -> error "unimplemented: variable lookup error"
-
 -- | Computes the canonical type representation for a source-annotated type.
 canonicalize :: SrcAnnType -> Typecheck Type
-canonicalize = error "unimplemented: type canonicalization"
+canonicalize = cata f where
+    f :: SrcAnn SrcAnnTypeF (Typecheck Type) -> Typecheck Type
+    f (Ann _ t) = case t of
+        SliceType m -> fmap Fix $ Ty.Slice <$> m
+        ArrayType (Ann _ (getConst -> n)) m -> fmap Fix $ Array <$> pure n <*> m
+        StructType h -> fmap Fix $ Struct <$> traverse g h
+        NamedType i@(Ann b (Ident name)) -> do
+            minfo <- lookupSymbol name
+
+            info <- case minfo of
+                Just info -> case info of
+                    VariableInfo _ _ -> do
+                        reportError $ SymbolKindMismatch
+                            { mismatchExpectedKind = typeKind
+                            , mismatchActualInfo = info
+                            , mismatchIdent = i
+                            }
+                        pure $ TypeInfo
+                            { symLocation = SourcePosition b
+                            , symType = unknownType
+                            }
+
+                    TypeInfo _ _ -> pure info
+
+                Nothing -> do
+                    reportError $ NotInScope { notInScopeIdent = i }
+                    pure $ TypeInfo
+                        { symLocation = SourcePosition b
+                        , symType = unknownType
+                        }
+
+            pure $ symType info
+
+    g :: (SrcAnnIdent, Typecheck Type) -> Typecheck (SrcAnn Symbol (), Type)
+    g (i, m) = (,) <$> pure (annNat symbolFromIdent i) <*> m
 
 -- | Typechecks a source position-annotated 'Package'.
 typecheckPackage :: SrcAnnPackage -> Typecheck TySrcAnnPackage
@@ -152,6 +173,7 @@ typecheckVarDecl :: SrcAnnVarDecl -> Typecheck TySrcAnnVarDecl
 typecheckVarDecl d = case d of
     VarDeclBody idents mty exprs -> do
         let (ies, rest) = safeZip idents exprs
+
         case rest of
             Nothing -> pure ()
             Just e -> case e of
@@ -159,23 +181,28 @@ typecheckVarDecl d = case d of
                     error "unimplemented: too many identifiers error" extraIdents
                 Right extraExprs ->
                     error "unimplemented: too many expressions error" extraExprs
+
         ies' <- forM ies $ \(Ann a (Ident i), expr) -> do
-            expr' <- typecheckExpr expr
-            let (ty, _) = topAnn expr'
-            case mty of
-                Nothing -> pure ()
+            (ty', expr') <- case mty of
+                Nothing -> do
+                    expr' <- typecheckExpr expr
+                    let (ty, _) = topAnn expr'
+                    pure (ty, expr')
+
                 Just declTy -> do
-                    ty' <- canonicalize declTy
-                    -- TODO this is probably too strict; needs to check for
-                    -- assignment-compatibility rather than type equality.
-                    when (ty /= ty') $ do
-                        error "unimplemented: type mismatch error"
+                    declTy' <- canonicalize declTy
+                    expr' <- requireExprType declTy' empty expr
+                    pure (declTy', expr')
+
             declareSymbol i $ VariableInfo
                 { symLocation = SourcePosition a
-                , symType = ty
+                , symType = ty'
                 }
+
             pure $ (Ann a (Ident i), expr')
+
         let (idents', exprs') = unzip ies'
+
         pure $ VarDeclBody idents' mty exprs'
 
 -- | Typechecks a source position-annotated 'FunDecl'.
@@ -236,26 +263,74 @@ typecheckExpr = cata f where
             typecheckConversion ty' e'
             pure (ty', Conversion ty e')
 
-        Selector me (Ann b i) -> do
+        Selector me i -> do
             e' <- me
-            let (ty, _) = topAnn e'
+            let (ty, b) = topAnn e'
+            let sym = annNat symbolFromIdent i
 
             -- check that ty is a struct type, perform the lookup of the
             -- identifier in the struct to get the component's type; that
             -- becomes the type of the selector expression.
-            error "unimplemented: selector typecheck" b i ty
+            ty' <- case unFix ty of
+                Ty.Struct fs -> case lookup sym fs of
+                    Nothing -> do
+                        reportError $ NoSuchField
+                            { fieldIdent = i
+                            , fieldExpr = e'
+                            }
+                        pure unknownType
+                    Just ty' -> pure ty'
+                _ -> do
+                    reportError $ TypeMismatch
+                        { mismatchExpectedType
+                            = structType [(sym, unknownType)]
+                        , mismatchActualType
+                            = ty
+                        , mismatchCause = Ann b (Just e')
+                        , errorReason = empty
+                        }
+                    pure unknownType
+
+            pure (ty', Selector e' i)
 
         Index mie miev -> do
             ie <- mie -- the expression to index *in*
             iev <- miev -- the expression to index *by*
 
+            let (iety, be) = topAnn ie
+            let (defaultType -> ievty, bev) = topAnn iev
             -- see the documentation of the Index constructor in
             -- Syntax/Types/Expr.hs for how to typecheck indexing expressions.
             -- Needs cross-referencing with the GoLite spec to ignore pointers,
             -- etc.
-            error "unimplemented: index typecheck" ie iev
 
-        Slice me melo mehi mebound -> do
+            -- check that the expression to index in is indexable (is an array
+            -- or a slice) and get the element type
+            t <- case unFix iety of
+                Ty.Slice t -> pure t
+                Array _ t -> pure t
+                _ -> do
+                    reportError $ TypeMismatch
+                        { mismatchExpectedType = arrayType 0 unknownType
+                        , mismatchActualType = iety
+                        , mismatchCause = Ann be (Just ie)
+                        , errorReason = empty
+                        }
+                    pure unknownType
+
+            -- check that the expression to index by is an integer
+            case unFix ievty of
+                IntType _ -> pure ()
+                _ -> reportError $ TypeMismatch
+                    { mismatchExpectedType = typedIntType
+                    , mismatchActualType = ievty
+                    , mismatchCause = Ann bev (Just iev)
+                    , errorReason = empty
+                    }
+
+            pure (t, Index ie iev)
+
+        T.Slice me melo mehi mebound -> do
             e' <- me
 
             -- check that the combination of Maybes is valid (essentially a
@@ -288,26 +363,20 @@ typecheckExpr = cata f where
             -- function.
             error "unimplemented: typecheck call" mty e' args
 
-        Literal (Ann la l) -> fmap (\(ty, l') -> (ty, Literal $ Ann (ty, la) l')) $ case l of
-            IntLit x -> do
-                -- get the built-in integer type
-                error "unimplemented: typecheck integer literal" l x
+        Literal (Ann la l) ->
+            fmap (\ty -> (ty, Literal $ Ann (ty, la) l)) $ case l of
+                IntLit _ -> pure untypedIntType
+                FloatLit _ -> pure untypedFloatType
+                RuneLit _ -> pure untypedRuneType
+                StringLit _ -> pure untypedStringType
 
-            FloatLit x -> do
-                -- get the built-in float type
-                error "unimplemented: typecheck float literal" l x
-
-            RuneLit x -> do
-                -- get the built-in rune type
-                error "unimplemented: typecheck rune literal" l x
-
-            StringLit x -> do
-                -- get the built-in string type
-                error "unimplemented: typecheck string literal" l x
-
-        Variable x@(Ann _ (Ident i)) -> do
-            info <- lookupSymbol' i
-            pure (symType info, Variable x)
+        Variable x@(Ann _ (Ident name)) -> do
+            minfo <- lookupSymbol name
+            case minfo of
+                Just info -> pure (symType info, Variable x)
+                Nothing -> do
+                    reportError $ NotInScope { notInScopeIdent = x }
+                    pure (unknownType, Variable x)
 
     -- | Computes the canonical type of a binary operator expression.
     typecheckBinaryOp
@@ -342,16 +411,173 @@ typecheckFunctionBody
     -> Type
     -> [SrcAnnStatement]
     -> Typecheck [TySrcAnnStatement]
-typecheckFunctionBody fun fty stmts = case stmts of
-    -- function has no body
-    [] -> if fty == voidType
-        then pure []
-        else do
-            reportError $ TypeMismatch
-                { mismatchExpectedType = voidType
-                , mismatchActualType = fty
-                , mismatchCause = MismatchFunction fun
-                , errorReason = text "the function has no body"
-                }
-            pure []
-    _ -> error "unimplemented: typecheck function body step case"
+typecheckFunctionBody fun fty = mapM typecheckStmt where
+    typecheckStmt :: SrcAnnStatement -> Typecheck TySrcAnnStatement
+    typecheckStmt = cata f where
+        f :: Ann SrcSpan SrcAnnStatementF (Typecheck TySrcAnnStatement)
+          -> Typecheck TySrcAnnStatement
+        f (Ann a s) = Fix . Ann a <$> case s of
+            DeclStmt decl -> DeclStmt <$> typecheckDecl decl
+
+            ExprStmt expr -> ExprStmt <$> typecheckExpr expr
+
+            ShortVarDecl idents exprs -> do
+                ies <- forM (zip idents exprs) $ \(Ann b (Ident i), e) -> do
+                    e' <- typecheckExpr e
+                    let (ty, _) = topAnn e'
+
+                    declareSymbol i $ VariableInfo
+                        { symLocation = SourcePosition b
+                        , symType = ty
+                        }
+
+                    pure $ (Ann a (Ident i), e')
+
+                pure $ uncurry ShortVarDecl $ unzip ies
+
+            Assignment exprs1 assignOp exprs2 -> do
+                es <- forM (zip exprs1 exprs2) $ \(e1, e2) -> do
+                    typecheckAssignment e1 e2 assignOp
+
+                let (exprs1', exprs2') = unzip es
+                pure $ Assignment exprs1' assignOp exprs2'
+
+            PrintStmt exprs -> PrintStmt <$> mapM typecheckExpr exprs
+
+            ReturnStmt me -> case me of
+                Just e -> do
+                    e' <- typecheckExpr e
+                    let (ty, b) = topAnn e'
+
+                    (fty, ty) <== TypeMismatch
+                        { mismatchExpectedType = fty
+                        , mismatchActualType = ty
+                        , mismatchCause = Ann b (Just e')
+                        , errorReason = text "the types are not assignment compatible"
+                        }
+
+                    pure $ ReturnStmt (Just e')
+
+                Nothing -> do
+                    if fty == voidType
+                        then pure ()
+                        else reportError $ TypeMismatch
+                            { mismatchExpectedType = fty
+                            , mismatchActualType = voidType
+                            , mismatchCause = Ann a Nothing
+                            , errorReason = text "no value is returned"
+                            }
+
+                    pure $ ReturnStmt Nothing
+
+            IfStmt minit cond thenBody melseBody -> IfStmt
+                <$> sequence minit
+                <*> requireExprType
+                    typedBoolType
+                    (text "the guard of an if statement must be a boolean")
+                    cond
+                <*> sequence thenBody
+                <*> traverse sequence melseBody
+
+            SwitchStmt minit mcond cases -> do
+                minit' <- sequence minit
+                mcond' <- traverse typecheckExpr mcond
+                cases' <- forM cases $ \(hd, body) -> (,)
+                    <$> typecheckCaseHead mcond' hd
+                    <*> sequence body
+                pure $ SwitchStmt minit' mcond' cases'
+
+            ForStmt minit mcond mstep body -> ForStmt
+                <$> sequence minit
+                <*> sequence
+                    (fmap
+                        (requireExprType typedBoolType empty)
+                        mcond)
+                <*> sequence mstep
+                <*> sequence body
+
+            Block body -> Block <$> sequence body
+
+            BreakStmt -> pure BreakStmt
+            ContinueStmt -> pure ContinueStmt
+            FallthroughStmt -> pure FallthroughStmt
+            EmptyStmt -> pure EmptyStmt
+
+        typecheckCaseHead
+            :: Maybe TySrcAnnExpr -- ^ The switch-expression in context.
+            -> SrcAnnCaseHead
+            -> Typecheck TySrcAnnCaseHead
+        typecheckCaseHead mcond hd
+            = case hd of
+                CaseDefault -> pure CaseDefault
+                CaseExpr exprs -> case mcond of
+                    Nothing -> CaseExpr
+                        <$> mapM (requireExprType typedBoolType empty) exprs
+                    Just e -> CaseExpr
+                        <$> mapM (requireExprType (fst (topAnn e)) empty) exprs
+
+typecheckAssignment
+    :: SrcAnnExpr
+    -> SrcAnnExpr
+    -> SrcAnnAssignOp
+    -> Typecheck (TySrcAnnExpr, TySrcAnnExpr)
+typecheckAssignment e1 e2 (Ann _ op) = do
+    e1' <- typecheckExpr e1
+    let (ty, _) = topAnn e1'
+
+    e2' <- case op of
+        Assign -> requireExprType ty empty e2
+        _ -> error "unimplemented: other assignop cases"
+
+    pure (e1', e2')
+
+-- | Checks that an expression is assignment-compatible to a given type. If it
+-- isn't a 'TypeMismatch' error is reported with the given reason.
+requireExprType :: Type -> Doc -> SrcAnnExpr -> Typecheck TySrcAnnExpr
+requireExprType t d e = do
+    e' <- typecheckExpr e
+    let (ty, b) = topAnn e'
+    (t, ty) <== TypeMismatch
+        { mismatchExpectedType = t
+        , mismatchActualType = ty
+        , mismatchCause = Ann b (Just e')
+        , errorReason = d
+        }
+    pure e'
+
+infixl 3 <==
+-- | The assignment compatibility assertion operator, pronounced \"compat\"
+-- verifies that the second type is assignment compatible to the first.
+--
+-- If it is compatible, then nothing happens.
+-- If it isn't compatible, the provided error is reported.
+-- Whether an error is reported or not is returned.
+(<==) :: (Type, Type) -> TypeError -> Typecheck Bool
+(<==) (t1, t2) e
+    -- (1.)
+    | t1 == t2 = pure False
+    -- (2.)
+    | not (isAliasType t1 && isAliasType t2) && unalias t1 == unalias t2
+        = (unalias t1, unalias t2) <== e
+    -- (3.)
+    | isReferenceType t1 && isNilType t2 = pure False
+    -- (4.)
+    | isUntyped t2
+        = (t1, defaultType t2) <== e -- TODO "representable" !?
+    | otherwise = reportError e *> pure True
+
+{- Assignability
+ - -------------
+
+(Adapted from the Go specification.)
+
+A value x is assignable to a variable of type T ("x is assignable to T") in any
+of these cases:
+
+ 1. x's type is identical to T.
+ 2. at least one of x's type V and T is not an alias type, and both V and T
+    have the same underlying type.
+ 3. x is the predeclared identifier nil and T is a pointer, function, slice,
+    map, channel, or interface type.
+ 4. x is an untyped constant representable by a value of type T.
+-}

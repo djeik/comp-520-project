@@ -27,7 +27,7 @@ module Language.GoLite.Typecheck.Types where
 
 import Language.GoLite.Monad.Traverse
 import Language.GoLite.Syntax.SrcAnn
-import Language.GoLite.Syntax.Types
+import Language.GoLite.Syntax.Typecheck
 import Language.GoLite.Types
 
 import Text.PrettyPrint ( Doc )
@@ -76,22 +76,27 @@ data TypeError
     | NotInScope
         { notInScopeIdent :: SrcAnnIdent
         }
+    | SymbolKindMismatch
+        { mismatchExpectedKind :: SymbolKind
+        , mismatchActualInfo :: SymbolInfo
+        , mismatchIdent :: SrcAnnIdent
+        }
+    | NoSuchField
+        { fieldIdent :: SrcAnnIdent
+        , fieldExpr :: TySrcAnnExpr
+        }
     deriving (Eq, Show)
 
-data MismatchCause
-    = MismatchExpr SrcAnnExpr
-    | MismatchFunction SrcAnnFunDecl
-    deriving (Eq, Ord, Show)
+type MismatchCause = SrcAnn Maybe TySrcAnnExpr
 
 -- | Determines the primary location of a type error.
 typeErrorLocation :: TypeError -> SymbolLocation
 typeErrorLocation e = case e of
-    TypeMismatch { mismatchCause = m } -> case m of
-        MismatchExpr ex -> SourcePosition $ topAnn ex
-        MismatchFunction ex -> case ex of
-            FunDecl (Ann a _) _ _ _ -> SourcePosition a
+    TypeMismatch { mismatchCause = Ann a _ } -> SourcePosition a
     Redeclaration { redeclNew = d } -> symLocation d
     NotInScope { notInScopeIdent = Ann a _ } -> SourcePosition a
+    SymbolKindMismatch { mismatchIdent = Ann a _ } -> SourcePosition a
+    NoSuchField { fieldIdent = Ann a _ } -> SourcePosition a
 
 -- | All errors that can actually be thrown.
 data TypecheckError

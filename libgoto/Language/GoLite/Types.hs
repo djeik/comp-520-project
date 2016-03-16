@@ -20,21 +20,33 @@ import Data.Functor.Foldable
 import qualified Data.Map as M
 
 -- | An entry in the symbol table.
-data SymbolInfo
+data SymbolInfo' loc ty
     -- | A symbol in scope.
     = VariableInfo
-        { symLocation :: !SymbolLocation
+        { symLocation :: !loc
         -- ^ The location of the symbol's definition.
-        , symType :: !Type
+        , symType :: !ty
         -- ^ The canonical type of the symbol.
         }
     | TypeInfo
-        { symLocation :: !SymbolLocation
+        { symLocation :: !loc
         -- ^ The location of the symbol's definition.
-        , symType :: !Type
+        , symType :: !ty
         -- ^ The canonical type of the symbol.
         }
     deriving (Eq, Ord, Show)
+
+type SymbolInfo = SymbolInfo' SymbolLocation Type
+
+-- | 'SymbolInfo' but with no real data inside, leaving essentially only the
+-- constructors.
+type SymbolKind = SymbolInfo' () ()
+
+variableKind :: SymbolKind
+variableKind = VariableInfo () ()
+
+typeKind :: SymbolKind
+typeKind = TypeInfo () ()
 
 -- | The location of a symbol.
 data SymbolLocation
@@ -69,12 +81,13 @@ data GoTypeF f
         { constantIsTyped :: Bool
         }
     -- | A statically-sized array of some type.
-    | ArrayType Int f
+    | Array Int f
     -- | A slice of some type.
-    | SliceType f
+    | Slice f
     -- | A struct type.
-    | StructType
-        { structTypeFields :: M.Map SrcAnnIdent f }
+    | Struct
+        { structTypeFields :: [(SrcAnn Symbol (), f)]
+        }
     -- | The type for the predeclared identifier "nil". No other expression has
     -- this type.
     | NilType
@@ -83,12 +96,62 @@ data GoTypeF f
     | BuiltinType BuiltinType
     -- | An alias for another type.
     | AliasType SrcAnnIdent f
+    -- | The internal unknown type is used as the type of undeclared
+    -- identifiers.
+    | UnknownType
     -- | The type of a function.
     | FuncType
         { funcTypeArgs :: [(SrcAnn Symbol (), f)]
         , funcTypeRet :: f
         }
     deriving (Eq, Functor, Ord, Show)
+
+-- | Tunnels down 'AliasType' constructors in a type to get the underlying type
+-- of a named type.
+unalias :: Type -> Type
+unalias (Fix t) = case t of
+    AliasType _ t' -> unalias t'
+    _ -> Fix t
+
+-- | Decides whether a type is a named type.
+isAliasType :: Type -> Bool
+isAliasType t = t /= unalias t
+
+-- | Decides whether a type is a reference type, i.e. admits the value @nil@.
+isReferenceType :: Type -> Bool
+isReferenceType (Fix t) = case t of
+    Slice _ -> True
+    FuncType _ _ -> True
+    _ -> False
+
+-- | Decides whether a type is the built-in 'NilType'.
+isNilType :: Type -> Bool
+isNilType (Fix t) = case t of
+    NilType -> True
+    _ -> False
+
+-- | Decides whether the type is of an untyped constant.
+isUntyped :: Type -> Bool
+isUntyped (Fix t) = case t of
+    IntType False -> True
+    RuneType False -> True
+    StringType False -> True
+    FloatType False -> True
+    BoolType False -> True
+    _ -> False
+
+-- | Determines the default type of untyped types.
+--
+-- This function is idempotent.
+-- > defaultType . defaultType = defaultType
+defaultType :: Type -> Type
+defaultType (Fix t) = Fix $ case t of
+    IntType False -> IntType True
+    RuneType False -> RuneType True
+    StringType False -> StringType True
+    FloatType False -> FloatType True
+    BoolType False -> BoolType True
+    _ -> t
 
 -- | The types of builtins.
 data BuiltinType
@@ -160,10 +223,10 @@ typedBoolType :: Type
 typedBoolType = boolType True
 
 arrayType :: Int -> Type -> Type
-arrayType n t = Fix $ ArrayType n t
+arrayType n t = Fix $ Array n t
 
 sliceType :: Type -> Type
-sliceType = Fix . SliceType
+sliceType = Fix . Slice
 
 nilType :: Type
 nilType = Fix NilType
@@ -176,6 +239,12 @@ funcType args ret = Fix $ FuncType
     { funcTypeArgs = args
     , funcTypeRet = ret
     }
+
+unknownType :: Type
+unknownType = Fix UnknownType
+
+structType :: [(SrcAnn Symbol (), Type)] -> Type
+structType = Fix . Struct
 
 -- | The name of a symbol is simply the string assigned to it by the
 -- programmer.

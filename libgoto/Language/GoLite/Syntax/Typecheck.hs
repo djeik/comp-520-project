@@ -54,7 +54,7 @@ type TySrcAnnStatementF
 -- | The fixed point of 'TySrcAnnStatementF' with type and source position
 -- annotations.
 type TySrcAnnStatement
-    = TySrcAnnFix TySrcAnnStatementF
+    = SrcAnnFix TySrcAnnStatementF
 
 -- | 'CaseHead' with type and source position annotations.
 type TySrcAnnCaseHead
