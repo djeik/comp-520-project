@@ -10,11 +10,23 @@ This module contains the "Weeder" traversal for packages and top-level
 declarations.
 -}
 
-module Language.GoLite.Weeder where
+module Language.GoLite.Weeder (
+  weed
+) where
 
 import Language.GoLite.Weeder.Core
 import Language.GoLite.Weeder.Stmt
 import Language.GoLite.Weeder.TypeLit
+
+-- Weeds a program, returning a list of weeding errors encountered.
+weed :: SrcAnnPackage -> [WeederException]
+weed p =
+    let start = WeederState { funcHasReturn = False
+                            , forLevel = 0
+                            , switchLevel = 0
+                            , weedErrors = []} in
+    let runToState = (runStateT . runExceptT . runTraversal . runWeeder) in
+    weedErrors $ snd $ runIdentity $ runToState (weedPackage p) start
 
 -- | Weeds a package and its components. A package is invalid if its identifier
 -- is the blank one.
