@@ -108,6 +108,13 @@ data GoTypeF f
 
 -- | Tunnels down 'AliasType' constructors in a type to get the underlying type
 -- of a named type.
+--
+-- /Remark/: this does not remove all aliases from the type! It only removes
+-- aliases top down until a non-alias type is reached.
+--
+-- This function is idempotent.
+--
+-- > unalias . unalias = unalias
 unalias :: Type -> Type
 unalias (Fix t) = case t of
     AliasType _ t' -> unalias t'

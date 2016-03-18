@@ -90,6 +90,23 @@ data TypeError
     | UnsatisfyingType
         { unsatOffender :: Type
         , unsatReason :: Doc
+        , errorLocation :: SrcSpan
+        }
+    | TypeArgumentError
+        { errorReason :: Doc
+        , typeArgument :: Maybe Type
+        , errorLocation :: SrcSpan
+        }
+    | ArgumentLengthMismatch
+        { argumentExpectedLength :: Int
+        , argumentActualLength :: Int
+        , errorLocation :: SrcSpan
+        }
+    | CallTypeMismatch
+        { mismatchExpectedType :: Type
+        , mismatchActualType :: Type
+        , mismatchPosition :: Int
+        , mismatchCause :: MismatchCause
         }
     deriving (Eq, Show)
 
@@ -104,6 +121,9 @@ typeErrorLocation e = case e of
     SymbolKindMismatch { mismatchIdent = Ann a _ } -> SourcePosition a
     NoSuchField { fieldIdent = Ann a _ } -> SourcePosition a
     UnsatisfyingType {} -> error "unsatisfying type has no position information"
+    TypeArgumentError { errorLocation = a } -> SourcePosition a
+    ArgumentLengthMismatch { errorLocation = a } -> SourcePosition a
+    CallTypeMismatch { mismatchCause = Ann a _ } -> SourcePosition a
 
 -- | All errors that can actually be thrown.
 data TypecheckError

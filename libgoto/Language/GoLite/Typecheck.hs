@@ -229,7 +229,7 @@ typecheckFun e = case e of
                     , symType = argTy
                     }
 
-            typecheckFunctionBody e ty stmts
+            typecheckFunctionBody ty stmts
 
         pure $ FunDecl ident args mretty stmts'
 
@@ -328,26 +328,72 @@ typecheckExpr = cata f where
 
         T.Slice me melo mehi mebound -> do
             e' <- me
+            let (ty, b) = topAnn e'
 
-            -- check that the combination of Maybes is valid (essentially a
-            -- weeder check)
-            -- According to the type of the expression to slice in, determine
-            -- the type of the computed slice.
-            error "unimplemented: slice typecheck" melo mehi mebound e'
+            elemTy <- case unFix ty of
+                Ty.Slice t -> pure t
+                _ -> do
+                    reportError $ TypeMismatch
+                        { mismatchExpectedType = sliceType unknownType
+                        , mismatchActualType = ty
+                        , mismatchCause = Ann b (Just e')
+                        , errorReason = empty
+                        }
+                    pure unknownType
+
+            lo <- sequence melo
+            hi <- sequence mehi
+            bound <- sequence mebound
+
+            let checkIndex i = do
+                    let (ity, c) = topAnn i
+                    (typedIntType, ity) <== TypeMismatch
+                        { mismatchExpectedType = typedIntType
+                        , mismatchActualType = ity
+                        , mismatchCause = Ann c (Just i)
+                        , errorReason = empty
+                        }
+
+            mapM_ (traverse checkIndex) [lo, hi, bound]
+
+            pure (elemTy, T.Slice e' lo hi bound)
 
         TypeAssertion me ty -> do
             e' <- me
             ty' <- canonicalize ty
-            let (ety, _) = topAnn e'
 
-            when (ety /= ty') $ do
-                error "unimplemented: type assertion failed error"
+            throwError $ WeederInvariantViolation $ text "type assertion not supported"
 
             pure (ty', TypeAssertion e' ty)
 
         Call me mty margs -> do
             e' <- me
             args <- sequence margs
+            ty <- forM mty $ \t -> Ann
+                <$> pure (topAnn t)
+                <*> (Const <$> canonicalize t)
+
+            let (funTy, b) = topAnn e'
+            t <- case unFix funTy of
+                BuiltinType bu -> typecheckBuiltin bu ty args
+                FuncType fargs fret -> do
+                    typecheckCall a ty args fargs
+                    pure fret
+                _ -> do
+                    reportError $ TypeMismatch
+                        { mismatchExpectedType = Fix $ FuncType
+                            { funcTypeArgs = map
+                                (\a' ->
+                                    let (t, c) = topAnn a'
+                                    in (Ann c Blank, t))
+                                args
+                            , funcTypeRet = unknownType
+                            }
+                        , mismatchActualType = funTy
+                        , mismatchCause = Ann b (Just e')
+                        , errorReason = empty
+                        }
+                    pure unknownType
 
             -- See whether the type of e' is the special built-in type of
             -- `make` and check that that coresponds with whether mty is Just
@@ -357,7 +403,7 @@ typecheckExpr = cata f where
             -- types of the function parameters.
             -- The type of the call is the declared return type of the
             -- function.
-            error "unimplemented: typecheck call" mty e' args
+            pure (t, Call e' mty args)
 
         Literal (Ann la l) ->
             fmap (\ty -> (ty, Literal $ Ann (ty, la) l)) $ case l of
@@ -400,11 +446,10 @@ typecheckExpr = cata f where
 
 -- | Typecheck the body of a function of a given type.
 typecheckFunctionBody
-    :: SrcAnnFunDecl
-    -> Type
+    :: Type
     -> [SrcAnnStatement]
     -> Typecheck [TySrcAnnStatement]
-typecheckFunctionBody fun fty = mapM typecheckStmt where
+typecheckFunctionBody fty = mapM typecheckStmt where
     typecheckStmt :: SrcAnnStatement -> Typecheck TySrcAnnStatement
     typecheckStmt = cata f where
         f :: Ann SrcSpan SrcAnnStatementF (Typecheck TySrcAnnStatement)
@@ -540,6 +585,59 @@ typecheckAssignment e1 e2 (Ann _ op) = do
             checkE2 ty
             requireTypeToSatisfy p d e2
 
+typecheckBuiltin
+    :: BuiltinType
+    -> Maybe (SrcAnn (Const Type) ())
+    -> [TySrcAnnExpr]
+    -> Typecheck Type
+typecheckBuiltin b mty exprs = error "unimplemented: typecheck builtin" b mty exprs
+
+-- | Typechecks a regular function call. See 'typecheckBuiltin' for
+-- typechecking built-in functions.
+--
+-- Regular functions may not accept type arguments. The number of supplied
+-- arguments must match the number of arguments in the function's signature.
+-- Each expression's type must be assignment compatible to the declared type of
+-- the formal parameter in the corresponding position of the function's
+-- signature.
+typecheckCall
+    :: SrcSpan -- ^ The function call expression's source position
+    -> Maybe (SrcAnn (Const Type) ()) -- ^ An optional type argument
+    -> [TySrcAnnExpr] -- ^ The expression arguments
+    -> [(SrcAnn Symbol (), Type)] -- ^ The arguments of the function
+    -> Typecheck ()
+typecheckCall pos tyArg exprs args = do
+    case tyArg of
+        Nothing -> pure ()
+        Just (Ann a (getConst -> t)) ->
+            reportError $ TypeArgumentError
+                { errorReason = text "regular functions cannot take type arguments"
+                , errorLocation = a
+                , typeArgument = Just t
+                }
+
+    matched <- case safeZip exprs args of
+        (matched, excess) -> do
+            case excess of
+                Nothing -> pure ()
+                Just _ ->
+                    reportError $ ArgumentLengthMismatch
+                        { argumentExpectedLength = length args
+                        , argumentActualLength = length exprs
+                        , errorLocation = pos
+                        }
+
+            pure matched
+
+    forM_ (enumerate matched) $ \(i, (e, snd -> t)) -> do
+        let (t', a) = topAnn e
+        (t, t') <== CallTypeMismatch
+            { mismatchExpectedType = t
+            , mismatchActualType = t'
+            , mismatchPosition = i
+            , mismatchCause = Ann a (Just e)
+            }
+
 -- | Checks that an expression is assignment-compatible to a given type. If it
 -- isn't a 'TypeMismatch' error is reported with the given reason.
 requireExprType :: Type -> Doc -> SrcAnnExpr -> Typecheck TySrcAnnExpr
@@ -560,10 +658,11 @@ requireTypeToSatisfy :: (Type -> Bool) -> Doc -> SrcAnnExpr -> Typecheck TySrcAn
 requireTypeToSatisfy p d e = do
     e' <- typecheckExpr e
     let (ty, b) = topAnn e'
-    unless (p ty)
-        (reportError UnsatisfyingType
-                        { unsatOffender = ty
-                        , unsatReason = d })
+    unless (p ty) $ reportError $ UnsatisfyingType
+        { unsatOffender = ty
+        , unsatReason = d
+        , errorLocation = b
+        }
     pure e'
 
 infixl 3 <==
