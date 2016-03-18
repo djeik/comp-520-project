@@ -17,6 +17,7 @@ module Language.GoLite.Misc
 , safeZip
 , distTuple
 , unFix
+, enumerate
   -- * Convenience re-exports
 , isJust
 , isNothing
@@ -42,3 +43,7 @@ distTuple = flip $ \x -> map (, x)
 
 unFix :: Fix f -> f (Fix f)
 unFix (Fix x) = x
+
+-- | Enumerates the elements of a list, starting at 1.
+enumerate :: [a] -> [(Int, a)]
+enumerate = zip [1..]
