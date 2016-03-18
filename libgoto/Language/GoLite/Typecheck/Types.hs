@@ -103,6 +103,7 @@ typeErrorLocation e = case e of
     NotInScope { notInScopeIdent = Ann a _ } -> SourcePosition a
     SymbolKindMismatch { mismatchIdent = Ann a _ } -> SourcePosition a
     NoSuchField { fieldIdent = Ann a _ } -> SourcePosition a
+    UnsatisfyingType {} -> error "unsatisfying type has no position information"
 
 -- | All errors that can actually be thrown.
 data TypecheckError
