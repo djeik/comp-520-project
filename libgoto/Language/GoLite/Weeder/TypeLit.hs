@@ -9,39 +9,42 @@ Stability   : experimental
 "Weeder" traversal definition for types.
 -}
 
+{-# LANGUAGE TypeFamilies #-}
+
 module Language.GoLite.Weeder.TypeLit
 ( weedType
 , weedFields
 ) where
 
-import Language.GoLite.Weeder.Core
+import Data.Functor.Foldable ( cata )
 import qualified Data.Set as S
+
+import Language.GoLite.Weeder.Core
 
 {- | Weeds a type.
 
     * Field declarations in structs must be unique (except for the blank
       identifier)
+    * A named type may not be the blank identifier.
 -}
 weedType :: SrcAnnType -> Weeder ()
+weedType = cata phi where
+    phi (Ann _ (NamedType i)) =
+        errorOnBlankIdentifier i "Cannot name a type with the blank identifier"
 
--- Slice type: weed the inner type.
-weedType (Fix (Ann _ (SliceType t))) = weedType t
--- Array type: weed the inner type.
-weedType (Fix (Ann _ (ArrayType _ t))) = weedType t
--- Named type: nothing.
-weedType (Fix (Ann _ (NamedType _))) = pure ()
 -- Struct type: check that identifiers are unique, and weed inner types.
-weedType (Fix (Ann _ (StructType fields))) = weedFields fields
+    phi (Ann _ (StructType fields)) = weedFields fields
 
--- | Weeds a field. Checks that the field names are unique, and weeds the types.
-weedFields :: [(SrcAnnIdent, SrcAnnType)] -> Weeder ()
+    phi _ = pure ()
+
+-- | Weeds a field. Checks that the field names are unique.
+weedFields :: [(SrcAnnIdent, b)] -> Weeder ()
 weedFields fs = do
     -- This is pretty ugly, but lets us pinpoint exactly where the duplicate
     -- identifiers are.
     let s = S.empty
-    forM_ fs (\f -> do
-        weedType $ snd f
-        let (Ann a (Ident n)) = fst f
+    forM_ fs (\f ->
+        let (Ann a (Ident n)) = fst f in
         if n /= "_" && n `S.member` s then
             reportError (a, "duplicate name " ++ n)
         else
