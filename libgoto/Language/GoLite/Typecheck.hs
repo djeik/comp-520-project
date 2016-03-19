@@ -442,7 +442,15 @@ typecheckExpr = cata f where
         :: Type
         -> TySrcAnnExpr
         -> Typecheck ()
-    typecheckConversion = error "unimplemented: typecheck conversion"
+    typecheckConversion t e = do
+        let (t', b) = topAnn e
+        (t, t') <== TypeMismatch
+            { mismatchExpectedType = t
+            , mismatchActualType = t'
+            , mismatchCause = Ann b (Just e)
+            , errorReason = empty
+            }
+        pure ()
 
 -- | Typecheck the body of a function of a given type.
 typecheckFunctionBody
