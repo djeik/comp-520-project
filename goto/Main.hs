@@ -29,6 +29,9 @@ data Goto
     | RoundTrip
         { filename :: InputFile
         }
+    | PrettyType
+        { filename :: InputFile
+        }
     deriving (Eq, Ord, Read, Show)
 
 main :: IO ()
@@ -61,6 +64,18 @@ cmdParser
                 ) $
                 briefDesc <>
                 progDesc "Checks the pretty-print invariant."
+            ) <>
+            command "pretty-type" (
+                info (
+                    PrettyType <$> fmap parseInputFile (
+                        strArgument (
+                            metavar "[FILE]" <>
+                            value "-"
+                        )
+                    )
+                ) $
+                briefDesc <>
+                progDesc "Typechecks and pretty-prints with type annotations."
             )
         )
     ) $
@@ -76,6 +91,13 @@ goto g = case g of
         case ex of
             Left e -> hPutStrLn stderr $ noNewLines $ show e
             Right r -> putStrLn $ renderGoLite (pretty r)
+    PrettyType f -> do
+        ex <- parseGoLiteFile f
+        case ex of
+            Left e -> hPutStrLn stderr $ noNewLines $ show e
+            Right r -> do
+                let p = G.typecheckPackage r
+                putStrLn $ renderGoLite (pretty p)
     RoundTrip f -> do
         ex <- parseGoLiteFile f
         case ex of
