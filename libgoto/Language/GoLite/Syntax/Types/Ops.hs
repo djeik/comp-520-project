@@ -27,10 +27,14 @@ data BinaryOp a
     | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseAndNot
     deriving (Eq, Functor, Ord, Read, Show)
 
--- | Determines if a binary operator is a comparison operator (eq, less, etc.)
+-- | Determines if a binary operator is a comparison operator (equal, not equal)
 isComparisonOp :: BinaryOp a -> Bool
-isComparisonOp o = o == Equal || o == NotEqual || o == LessThan
-        || o == LessThanEqual || o ==  GreaterThan || o == GreaterThanEqual
+isComparisonOp o = o == Equal || o == NotEqual
+
+-- | Determines if a
+isOrderingOp :: BinaryOp a -> Bool
+isOrderingOp o =  o == LessThan || o == LessThanEqual || o ==  GreaterThan
+                || o == GreaterThanEqual
 
 -- | Determines if a binary operator is a logical operator (or, and)
 isLogicalOp :: BinaryOp a -> Bool

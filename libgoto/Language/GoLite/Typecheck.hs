@@ -246,7 +246,7 @@ typecheckExpr = cata f where
         BinaryOp o me1 me2 ->
             let subs = (,) <$> me1 <*> me2
                 in (,)
-                    <$> (uncurry (typecheckBinaryOp o) =<< subs)
+                    <$> (uncurry (typecheckBinaryOp o a) =<< subs)
                     <*> (uncurry (BinaryOp o) <$> subs)
 
         UnaryOp o me -> (,)
@@ -423,19 +423,114 @@ typecheckExpr = cata f where
     -- | Computes the canonical type of a binary operator expression.
     typecheckBinaryOp
         :: SrcAnnBinaryOp
+        -> SrcSpan -- ^ The span of the entire expression
         -> TySrcAnnExpr
         -> TySrcAnnExpr
         -> Typecheck Type
-    typecheckBinaryOp = error "unimplemented: typecheck binary operator"
-    -- TODO use assignment compatibility and operator typing rules
+    typecheckBinaryOp o a l r
+        -- In general:
+        -- Types must be indentical modulo typedness
+        -- Expression is untyped iff both operands are untyped.
+        | isArithmeticOp $ bare o = case bare o of
+            ShiftLeft -> checkBinary isIntType
+                (text "must be an integer in a shift operation")
+            ShiftRight -> checkBinary isIntType
+                (text "must be an integer in a shift operation")
+            _ -> checkBinary isArithmetic (text "is not numerical")
+
+        | isComparisonOp $ bare o =
+            -- Special case: we check that the types are comparable, and
+            -- not that they're equal. The resulting type is always a typed
+            -- boolean, except when both operands are untyped booleans.
+                let tyl = fst $ topAnn l in
+                let tyr = fst $ topAnn r in do
+
+                if isComparable tyl tyr then
+                    case (unFix tyl, unFix tyr) of
+                        (BoolType False, BoolType False) -> pure untypedBoolType
+                        (_, _) -> pure typedBoolType
+                else do
+                    reportError $ BinaryTypeMismatch
+                        { mismatchTypeL = tyl
+                        , mismatchTypeR = tyr
+                        , errorLocation = a }
+                    pure unknownType
+
+        | isLogicalOp $ bare o =
+            checkBinary isLogical (text "is not logical")
+
+        | isOrderingOp $ bare o =
+            checkBinary isOrdered (text "cannot be ordered")
+        | otherwise = throwError UncategorizedOperator
+        where
+            checkBinary p e =
+                let (tyl, al) = topAnn l in
+                let (tyr, ar) = topAnn r in do
+
+                -- Check that the left type satisfies the predicate.
+                when (not $ p tyl)
+                    (reportError $ UnsatisfyingType
+                        { unsatOffender = tyl
+                        , unsatReason = e
+                        , errorLocation = al })
+
+                -- Check that the right type satisfies the predicate.
+                when (not $ p tyr)
+                    (reportError $ UnsatisfyingType
+                        { unsatOffender = tyr
+                        , unsatReason = e
+                        , errorLocation = ar })
+
+                if p tyr && p tyl then
+                    -- If they both satisfy the predicate, make sure they don't
+                    -- differ. We don't unalias them here.
+                    if tyr /= tyl then do
+                        reportError $ BinaryTypeMismatch
+                            { mismatchTypeL = tyl
+                            , mismatchTypeR = tyr
+                            , errorLocation = a }
+                        pure unknownType
+                    else
+                        -- If they are both untyped, the expression is untyped.
+                        -- Otherwise, it is typed.
+                        if isUntyped tyl && isUntyped tyr then
+                            pure tyl
+                        else
+                            pure $ defaultType tyl
+                else
+                    pure unknownType
+
+            isIntType (Fix (IntType _)) = True
+            isIntType _ = False
+
 
     -- | Computes the canonical type of a unary operator expression.
     typecheckUnaryOp
         :: SrcAnnUnaryOp
         -> TySrcAnnExpr
         -> Typecheck Type
-    typecheckUnaryOp = error "unimplemented: typecheck unary operator"
-    -- TODO use assignment compatibility and operator typing rules
+    typecheckUnaryOp o e =
+        let (ty, a) = topAnn e in
+        case bare o of
+            LogicalNot ->
+                if isLogical $ unalias ty then
+                    pure ty
+                else do
+                    reportError $ UnsatisfyingType
+                        { unsatOffender = ty
+                        , unsatReason = text "Expected logical type"
+                        , errorLocation = a }
+                    pure unknownType
+            _ ->
+                if isArithmetic $ unalias ty then
+                    pure ty
+                else do
+                    reportError $ UnsatisfyingType
+                        { unsatOffender = ty
+                        , unsatReason = text "Expected numerical type"
+                        , errorLocation = a }
+                    pure unknownType
+
 
     -- | Checks that a conversion is valid.
     typecheckConversion

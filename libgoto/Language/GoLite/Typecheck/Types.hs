@@ -69,18 +69,23 @@ data TypeError
         , errorReason :: Doc
         -- ^ A human-readable description of the error reason.
         }
+    -- | The given symbol has already been declared in this scope.
     | Redeclaration
         { redeclOrigin :: SymbolInfo
         , redeclNew :: SymbolInfo
         }
+    -- | The symbol used is not in scope.
     | NotInScope
         { notInScopeIdent :: SrcAnnIdent
         }
+    -- | The symbol used is in scope, but is not of the proper kind
+    -- (type or variable symbol)
     | SymbolKindMismatch
         { mismatchExpectedKind :: SymbolKind
         , mismatchActualInfo :: SymbolInfo
         , mismatchIdent :: SrcAnnIdent
         }
+    -- | The given struct field does not exist.
     | NoSuchField
         { fieldIdent :: SrcAnnIdent
         , fieldExpr :: TySrcAnnExpr
@@ -92,21 +97,32 @@ data TypeError
         , unsatReason :: Doc
         , errorLocation :: SrcSpan
         }
+    -- | An error related to the type argument of a call occured (was present
+    -- when not using the built-in make, or was not present when using it).
     | TypeArgumentError
         { errorReason :: Doc
         , typeArgument :: Maybe Type
         , errorLocation :: SrcSpan
         }
+    -- | The number of arguments given to a call differ from the number of
+    -- declared arguments to the function.
     | ArgumentLengthMismatch
         { argumentExpectedLength :: Int
         , argumentActualLength :: Int
         , errorLocation :: SrcSpan
         }
+    -- | The types of a call expression do not match.
     | CallTypeMismatch
         { mismatchExpectedType :: Type
         , mismatchActualType :: Type
         , mismatchPosition :: Int
         , mismatchCause :: MismatchCause
+        }
+    -- | Two types involved in a binary operation could not be matched.
+    | BinaryTypeMismatch
+        { mismatchTypeL :: Type
+        , mismatchTypeR :: Type
+        , errorLocation :: SrcSpan
         }
     deriving (Eq, Show)
 
@@ -124,6 +140,7 @@ typeErrorLocation e = case e of
     TypeArgumentError { errorLocation = a } -> SourcePosition a
     ArgumentLengthMismatch { errorLocation = a } -> SourcePosition a
     CallTypeMismatch { mismatchCause = Ann a _ } -> SourcePosition a
+    BinaryTypeMismatch { errorLocation = a } -> SourcePosition a
 
 -- | All errors that can actually be thrown.
 data TypecheckError
@@ -135,6 +152,9 @@ data TypecheckError
     | WeederInvariantViolation Doc
     -- ^ An illegal situation that should have been caught by a weeding pass
     -- arose during typechecking.
+    | UncategorizedOperator
+    -- ^ An operator could not be categorized as either arithmetic, comparison,
+    -- logical, or ordering.
 
 -- | Typechecking is a traversal requiring state and the possibility of fatal
 -- errors.

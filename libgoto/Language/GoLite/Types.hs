@@ -169,7 +169,8 @@ isUntyped (Fix t) = case t of
     _ -> False
 
 -- | Decides whether a type is ordered. All basic types except boolean are
--- ordered. No other type is ordered.
+-- ordered. No other type is ordered. Ordered types can be compared using
+-- the order operators @<@, @>@, @>=@ and @<=@.
 isOrdered :: Type -> Bool
 isOrdered (Fix t) = case t of
     IntType _ -> True
@@ -183,6 +184,11 @@ isOrdered (Fix t) = case t of
 --
 --    * Slice types are not comparable to each other.
 --    * Slice types can be compared to nil.
+--
+-- Comparable types can be tested for equality or inequality using @==@ and
+-- @!=@.
+--
+-- This function is commutative: isComparable = flip . isComparable
 isComparable :: Type -> Type -> Bool
 isComparable (Fix t) (Fix u) = case (t, u) of
     (Slice _, Slice _) -> False
@@ -198,6 +204,13 @@ isArithmetic (Fix t) = case t of
     IntType _ -> True
     FloatType _ -> True
     RuneType _ -> True
+    _ -> False
+
+-- | Determines wheter a type is logical (basically a boolean). Logical types
+-- can have logical operators applied to them (@&&@, @||@, @!@)
+isLogical :: Type -> Bool
+isLogical (Fix t) = case t of
+    BoolType _ -> True
     _ -> False
 
 -- | Determines the default type of untyped types.

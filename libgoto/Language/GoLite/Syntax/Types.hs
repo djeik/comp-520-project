@@ -35,6 +35,7 @@ module Language.GoLite.Syntax.Types
 , isComparisonOp
 , isLogicalOp
 , isArithmeticOp
+, isOrderingOp
   -- * Convenience reexports
 , Fix(..)
 , Identity(..)
