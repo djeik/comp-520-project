@@ -9,13 +9,22 @@ Stability   : experimental
 Defines type synonyms for typechecked syntax trees.
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Language.GoLite.Syntax.Typecheck where
 
+import Language.GoLite.Pretty
+import Language.GoLite.Syntax.Precedence
 import Language.GoLite.Syntax.SrcAnn
-import Language.GoLite.Syntax.Types
+import Language.GoLite.Syntax.Types as Ty
 import Language.GoLite.Types
 
 import Control.Applicative ( Const(..) )
+import Data.Functor.Foldable
+import Text.PrettyPrint
 
 -- | An annotation that consists of both type and source position information.
 type TySrcSpan = (Type, SrcSpan)
@@ -92,3 +101,52 @@ type TySrcAnnGoRune
 -- | 'GoString' with type and source position annotations.
 type TySrcAnnGoString
     = TySrcAnn (Const GoString) ()
+
+instance
+    ( Pretty id
+    , Pretty bin
+    , Pretty un
+    , Pretty lit
+    , Pretty ty
+    , HasPrecedence bin
+    , HasPrecedence un
+    ) => Pretty (TySrcAnnFix (ExprF id bin un lit ty)) where
+    pretty = (\(_, _, x) -> x) . cata f where
+        f ::
+            ( Pretty id
+            , Pretty bin
+            , Pretty un
+            , Pretty lit
+            , Pretty ty
+            , HasPrecedence bin
+            , HasPrecedence un
+            )
+            => TySrcAnn (ExprF id bin un lit ty) (Int, Type, Doc)
+            -> (Int, Type, Doc)
+        f (Ann (ty, _) e) = case e of
+            BinaryOp op (dl, tl, l) (dr, tr, r) -> (precedence op, ty,) $
+                prettyParens (dl <= precedence op) (l <+> pretty (Comment tl))
+                <+>
+                pretty op
+                <+>
+                prettyParens (dr <= precedence op) (r <+> pretty (Comment tr))
+            UnaryOp op (dp, tp, p) -> (precedence op, tp,) $
+                pretty op
+                <>
+                prettyParens (dp <= precedence op) p
+                <+>
+                pretty (Comment tp)
+            Literal l -> (6, ty, pretty l)
+            Variable x -> (6, ty, pretty x)
+            Ty.Slice (ep, tp, ex) lo hi up ->
+                let p q = case q of
+                        Nothing -> empty
+                        Just (_, t, q') -> q' <+> pretty (Comment t)
+                    in (6, ty,) $
+                        prettyParens (ep <= 6) (ex <+> pretty (Comment tp)) <+>
+                        prettyBrackets True (
+                            p lo <> text ":" <> p hi <> case up of
+                                Nothing -> empty
+                                Just (_, tu, u) ->
+                                    text ":" <> u <+> pretty (Comment tu)
+                        )

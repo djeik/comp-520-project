@@ -10,14 +10,18 @@ Defines the core types used in the internal representation of GoLite code.
 -}
 
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Language.GoLite.Types where
 
+import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
 import qualified Language.GoLite.Syntax.Types as T
 
 import Data.Functor.Foldable
 import qualified Data.Map as M
+import Text.PrettyPrint
 
 -- | An entry in the symbol table.
 data SymbolInfo' loc ty
@@ -108,6 +112,41 @@ data GoTypeF f
     -- can take multiple types.
     | TypeSum [f]
     deriving (Eq, Functor, Ord, Show)
+
+-- | A canonical representation of a GoLite type.
+type Type = Fix GoTypeF
+
+instance Pretty Type where
+    pretty = cata f where
+        f :: GoTypeF Doc -> Doc
+        f t = case t of
+            VoidType -> text "void"
+            IntType _ -> text "int"
+            RuneType _ -> text "rune"
+            StringType _ -> text "string"
+            FloatType _ -> text "float"
+            BoolType _ -> text "bool"
+            NilType -> text "nil"
+            UnknownType -> text "_ty_unknown"
+            AliasType (Ann _ (T.Ident alias)) t' ->
+                prettyParens True (text alias <+> text "->" <+> t')
+            BuiltinType b -> pretty b
+            Array n t' -> prettyBrackets True (pretty n) <> t'
+            Slice t' -> prettyBrackets True empty <> t'
+            Struct fields ->
+                text "struct {" $+$ nest indentLevel (
+                    vcat (map (\(sym, t') -> pretty sym <+> t' <> text ";") fields)
+                )
+                $+$
+                text "}"
+            FuncType
+                { funcTypeArgs = args
+                , funcTypeRet = rt
+                } ->
+                text "func" <> prettyParens True (
+                    hsep (punctuate comma (map (pretty . snd) args))
+                ) <+>
+                pretty rt
 
 -- | Tunnels down 'AliasType' constructors in a type to get the underlying type
 -- of a named type.
@@ -242,8 +281,18 @@ data BuiltinType
     | PanicType
     deriving (Eq, Ord, Read, Show)
 
--- | A canonical representation of a GoLite type.
-type Type = Fix GoTypeF
+instance Pretty BuiltinType where
+    pretty b = case b of
+        AppendType -> text "_ty_append"
+        CapType -> text "_ty_cap"
+        CopyType -> text "_ty_copy"
+        DeleteType -> text "_ty_delete"
+        LenType -> text "_ty_len"
+        MakeType -> text "_ty_make"
+        PanicType -> text "_ty_panic"
+
+builtinType :: BuiltinType -> Type
+builtinType = Fix . BuiltinType
 
 voidType :: Type
 voidType = Fix VoidType
@@ -337,6 +386,11 @@ data Symbol a
     | Blank
     -- ^ The blank identifier.
     deriving (Eq, Ord, Read, Show)
+
+instance Pretty (Symbol a) where
+    pretty s = case s of
+        NamedSymbol name -> text name
+        Blank -> text "_"
 
 -- | Converts a raw identifier into a symbol.
 symbolFromIdent :: T.Ident a -> Symbol a

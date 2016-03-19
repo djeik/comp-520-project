@@ -22,6 +22,7 @@ transformation is in "Language.GoLite.Typecheck".
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Language.GoLite.Typecheck.Types where
 

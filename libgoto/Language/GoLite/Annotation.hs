@@ -17,7 +17,6 @@ combinators for working with annotations.
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module Language.GoLite.Annotation where
 
