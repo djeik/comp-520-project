@@ -15,6 +15,10 @@ information during parsing as well as stripping functions for removing
 annotations from entire syntax trees.
 -}
 
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Language.GoLite.Syntax.SrcAnn
 ( -- * General source-annotated functors
   SrcSpan(..)
@@ -64,6 +68,7 @@ module Language.GoLite.Syntax.SrcAnn
 
 import Language.GoLite.Annotation
 import Language.GoLite.Lexer.Core
+import Language.GoLite.Pretty
 import Language.GoLite.Syntax.Basic
 import Language.GoLite.Syntax.Types
 
@@ -307,3 +312,13 @@ type SrcAnnGoRune
 -- | 'GoString' with source annotations.
 type SrcAnnGoString
     = SrcAnn (Const GoString) ()
+
+-- | Annotated functors can be pretty-printed by stripping the annotations and
+-- pretty-printing the inner syntax tree.
+instance (Functor f, Pretty (Fix f)) => Pretty (SrcAnnFix f) where
+    pretty = pretty . bareF
+
+-- | Annotated data can be pretty-printed by stripping the annotation and
+-- pretty-printing the inner data.
+instance Pretty (f a) => Pretty (SrcAnn f a) where
+    pretty = pretty . bare

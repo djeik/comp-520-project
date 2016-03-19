@@ -13,17 +13,17 @@ combinators for working with annotations.
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Language.GoLite.Annotation where
 
 import Data.Functor.Foldable
 import Prelude as P
 
-import Language.GoLite.Pretty
 import Language.GoLite.Syntax.Precedence
 
 -- | A functor value with an annotation.
@@ -57,16 +57,6 @@ type AnnFix x f = Fix (Ann x f)
 
 -- | Extract the base functor of annotated data.
 type instance Base (Ann x f a) = f
-
--- | Annotated functors can be pretty-printed by stripping the annotations and
--- pretty-printing the inner syntax tree.
-instance (Functor f, Pretty (Fix f)) => Pretty (Fix (Ann x f)) where
-    pretty = pretty . bareF
-
--- | Annotated data can be pretty-printed by stripping the annotation and
--- pretty-printing the inner data.
-instance Pretty (f a) => Pretty (Ann x f a) where
-    pretty = pretty . bare
 
 -- | Annotated operators with associated precedences have the same precedence
 -- as the inner operator.
