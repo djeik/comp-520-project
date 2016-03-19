@@ -120,7 +120,7 @@ typeErrorLocation e = case e of
     NotInScope { notInScopeIdent = Ann a _ } -> SourcePosition a
     SymbolKindMismatch { mismatchIdent = Ann a _ } -> SourcePosition a
     NoSuchField { fieldIdent = Ann a _ } -> SourcePosition a
-    UnsatisfyingType {} -> error "unsatisfying type has no position information"
+    UnsatisfyingType { errorLocation = a } -> SourcePosition a
     TypeArgumentError { errorLocation = a } -> SourcePosition a
     ArgumentLengthMismatch { errorLocation = a } -> SourcePosition a
     CallTypeMismatch { mismatchCause = Ann a _ } -> SourcePosition a

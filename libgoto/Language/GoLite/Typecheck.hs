@@ -375,7 +375,7 @@ typecheckExpr = cata f where
 
             let (funTy, b) = topAnn e'
             t <- case unFix funTy of
-                BuiltinType bu -> typecheckBuiltin bu ty args
+                BuiltinType bu -> typecheckBuiltin a bu ty args
                 FuncType fargs fret -> do
                     typecheckCall a ty args fargs
                     pure fret
@@ -593,12 +593,191 @@ typecheckAssignment e1 e2 (Ann _ op) = do
             checkE2 ty
             requireTypeToSatisfy p d e2
 
+{- | Typechecks a built-in. Each built-in has special rules governing it.
+    Below are the expected function signatures for them.
+
+    * append([]T, T) -> []T
+    * cap([]T) -> int
+    * cap([x]T) -> int
+    * copy([]T, []T) -> int
+    * len(string) -> int
+    * len([]T) -> int
+    * len([x]T) -> int
+    * make(<type literal []T>, int, [int]) -> []T
+    * panic(<any type>) -> void
+
+    Note that for array or slice types, aliases work equally well.
+-}
 typecheckBuiltin
-    :: BuiltinType
+    :: SrcSpan -- ^ The source position of the builtin call
+    -> BuiltinType
     -> Maybe (SrcAnn (Const Type) ())
     -> [TySrcAnnExpr]
     -> Typecheck Type
-typecheckBuiltin b mty exprs = error "unimplemented: typecheck builtin" b mty exprs
+typecheckBuiltin a b mty exprs = do
+    when (b /= MakeType)
+        (case mty of
+            Nothing -> pure ()
+            Just (Ann a' (getConst -> t)) ->
+                reportError $ TypeArgumentError
+                    { errorReason = text "only make can take type arguments"
+                    , errorLocation = a'
+                    , typeArgument = Just t
+                    })
+    case b of
+        AppendType -> withArgLengthCheck 2 a exprs (\_ ->
+            let x = head exprs in
+            let y = exprs !! 1 in
+            let (tyx, ax) = topAnn x in
+            let (tyy, ay) = topAnn y in
+            case unFix $ unalias tyx of
+                Ty.Slice tyx' -> do
+                    -- We have []T and U, check T <== U.
+                    (tyx', tyy) <== TypeMismatch
+                        { mismatchExpectedType = tyx'
+                        , mismatchActualType = tyy
+                        , mismatchCause = Ann ay (Just y)
+                        , errorReason = empty }
+
+                    pure tyx
+                -- First argument is not a slice.
+                _ -> do
+                        reportError $ TypeMismatch
+                            { mismatchExpectedType = sliceType tyy
+                            , mismatchActualType = tyx
+                            , mismatchCause = Ann ax (Just x)
+                            , errorReason = empty }
+
+                        pure unknownType)
+
+        CapType -> withArgLengthCheck 1 a exprs (\_ ->
+            let x = head exprs in
+            let (ty, ax) = topAnn x in
+            case unFix $ unalias ty of
+                Ty.Array _ _ -> pure typedIntType
+                Ty.Slice _ -> pure typedIntType
+                _ -> do
+                    reportError $ TypeMismatch
+                        { mismatchExpectedType =
+                            typeSum [sliceType unknownType,
+                                    arrayType 0 unknownType]
+                        , mismatchActualType = ty
+                        , mismatchCause = Ann ax (Just x)
+                        , errorReason = empty }
+
+                    pure unknownType)
+
+        CopyType -> withArgLengthCheck 2 a exprs (\_ ->
+            let x = head exprs in
+            let y = exprs !! 1 in
+            let (tyx, ax) = topAnn x in
+            let (tyy, ay) = topAnn y in
+            case (unFix $ unalias tyx, unFix $ unalias tyy) of
+
+                -- Normal case: two slices
+                (Ty.Slice tyx', Ty.Slice tyy') -> do
+
+                    -- Check that the inner types agree.
+                    (tyx', tyy') <== TypeMismatch
+                        { mismatchExpectedType = tyx'
+                        , mismatchActualType = tyy'
+                        , mismatchCause = Ann ay (Just y)
+                        , errorReason = empty }
+                    pure typedIntType
+
+                -- Try to have some better error reporting in case we have
+                -- a slice somewhere.
+                (Ty.Slice _, _) ->
+                    mismatchWithUnk tyx tyy (Ann ay $ Just y)
+
+                (_, Ty.Slice _) ->
+                    mismatchWithUnk tyy tyx (Ann ax $ Just x)
+
+                -- Finally if we have no good match, have an error for each
+                -- argument.
+                (_, _) -> do
+                    mismatchWithUnk tyx (sliceType unknownType) (Ann ax $ Just x)
+                    mismatchWithUnk tyy (sliceType unknownType) (Ann ay $ Just y))
+
+        LenType -> withArgLengthCheck 1 a exprs (\_ ->
+            let x = head exprs in
+            let (ty, ax) = topAnn x in
+            case unFix $ unalias ty of
+                Ty.Array _ _ -> pure typedIntType
+                Ty.Slice _ -> pure typedIntType
+                Ty.StringType _ -> pure typedIntType
+                _ -> mismatchWithUnk ty
+                        (typeSum [ arrayType 0 unknownType
+                                , sliceType unknownType
+                                , stringType True])
+                            -- This expected typed string could as well be
+                            -- untyped. For error reporting we don't care.
+                        (Ann ax $ Just x))
+
+        -- In Golang, make() can take either two or three arguments in the case
+        -- of a slice. In the interest of making this a bit simpler, we're
+        -- going to enforce three arguments. If we were to support maps or
+        -- channels we'd need to change this.
+        MakeType -> do
+            case mty of
+                Nothing -> do
+                    reportError $ TypeArgumentError
+                        { errorReason = text "make requires a type argument"
+                        , errorLocation = a
+                        , typeArgument = Nothing
+                        }
+                    pure unknownType
+                Just (Ann _ (getConst -> t)) ->
+                    -- Note: this isn't really optimal for error messages, we'd
+                    -- expect 3 arguments, but one will be a type.
+                    withArgLengthCheck 2 a exprs (\_ ->
+                        let x = head exprs in
+                        let y = exprs !! 1 in
+                        let (tyx, ax) = topAnn x in
+                        let (tyy, ay) = topAnn y in
+                        case (unFix $ unalias tyx, unFix $ unalias tyy) of
+                            (Ty.IntType _, Ty.IntType _) -> pure t
+                            (x', y') -> do
+                                when (not $ isIntType y')
+                                    (mismatchWithUnk tyy
+                                        typedIntType (Ann ay $ Just y) $> ())
+                                when (not $ isIntType x')
+                                    (mismatchWithUnk tyx
+                                        typedIntType (Ann ax $ Just x) $> ())
+                                pure unknownType)
+
+        -- Panic takes an interface{}, so really we don't care what it is.
+        -- The argument is useless if we're not implementing recover, but we
+        -- still want it to be able to compile Golite with a golang compiler.
+        PanicType -> withArgLengthCheck 1 a exprs (\_ -> pure voidType)
+
+    where
+        -- Checks that there are the specified number of arguments and, if yes,
+        -- runs the given function, or reports an error if no.
+        withArgLengthCheck n annot es f =
+            if length es == n then
+                f ()
+            else do
+                reportError $ ArgumentLengthMismatch
+                    { argumentExpectedLength = n
+                    , argumentActualLength = length es
+                    , errorLocation = annot }
+                pure $ Fix UnknownType
+
+        -- Reports a type mismatch error, then returns an unknown type
+        mismatchWithUnk expected actual cause = do
+            reportError $ TypeMismatch
+                { mismatchExpectedType = expected
+                , mismatchActualType = actual
+                , mismatchCause = cause
+                , errorReason = empty }
+
+            pure unknownType
+
+        isIntType (Ty.IntType _) = True
+        isIntType _ = False
+
+
 
 -- | Typechecks a regular function call. See 'typecheckBuiltin' for
 -- typechecking built-in functions.
@@ -683,6 +862,10 @@ infixl 3 <==
 (<==) :: (Type, Type) -> TypeError -> Typecheck Bool
 (<==) (t1, t2) e
     -- Special cases:
+    -- Anything can be assigned to and from unknown type. This is because
+    -- unknown type is generated only in the case of an error, so we don't
+    -- want to generate extra errors on top of that.
+    | t1 == Fix UnknownType || t2 == Fix UnknownType = pure False
     -- Nothing can be assigned to nil.
     | isNilType t1 = e'
     -- Nothing can be assigned to untyped constants.

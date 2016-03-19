@@ -29,10 +29,10 @@ import Language.GoLite.Weeder.Core
 -}
 weedType :: SrcAnnType -> Weeder ()
 weedType = cata phi where
+
     phi (Ann _ (NamedType i)) =
         errorOnBlankIdentifier i "Cannot name a type with the blank identifier"
 
--- Struct type: check that identifiers are unique, and weed inner types.
     phi (Ann _ (StructType fields)) = weedFields fields
 
     phi _ = pure ()

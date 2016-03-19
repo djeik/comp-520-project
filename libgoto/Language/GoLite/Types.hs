@@ -104,6 +104,9 @@ data GoTypeF f
         { funcTypeArgs :: [(SrcAnn Symbol (), f)]
         , funcTypeRet :: f
         }
+    -- | Multiple types. Used to report errors about polymorphic built-ins that
+    -- can take multiple types.
+    | TypeSum [f]
     deriving (Eq, Functor, Ord, Show)
 
 -- | Tunnels down 'AliasType' constructors in a type to get the underlying type
@@ -123,6 +126,12 @@ unalias (Fix t) = case t of
 -- | Decides whether a type is a named type.
 isAliasType :: Type -> Bool
 isAliasType t = t /= unalias t
+
+-- | Determines whether a type is a slice type.
+isSliceType :: Type -> Bool
+isSliceType (Fix t) = case t of
+    Slice _ -> True
+    _ -> False
 
 -- | Decides whether a type is a reference type, i.e. admits the value @nil@.
 isReferenceType :: Type -> Bool
@@ -212,8 +221,6 @@ data BuiltinType
     | CapType
     -- | The type of the @copy@ builtin.
     | CopyType
-    -- | The type of the @delete@ builtin.
-    | DeleteType
     -- | The type of the @len@ builtin.
     | LenType
     -- | The type of the @make@ builtin.
@@ -296,6 +303,9 @@ unknownType = Fix UnknownType
 
 structType :: [(SrcAnn Symbol (), Type)] -> Type
 structType = Fix . Struct
+
+typeSum :: [Type] -> Type
+typeSum = Fix . TypeSum
 
 -- | The name of a symbol is simply the string assigned to it by the
 -- programmer.
