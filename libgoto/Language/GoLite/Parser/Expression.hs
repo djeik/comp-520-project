@@ -189,7 +189,7 @@ table =
             -> ((UnaryOp () -> SrcAnnUnaryOp) -> SrcAnnExpr -> SrcAnnExprF SrcAnnExpr)
             -> Parser (Semi SrcAnnExpr -> Semi SrcAnnExpr)
         prefixOp name f = do
-            (Ann a _) <- withSrcAnnF $ symbol name
+            (Ann a _) <- withSrcAnnId $ opLexeme name
             let opAnn un = Ann a un
             pure $ \e -> do
                 x@(Fix (Ann b _)) <- e
