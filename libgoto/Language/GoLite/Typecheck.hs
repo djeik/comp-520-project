@@ -13,6 +13,7 @@ result is a typechecked syntax tree, as described in
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -106,13 +107,24 @@ lookupSymbol :: SymbolName -> Typecheck (Maybe SymbolInfo)
 lookupSymbol name = foldr (<|>) Nothing . map (M.lookup name . scopeMap) <$> gets _scopes
 
 -- | Computes the canonical type representation for a source-annotated type.
-canonicalize :: SrcAnnType -> Typecheck Type
-canonicalize = cata f where
-    f :: SrcAnn SrcAnnTypeF (Typecheck Type) -> Typecheck Type
-    f (Ann _ t) = case t of
-        SliceType m -> fmap Fix $ Ty.Slice <$> m
-        ArrayType (Ann _ (getConst -> n)) m -> fmap Fix $ Array <$> pure n <*> m
-        StructType h -> fmap Fix $ Struct <$> traverse g h
+canonicalize :: SrcAnnType -> Typecheck TySrcAnnType
+canonicalize = annCata f where
+    f :: SrcSpan -> SrcAnnTypeF (Typecheck TySrcAnnType) -> Typecheck TySrcAnnType
+    f a t = case t of
+        SliceType m -> do
+            s@(Fix (Ann (t', _) s')) <- m
+            pure $ Fix $ Ann (Fix $ Ty.Slice t', a) (SliceType s)
+        ArrayType b@(Ann _ (getConst -> n)) m -> do
+            s@(Fix (Ann (t', _) s')) <- m
+            pure $ Fix $ Ann (Fix $ Array n t', a) (ArrayType b s)
+        StructType h -> do
+            h' <- forM h $ \(i, t') ->
+                (,) <$> pure i <*> t'
+
+            t' <- forM h $ \(i, m) ->
+                (,) <$> pure (annNat symbolFromIdent i) <*> (fst . topAnn <$> m)
+
+            pure $ Fix $ Ann (Fix $ Struct t', a) (StructType h')
         NamedType i@(Ann b (Ident name)) -> do
             minfo <- lookupSymbol name
 
@@ -138,10 +150,7 @@ canonicalize = cata f where
                         , symType = unknownType
                         }
 
-            pure $ symType info
-
-    g :: (SrcAnnIdent, Typecheck Type) -> Typecheck (SrcAnn Symbol (), Type)
-    g (i, m) = (,) <$> pure (annNat symbolFromIdent i) <*> m
+            pure $ Fix $ Ann (symType info, a) (NamedType i)
 
 -- | Typechecks a source position-annotated 'Package'.
 typecheckPackage :: SrcAnnPackage -> Typecheck TySrcAnnPackage
@@ -165,7 +174,10 @@ typecheckTypeDecl :: SrcAnnTypeDecl -> Typecheck SrcAnnTypeDecl
 typecheckTypeDecl d = case d of
     TypeDeclBody (Ann a (Ident i)) ty -> do
         ty' <- canonicalize ty
-        declareSymbol i $ TypeInfo { symLocation = SourcePosition a, symType = ty' }
+        declareSymbol i $ TypeInfo
+            { symLocation = SourcePosition a
+            , symType = fst (topAnn ty')
+            }
         pure $ TypeDeclBody (Ann a (Ident i)) ty
 
 -- | Typechecks a source position-annotated 'VarDecl'.
@@ -187,8 +199,9 @@ typecheckVarDecl d = case d of
 
                 Just declTy -> do
                     declTy' <- canonicalize declTy
-                    expr' <- requireExprType declTy' empty expr
-                    pure (declTy', expr')
+                    let (t, _) = topAnn declTy'
+                    expr' <- requireExprType t empty expr
+                    pure (t, expr')
 
             declareSymbol i $ VariableInfo
                 { symLocation = SourcePosition a
@@ -199,22 +212,23 @@ typecheckVarDecl d = case d of
 
         let (idents', exprs') = unzip ies'
 
-        pure $ VarDeclBody idents' mty exprs'
+        VarDeclBody <$> pure idents' <*> traverse canonicalize mty <*> pure exprs'
 
 -- | Typechecks a source position-annotated 'FunDecl'.
 typecheckFun :: SrcAnnFunDecl -> Typecheck TySrcAnnFunDecl
 typecheckFun e = case e of
-    FunDecl ident@(Ann a (Ident name)) args mretty stmts -> do
-        -- construct the canonical type of the function
-        ty <- funcType
-            <$> forM args (\(i, t) -> (,)
-                <$> pure (annNat symbolFromIdent i)
-                <*> canonicalize t
-            )
-            <*> (case mretty of
-                Nothing -> pure voidType
-                Just t -> canonicalize t
-            )
+    FunDecl ident@(Ann a (Ident name)) margs mretty stmts -> do
+        rettyAnn <- traverse canonicalize mretty
+
+        let retty = maybe voidType (fst . topAnn) rettyAnn
+
+        args <- forM margs $ \(i, t) -> (,)
+            <$> pure i
+            <*> canonicalize t
+
+        let ty = funcType
+                (map (\(i, t) -> (annNat symbolFromIdent i, fst (topAnn t))) args)
+                retty
 
         declareSymbol name $ VariableInfo
             { symLocation = SourcePosition a
@@ -222,16 +236,15 @@ typecheckFun e = case e of
             }
 
         stmts' <- withScope $ do
-            forM_ args $ \(Ann b (Ident argName), t) -> do
-                argTy <- canonicalize t
+            forM_ args $ \(Ann b (Ident argName), argTy) -> do
                 declareSymbol argName $ VariableInfo
                     { symLocation = SourcePosition b
-                    , symType = argTy
+                    , symType = fst (topAnn argTy)
                     }
 
             typecheckFunctionBody ty stmts
 
-        pure $ FunDecl ident args mretty stmts'
+        FunDecl <$> pure ident <*> pure args <*> pure rettyAnn <*> pure stmts'
 
 -- | Typechecks a source position-annotated fixed point of 'ExprF'.
 typecheckExpr :: SrcAnnExpr -> Typecheck TySrcAnnExpr
@@ -257,7 +270,7 @@ typecheckExpr = cata f where
             ty' <- canonicalize ty
             e' <- me
             typecheckConversion ty' e'
-            pure (ty', Conversion ty e')
+            pure (fst $ topAnn ty', Conversion ty' e')
 
         Selector me i -> do
             e' <- me
@@ -364,14 +377,12 @@ typecheckExpr = cata f where
 
             throwError $ WeederInvariantViolation $ text "type assertion not supported"
 
-            pure (ty', TypeAssertion e' ty)
+            pure (fst $ topAnn ty', TypeAssertion e' ty')
 
         Call me mty margs -> do
             e' <- me
             args <- sequence margs
-            ty <- forM mty $ \t -> Ann
-                <$> pure (topAnn t)
-                <*> (Const <$> canonicalize t)
+            ty <- forM mty canonicalize
 
             let (funTy, b) = topAnn e'
             t <- case unFix funTy of
@@ -403,7 +414,7 @@ typecheckExpr = cata f where
             -- types of the function parameters.
             -- The type of the call is the declared return type of the
             -- function.
-            pure (t, Call e' mty args)
+            pure (t, Call e' ty args)
 
         Literal (Ann la l) ->
             fmap (\ty -> (ty, Literal $ Ann (ty, la) l)) $ case l of
@@ -450,13 +461,14 @@ typecheckExpr = cata f where
 
     -- | Checks that a conversion is valid.
     typecheckConversion
-        :: Type
+        :: TySrcAnnType
         -> TySrcAnnExpr
         -> Typecheck ()
     typecheckConversion t e = do
+        let (ty, _) = topAnn t
         let (t', b) = topAnn e
-        (t, t') <== TypeMismatch
-            { mismatchExpectedType = t
+        (fst $ topAnn t, t') <== TypeMismatch
+            { mismatchExpectedType = ty
             , mismatchActualType = t'
             , mismatchCause = Ann b (Just e)
             , errorReason = empty
@@ -698,18 +710,18 @@ typecheckAssignment a e1 e2 (Ann aop op) = do
 typecheckBuiltin
     :: SrcSpan -- ^ The source position of the builtin call
     -> BuiltinType
-    -> Maybe (SrcAnn (Const Type) ())
+    -> Maybe TySrcAnnType
     -> [TySrcAnnExpr]
     -> Typecheck Type
 typecheckBuiltin a b mty exprs = do
     when (b /= MakeType)
         (case mty of
             Nothing -> pure ()
-            Just (Ann a' (getConst -> t)) ->
+            Just ty ->
                 reportError $ TypeArgumentError
                     { errorReason = text "only make can take type arguments"
-                    , errorLocation = a'
-                    , typeArgument = Just t
+                    , errorLocation = snd (topAnn ty)
+                    , typeArgument = Just (fst (topAnn ty))
                     })
     case b of
         AppendType -> withArgLengthCheck 2 a exprs (\_ ->
@@ -815,7 +827,7 @@ typecheckBuiltin a b mty exprs = do
                         , typeArgument = Nothing
                         }
                     pure unknownType
-                Just (Ann _ (getConst -> t)) ->
+                Just ty ->
                     -- Note: this isn't really optimal for error messages, we'd
                     -- expect 3 arguments, but one will be a type.
                     withArgLengthCheck 2 a exprs (\_ ->
@@ -824,7 +836,7 @@ typecheckBuiltin a b mty exprs = do
                         let (tyx, ax) = topAnn x in
                         let (tyy, ay) = topAnn y in
                         case (unFix $ unalias tyx, unFix $ unalias tyy) of
-                            (Ty.IntType _, Ty.IntType _) -> pure t
+                            (Ty.IntType _, Ty.IntType _) -> pure (fst (topAnn ty))
                             (x', y') -> do
                                 when (not $ isIntegral $ Fix y')
                                     (mismatchWithUnk tyy
@@ -878,14 +890,14 @@ typecheckBuiltin a b mty exprs = do
 -- signature.
 typecheckCall
     :: SrcSpan -- ^ The function call expression's source position
-    -> Maybe (SrcAnn (Const Type) ()) -- ^ An optional type argument
+    -> Maybe TySrcAnnType -- ^ An optional type argument
     -> [TySrcAnnExpr] -- ^ The expression arguments
     -> [(SrcAnn Symbol (), Type)] -- ^ The arguments of the function
     -> Typecheck ()
 typecheckCall pos tyArg exprs args = do
     case tyArg of
         Nothing -> pure ()
-        Just (Ann a (getConst -> t)) ->
+        Just (topAnn -> (t, a)) ->
             reportError $ TypeArgumentError
                 { errorReason = text "regular functions cannot take type arguments"
                 , errorLocation = a

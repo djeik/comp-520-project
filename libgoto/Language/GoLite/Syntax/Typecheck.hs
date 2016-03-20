@@ -45,13 +45,17 @@ type TySrcAnnTopLevelDecl
 
 -- | 'VarDecl' with type and source position annotations.
 type TySrcAnnVarDecl
-    = VarDecl SrcAnnIdent SrcAnnType TySrcAnnExpr
+    = VarDecl SrcAnnIdent TySrcAnnType TySrcAnnExpr
 
 -- | 'FunDecl' with type and source position annotations.
 type TySrcAnnFunDecl
-    = FunDecl SrcAnnIdent SrcAnnType TySrcAnnStatement
+    = FunDecl SrcAnnIdent TySrcAnnType (Maybe TySrcAnnType) TySrcAnnStatement
 
--- | 'Statement' with type and source position annotations.
+-- | A fixed point of 'SrcAnnTypeF' with type and source position annotations.
+type TySrcAnnType
+    = TySrcAnnFix SrcAnnTypeF
+
+-- | 'StatementF' with type and source position annotations.
 type TySrcAnnStatementF
     = StatementF
         TySrcAnnDeclaration
@@ -75,7 +79,7 @@ type TySrcAnnDeclaration
 
 -- | 'ExprF' with type and source position annotations.
 type TySrcAnnExprF
-    = ExprF SrcAnnIdent SrcAnnBinaryOp SrcAnnUnaryOp TySrcAnnLiteral SrcAnnType
+    = ExprF SrcAnnIdent SrcAnnBinaryOp SrcAnnUnaryOp TySrcAnnLiteral TySrcAnnType
 
 -- | The fixed point of 'TySrcAnnExprF' with type and source position
 -- annotations.
@@ -130,7 +134,7 @@ instance
                 pretty op
                 <+>
                 prettyParens (dr <= precedence op) (r <+> pretty (Comment tr))
-            UnaryOp op (dp, tp, p) -> (precedence op, tp,) $
+            UnaryOp op (dp, tp, p) -> (precedence op, ty,) $
                 pretty op
                 <>
                 prettyParens (dp <= precedence op) p

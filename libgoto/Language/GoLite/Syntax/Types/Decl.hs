@@ -118,8 +118,8 @@ instance
 
 
 -- | A function declaration.
-data FunDecl ident ty stmt
-    = FunDecl ident [(ident, ty)] (Maybe ty) [stmt]
+data FunDecl ident argTy retTy stmt
+    = FunDecl ident [(ident, argTy)] retTy [stmt]
     deriving (Eq, Ord, Read, Show)
 
 -- | Prints the \"func\" keyword followed by the function name, its argument
@@ -127,9 +127,10 @@ data FunDecl ident ty stmt
 -- in braces.
 instance
     ( Pretty ident
-    , Pretty ty
+    , Pretty argTy
+    , Pretty retTy
     , Pretty stmt
-    ) => Pretty (FunDecl ident ty stmt) where
+    ) => Pretty (FunDecl ident argTy retTy stmt) where
 
     pretty (FunDecl i args mret body)
         = text "func"

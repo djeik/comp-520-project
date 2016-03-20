@@ -51,7 +51,7 @@ type BasicTypeDecl
 
 -- | 'FunDecl' without annotations.
 type BasicFunDecl
-    = FunDecl BasicIdent BasicType BasicStatement
+    = FunDecl BasicIdent BasicType (Maybe BasicType) BasicStatement
 
 -- | 'TypeF' without annotations.
 type BasicTypeF

@@ -16,6 +16,7 @@ combinators for working with annotations.
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Language.GoLite.Annotation where
@@ -82,3 +83,8 @@ topAnn (Fix (Ann x _)) = x
 -- need specialized stripping functions.
 bareF :: Functor f => Fix (Ann x f) -> Fix f
 bareF = cata (Fix . bare)
+
+-- | Catamorphism specialized for annotated syntax trees.
+annCata :: Functor f => (x -> f a -> a) -> Fix (Ann x f) -> a
+annCata phi = cata g where
+    g (Ann x f) = phi x f

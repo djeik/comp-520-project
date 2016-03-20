@@ -46,7 +46,7 @@ instance
             NamedType n -> pretty n
             StructType t ->
                 text "struct" <+> prettyBraces True (
-                    sep $ map (\(id, ty) ->
-                        (pretty id) <+> ty <> semi
+                    sep $ map (\(i, ty) ->
+                        (pretty i) <+> ty <> semi
                     ) t
                 )

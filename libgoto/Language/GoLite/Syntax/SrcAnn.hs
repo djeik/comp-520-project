@@ -238,7 +238,7 @@ type SrcAnnTypeDecl
 
 -- | 'FunDecl' with source annotations.
 type SrcAnnFunDecl
-    = FunDecl SrcAnnIdent SrcAnnType SrcAnnStatement
+    = FunDecl SrcAnnIdent SrcAnnType (Maybe SrcAnnType) SrcAnnStatement
 
 -- | 'TypeF' with source annotations.
 type SrcAnnTypeF
