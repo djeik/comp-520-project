@@ -420,90 +420,6 @@ typecheckExpr = cata f where
                     reportError $ NotInScope { notInScopeIdent = x }
                     pure (unknownType, Variable x)
 
-    -- | Computes the canonical type of a binary operator expression.
-    typecheckBinaryOp
-        :: SrcAnnBinaryOp
-        -> SrcSpan -- ^ The span of the entire expression
-        -> TySrcAnnExpr
-        -> TySrcAnnExpr
-        -> Typecheck Type
-    typecheckBinaryOp o a l r
-        -- In general:
-        -- Types must be indentical modulo typedness
-        -- Expression is untyped iff both operands are untyped.
-        | isArithmeticOp $ bare o = case bare o of
-            ShiftLeft -> checkBinary isIntType
-                (text "must be an integer in a shift operation")
-            ShiftRight -> checkBinary isIntType
-                (text "must be an integer in a shift operation")
-            _ -> checkBinary isArithmetic (text "is not numerical")
-
-        | isComparisonOp $ bare o =
-            -- Special case: we check that the types are comparable, and
-            -- not that they're equal. The resulting type is always a typed
-            -- boolean, except when both operands are untyped booleans.
-                let tyl = fst $ topAnn l in
-                let tyr = fst $ topAnn r in do
-
-                if isComparable tyl tyr then
-                    case (unFix tyl, unFix tyr) of
-                        (BoolType False, BoolType False) -> pure untypedBoolType
-                        (_, _) -> pure typedBoolType
-                else do
-                    reportError $ BinaryTypeMismatch
-                        { mismatchTypeL = tyl
-                        , mismatchTypeR = tyr
-                        , errorLocation = a }
-                    pure unknownType
-
-        | isLogicalOp $ bare o =
-            checkBinary isLogical (text "is not logical")
-
-        | isOrderingOp $ bare o =
-            checkBinary isOrdered (text "cannot be ordered")
-        | otherwise = throwError UncategorizedOperator
-        where
-            checkBinary p e =
-                let (tyl, al) = topAnn l in
-                let (tyr, ar) = topAnn r in do
-
-                -- Check that the left type satisfies the predicate.
-                when (not $ p tyl)
-                    (reportError $ UnsatisfyingType
-                        { unsatOffender = tyl
-                        , unsatReason = e
-                        , errorLocation = al })
-
-                -- Check that the right type satisfies the predicate.
-                when (not $ p tyr)
-                    (reportError $ UnsatisfyingType
-                        { unsatOffender = tyr
-                        , unsatReason = e
-                        , errorLocation = ar })
-
-                if p tyr && p tyl then
-                    -- If they both satisfy the predicate, make sure they don't
-                    -- differ. We don't unalias them here.
-                    if tyr /= tyl then do
-                        reportError $ BinaryTypeMismatch
-                            { mismatchTypeL = tyl
-                            , mismatchTypeR = tyr
-                            , errorLocation = a }
-                        pure unknownType
-                    else
-                        -- If they are both untyped, the expression is untyped.
-                        -- Otherwise, it is typed.
-                        if isUntyped tyl && isUntyped tyr then
-                            pure tyl
-                        else
-                            pure $ defaultType tyl
-                else
-                    pure unknownType
-
-            isIntType (Fix (IntType _)) = True
-            isIntType _ = False
-
-
     -- | Computes the canonical type of a unary operator expression.
     typecheckUnaryOp
         :: SrcAnnUnaryOp
@@ -547,6 +463,95 @@ typecheckExpr = cata f where
             }
         pure ()
 
+-- | Computes the canonical type of a binary operator expression.
+typecheckBinaryOp
+    :: SrcAnnBinaryOp
+    -> SrcSpan -- ^ The span of the entire expression
+    -> TySrcAnnExpr
+    -> TySrcAnnExpr
+    -> Typecheck Type
+typecheckBinaryOp o a l r
+    -- In general:
+    -- Types must be indentical modulo typedness
+    -- Expression is untyped iff both operands are untyped.
+    | isArithmeticOp $ bare o = case bare o of
+        -- Plus is defined on strings.
+        Plus -> checkBinary (\ty -> isArithmetic ty || isString ty)
+            (text "must be numerical or string")
+        _ -> checkBinary isArithmetic (text "is not numerical")
+
+    | isComparisonOp $ bare o =
+        -- Special case: we check that the types are comparable, and
+        -- not that they're equal. The resulting type is always a typed
+        -- boolean, except when both operands are untyped booleans.
+            let tyl = fst $ topAnn l in
+            let tyr = fst $ topAnn r in do
+
+            if isComparable tyl tyr then
+                case (unFix tyl, unFix tyr) of
+                    (BoolType False, BoolType False) -> pure untypedBoolType
+                    (_, _) -> pure typedBoolType
+            else do
+                reportError $ BinaryTypeMismatch
+                    { mismatchTypeL = tyl
+                    , mismatchTypeR = tyr
+                    , errorLocation = a }
+                pure unknownType
+
+    | isLogicalOp $ bare o =
+        checkBinary isLogical (text "is not logical")
+
+    | isOrderingOp $ bare o =
+        checkBinary isOrdered (text "cannot be ordered")
+
+    | isIntegralOp $ bare o =
+        checkBinary isIntegral (text "is not integral")
+
+    | otherwise = throwError UncategorizedOperator
+    where
+        checkBinary p e =
+            let (tyl, al) = topAnn l in
+            let (tyr, ar) = topAnn r in do
+
+            -- Check that the left type satisfies the predicate.
+            when (not $ p tyl)
+                (reportError $ UnsatisfyingType
+                    { unsatOffender = tyl
+                    , unsatReason = e
+                    , errorLocation = al })
+
+            -- Check that the right type satisfies the predicate.
+            when (not $ p tyr)
+                (reportError $ UnsatisfyingType
+                    { unsatOffender = tyr
+                    , unsatReason = e
+                    , errorLocation = ar })
+
+            if p tyr && p tyl then
+                -- If they both satisfy the predicate, make sure they don't
+                -- differ. We don't unalias them here.
+                if tyr /= tyl then do
+                    reportError $ BinaryTypeMismatch
+                        { mismatchTypeL = tyl
+                        , mismatchTypeR = tyr
+                        , errorLocation = a }
+                    pure unknownType
+                else
+                    -- If they are both untyped, the expression is untyped.
+                    -- Otherwise, it is typed.
+                    if isUntyped tyl && isUntyped tyr then
+                        pure tyl
+                    else
+                        pure $ defaultType tyl
+            else
+                pure unknownType
+
+        isIntType (Fix (IntType _)) = True
+        isIntType _ = False
+
+
+
+
 -- | Typecheck the body of a function of a given type.
 typecheckFunctionBody
     :: Type
@@ -578,7 +583,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
 
             Assignment exprs1 assignOp exprs2 -> do
                 es <- forM (zip exprs1 exprs2) $ \(e1, e2) -> do
-                    typecheckAssignment e1 e2 assignOp
+                    typecheckAssignment a e1 e2 assignOp
 
                 let (exprs1', exprs2') = unzip es
                 pure $ Assignment exprs1' assignOp exprs2'
@@ -657,36 +662,29 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                         <$> mapM (requireExprType (fst (topAnn e)) empty) exprs
 
 typecheckAssignment
-    :: SrcAnnExpr
+    :: SrcSpan -- ^ The source span of the assignment
+    -> SrcAnnExpr
     -> SrcAnnExpr
     -> SrcAnnAssignOp
     -> Typecheck (TySrcAnnExpr, TySrcAnnExpr)
-typecheckAssignment e1 e2 (Ann _ op) = do
+typecheckAssignment a e1 e2 (Ann aop op) = do
     e1' <- typecheckExpr e1
     let (ty, _) = topAnn e1'
+    e2' <- requireExprType ty empty e2
 
-    e2' <- case op of
-        Assign -> checkE2 ty
-        -- Special case for +=: allow typed string self-concat.
-        PlusEq -> (case ty of
-                    Fix (StringType True) -> checkE2 ty
-                    _ -> checkAndSatisfy ty isArithmetic
-                         $ text "operands to += must be string or arithmetic")
-        _ ->    -- All assign-ops are arithmetic
-                checkAndSatisfy ty isArithmetic
-                         $ text "operands to assignment operations must be \
-                                \arithmetic"
+    let bop = assignOpToBinOp op
 
-
-    pure (e1', e2')
-
-    where
-        -- Check that the second expression agrees in type with the first one.
-        checkE2 ty = requireExprType ty empty e2
-        -- Additionally check that the checked second type satisfies a predicate
-        checkAndSatisfy ty p d = do
-            checkE2 ty
-            requireTypeToSatisfy p d e2
+    case bop of
+        -- Occurs when we have a normal assignment. In this case we have nothing
+        -- further to check.
+        Nothing -> pure (e1', e2')
+        -- Occurs when we have an assign-op. In this case we can check using the
+        -- rules for the corresponding binary operation. The only difference
+        -- between a = a `op` b and a `op=` b is that a is evaluated once in the
+        -- second case - the same typing rules should apply.
+        Just bop' -> do
+            typecheckBinaryOp (Ann aop bop') a e1' e2'
+            pure (e1', e2')
 
 {- | Typechecks a built-in. Each built-in has special rules governing it.
     Below are the expected function signatures for them.
@@ -760,7 +758,8 @@ typecheckBuiltin a b mty exprs = do
                         , mismatchCause = Ann ax (Just x)
                         , errorReason = empty }
 
-                    pure unknownType)
+                    -- The return type is always int.
+                    pure typedIntType)
 
         CopyType -> withArgLengthCheck 2 a exprs (\_ ->
             let x = head exprs in
@@ -783,16 +782,16 @@ typecheckBuiltin a b mty exprs = do
                 -- Try to have some better error reporting in case we have
                 -- a slice somewhere.
                 (Ty.Slice _, _) ->
-                    mismatchWithUnk tyx tyy (Ann ay $ Just y)
+                    mismatchWithInt tyx tyy (Ann ay $ Just y)
 
                 (_, Ty.Slice _) ->
-                    mismatchWithUnk tyy tyx (Ann ax $ Just x)
+                    mismatchWithInt tyy tyx (Ann ax $ Just x)
 
                 -- Finally if we have no good match, have an error for each
                 -- argument.
                 (_, _) -> do
-                    mismatchWithUnk tyx (sliceType unknownType) (Ann ax $ Just x)
-                    mismatchWithUnk tyy (sliceType unknownType) (Ann ay $ Just y))
+                    mismatchWithInt tyx (sliceType unknownType) (Ann ax $ Just x)
+                    mismatchWithInt tyy (sliceType unknownType) (Ann ay $ Just y))
 
         LenType -> withArgLengthCheck 1 a exprs (\_ ->
             let x = head exprs in
@@ -801,7 +800,7 @@ typecheckBuiltin a b mty exprs = do
                 Ty.Array _ _ -> pure typedIntType
                 Ty.Slice _ -> pure typedIntType
                 Ty.StringType _ -> pure typedIntType
-                _ -> mismatchWithUnk ty
+                _ -> mismatchWithInt ty
                         (typeSum [ arrayType 0 unknownType
                                 , sliceType unknownType
                                 , stringType True])
@@ -833,16 +832,16 @@ typecheckBuiltin a b mty exprs = do
                         case (unFix $ unalias tyx, unFix $ unalias tyy) of
                             (Ty.IntType _, Ty.IntType _) -> pure t
                             (x', y') -> do
-                                when (not $ isIntType y')
+                                when (not $ isIntegral $ Fix y')
                                     (mismatchWithUnk tyy
                                         typedIntType (Ann ay $ Just y) $> ())
-                                when (not $ isIntType x')
+                                when (not $ isIntegral $ Fix x')
                                     (mismatchWithUnk tyx
                                         typedIntType (Ann ax $ Just x) $> ())
-                                pure unknownType)
+                                pure t)
 
         -- Panic takes an interface{}, so really we don't care what it is.
-        -- The argument is useless if we're not implementing recover, but we
+        -- The argument is useless since we're not implementing recover, but we
         -- still want it to be able to compile Golite with a golang compiler.
         PanicType -> withArgLengthCheck 1 a exprs (\_ -> pure voidType)
 
@@ -857,22 +856,23 @@ typecheckBuiltin a b mty exprs = do
                     { argumentExpectedLength = n
                     , argumentActualLength = length es
                     , errorLocation = annot }
-                pure $ Fix UnknownType
+                pure unknownType
 
-        -- Reports a type mismatch error, then returns an unknown type
-        mismatchWithUnk expected actual cause = do
+        -- Reports a type mismatch error, then returns the given type.
+        mismatchWithTy expected actual cause ty = do
             reportError $ TypeMismatch
                 { mismatchExpectedType = expected
                 , mismatchActualType = actual
                 , mismatchCause = cause
                 , errorReason = empty }
 
-            pure unknownType
+            pure ty
 
-        isIntType (Ty.IntType _) = True
-        isIntType _ = False
+        -- Reports a type mismatch error, then returns an unknown type
+        mismatchWithUnk ex ac ca = mismatchWithTy ex ac ca unknownType
 
-
+        -- Reports a type mismatch error, then returns a typed int type
+        mismatchWithInt ex ac ca = mismatchWithTy ex ac ca typedIntType
 
 -- | Typechecks a regular function call. See 'typecheckBuiltin' for
 -- typechecking built-in functions.

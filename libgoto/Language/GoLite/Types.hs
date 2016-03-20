@@ -218,6 +218,21 @@ isOrdered (Fix t) = case t of
     StringType _-> True
     _ -> False
 
+-- | Tests whether a type is integral. Ints and runes are integral (both the
+-- typed and untyped versions). No other type is integral.
+isIntegral :: Type -> Bool
+isIntegral (Fix t) = case t of
+    IntType _ -> True
+    RuneType _ -> True
+    _ -> False
+
+-- | Tests whether a type is a typed or untyped string. Necessary for checking
+-- addition operations.
+isString :: Type -> Bool
+isString (Fix t) = case t of
+    StringType _ -> True
+    _ -> False
+
 -- | Decides whether two types are comparable. Types are comparable iff they
 -- are identical, except in the following cases:
 --
@@ -236,7 +251,7 @@ isComparable (Fix t) (Fix u) = case (t, u) of
     (_, _)-> t == u
 
 -- | Decides whether a type is arithmetic. An arithmetic type can have
--- arithmetic operations (addition, multiplication, shift, etc.) applied to it.
+-- arithmetic operations (addition, multiplication, etc.) applied to it.
 -- The types int, float and rune are arithmetic. No other type is arithmetic.
 isArithmetic :: Type -> Bool
 isArithmetic (Fix t) = case t of
@@ -286,7 +301,6 @@ instance Pretty BuiltinType where
         AppendType -> text "_ty_append"
         CapType -> text "_ty_cap"
         CopyType -> text "_ty_copy"
-        DeleteType -> text "_ty_delete"
         LenType -> text "_ty_len"
         MakeType -> text "_ty_make"
         PanicType -> text "_ty_panic"

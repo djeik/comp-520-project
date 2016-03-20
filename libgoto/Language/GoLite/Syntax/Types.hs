@@ -37,6 +37,8 @@ module Language.GoLite.Syntax.Types
 , isLogicalOp
 , isArithmeticOp
 , isOrderingOp
+, isIntegralOp
+, assignOpToBinOp
   -- * Convenience reexports
 , Fix(..)
 , Identity(..)

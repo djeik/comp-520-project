@@ -41,11 +41,17 @@ isLogicalOp :: BinaryOp a -> Bool
 isLogicalOp o = o == LogicalOr || o == LogicalAnd
 
 -- | Determines if a binary operator is an arithmetic operator (plus, multiply,
--- shift, etc.)
+-- subtract, divide)
 isArithmeticOp :: BinaryOp a -> Bool
-isArithmeticOp o = o == Plus || o == Minus || o == BitwiseOr || o == BitwiseXor
-        || o == Times || o == Divide || o == Modulo || o == ShiftLeft
-        || o == ShiftRight || o == BitwiseAnd || o == BitwiseAndNot
+isArithmeticOp o = o == Plus || o == Minus || o == Times || o == Divide
+
+-- | Determines if a binary operator is integral. Integral operators can only be
+-- applied to integral types. Modulo, shift and the bitwise operators are
+-- integral.
+isIntegralOp :: BinaryOp a -> Bool
+isIntegralOp o = o == BitwiseOr || o == BitwiseXor || o == BitwiseAnd
+    || o == BitwiseAndNot || o == Modulo || o == ShiftLeft || o == ShiftRight
+
 
 -- | Associates a precedence with each binary operator.
 instance HasPrecedence (BinaryOp a) where
@@ -137,6 +143,22 @@ data AssignOp a
     | TimesEq | DivideEq | ModuloEq
     | ShiftLeftEq | ShiftRightEq | BitwiseAndEq | BitwiseAndNotEq
     deriving (Eq, Functor, Ord, Read, Show)
+
+-- | From a given assign-op, obtains the corresponding binary op, if one exists.
+-- If not, Nothing is returned.
+assignOpToBinOp :: AssignOp a -> Maybe (BinaryOp a)
+assignOpToBinOp PlusEq = Just Plus
+assignOpToBinOp MinusEq = Just Minus
+assignOpToBinOp BitwiseOrEq = Just BitwiseOr
+assignOpToBinOp BitwiseXorEq = Just BitwiseXor
+assignOpToBinOp TimesEq = Just Times
+assignOpToBinOp DivideEq = Just Divide
+assignOpToBinOp ModuloEq = Just Modulo
+assignOpToBinOp ShiftLeftEq = Just ShiftLeft
+assignOpToBinOp ShiftRightEq = Just ShiftRight
+assignOpToBinOp BitwiseAndEq = Just BitwiseAnd
+assignOpToBinOp BitwiseAndNotEq = Just BitwiseAndNot
+assignOpToBinOp _ = Nothing
 
 -- | Lookup table.
 instance Pretty (AssignOp a) where
