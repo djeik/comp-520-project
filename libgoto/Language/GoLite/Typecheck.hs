@@ -546,12 +546,6 @@ typecheckBinaryOp o a l r
             else
                 pure unknownType
 
-        isIntType (Fix (IntType _)) = True
-        isIntType _ = False
-
-
-
-
 -- | Typecheck the body of a function of a given type.
 typecheckFunctionBody
     :: Type

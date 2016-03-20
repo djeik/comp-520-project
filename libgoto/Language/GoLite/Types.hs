@@ -147,6 +147,13 @@ instance Pretty Type where
                     hsep (punctuate comma (map (pretty . snd) args))
                 ) <+>
                 pretty rt
+            -- Those two degenerate cases for TypeSum should hopefully not occur
+            TypeSum [] -> empty
+            TypeSum [x] -> pretty x
+            -- "Intended" use for TypeSum
+            TypeSum xs -> hsep (punctuate comma (map pretty xs))
+                            <+> text "or"
+                            <+> (pretty $ last xs)
 
 -- | Tunnels down 'AliasType' constructors in a type to get the underlying type
 -- of a named type.
