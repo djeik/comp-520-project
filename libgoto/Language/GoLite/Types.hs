@@ -398,7 +398,86 @@ data Scope
 defaultRootScope :: Scope
 defaultRootScope = Scope
     { scopeMap = M.fromList
-        [ ( "make"
+        [ -- Predeclared types
+          ( "bool"
+          , TypeInfo
+            { symLocation = Builtin
+            , symType = typedBoolType
+            }
+          ),
+          ( "float64"
+          , TypeInfo
+            { symLocation = Builtin
+            , symType = typedFloatType
+            }
+          ),
+          ( "int"
+          , TypeInfo
+            { symLocation = Builtin
+            , symType = typedIntType
+            }
+          ),
+          ( "rune"
+          , TypeInfo
+            { symLocation = Builtin
+            , symType = typedRuneType
+            }
+          ),
+          ( "string"
+          , TypeInfo
+            { symLocation = Builtin
+            , symType = typedStringType
+            }
+          ),
+          ( "true"
+          , VariableInfo
+            { symLocation = Builtin
+            , symType = untypedBoolType
+            }
+          ),
+          ( "false"
+          , VariableInfo
+            { symLocation = Builtin
+            , symType = untypedBoolType
+            }
+          ),
+          ( "nil"
+          , VariableInfo
+            { symLocation = Builtin
+            , symType = nilType
+            }
+          ),
+          ( "false"
+          , VariableInfo
+            { symLocation = Builtin
+            , symType = untypedBoolType
+            }
+          ),
+          ( "append"
+          , VariableInfo
+            { symLocation = Builtin
+            , symType = builtinType AppendType
+            }
+          ),
+          ( "cap"
+          , VariableInfo
+            { symLocation = Builtin
+            , symType = builtinType CapType
+            }
+          ),
+          ( "copy"
+          , VariableInfo
+            { symLocation = Builtin
+            , symType = builtinType CopyType
+            }
+          ),
+          ( "len"
+          , VariableInfo
+            { symLocation = Builtin
+            , symType = builtinType LenType
+            }
+          ),
+          ( "make"
           , VariableInfo
             { symLocation = Builtin
             , symType = builtinType MakeType
