@@ -32,7 +32,7 @@ weedDecl (VarDecl (VarDeclBody _ ty es)) = do
         errorOnNil :: SrcAnnExpr -> Weeder ()
         errorOnNil e =
             when ("nil" `isIdAsOperand` e)
-                (reportError (topAnn e, "use of untyped nil"))
+                (reportError $ WeederException (topAnn e) "use of untyped nil")
 
 {- | Weeds a statement and its components.
 
@@ -63,7 +63,7 @@ weedStmt (Fix (Ann a (ExprStmt e))) = do
             when
                 (n `elem` ["append", "cap", "complex", "imag", "len", "make",
                             "new", "real"])
-                (reportError (a, n ++ " evaluated but not used."))
+                (reportError $ WeederException a (n ++ " evaluated but not used."))
         _ -> pure ()
     weedExpr e
 
@@ -89,13 +89,13 @@ weedStmt (Fix (Ann _ (PrintStmt es))) = pure $ (void . map) weedExpr es
 -- no return.
 weedStmt (Fix (Ann a (ReturnStmt Nothing))) = do
     ret <- gets funcHasReturn
-    when (ret) (reportError (a, "not enough arguments to return"))
+    when (ret) (reportError $ WeederException a "not enough arguments to return")
 
 -- Return statement with an expression: check that we're in a function that has
 -- a return, then weed the expression.
 weedStmt (Fix (Ann a (ReturnStmt (Just e)))) = do
     ret <- gets funcHasReturn
-    when (not ret) (reportError (a, "too many arguments to return"))
+    when (not ret) (reportError $ WeederException a "too many arguments to return")
 
     weedExpr e
 
@@ -116,7 +116,7 @@ weedStmt (Fix (Ann a (SwitchStmt init' e clauses))) = do
     let defs = filter isDefaultCase clauses
 
     when (length defs > 1)
-        (reportError (a, "multiple defaults in switch"))
+        (reportError $ WeederException a "multiple defaults in switch")
 
     modify $ \s -> incSwitchLevel s
     void $ mapM weedCaseHead clauses
@@ -136,16 +136,18 @@ weedStmt (Fix (Ann _ (ForStmt pre cond post body))) = do
 weedStmt (Fix (Ann a BreakStmt)) = do
     f <- gets forLevel
     s <- gets switchLevel
-    when (f == 0 && s == 0) (reportError (a, "break is not in a loop/switch"))
+    when (f == 0 && s == 0)
+        (reportError $ WeederException a "break outside of a loop/switch")
 
 -- Continue statement: may not occur outside of a for.
 weedStmt (Fix (Ann a ContinueStmt)) = do
     f <- gets forLevel
-    when (f == 0) (reportError (a, "continue is not in a loop"))
+    when (f == 0)
+        (reportError $ WeederException a "continue outside of a loop")
 
 -- Fallthrough statement: may not occur (is not supported)
 weedStmt (Fix (Ann a FallthroughStmt)) =
-    reportError (a, "fallthrough is unsupported")
+    reportError $ WeederException a "fallthrough is unsupported"
 
 -- Block statement: weed inner statements.
 weedStmt (Fix (Ann _ (Block b))) = void $ mapM weedStmt b
@@ -170,5 +172,5 @@ errorIfNil e = errorIfIdIs "nil" e "cannot use \"nil\" in this position"
 
 errorIfIdIs :: String -> SrcAnnExpr -> String -> Weeder ()
 errorIfIdIs i (Fix (Ann _ (Variable (Ann a (Ident n))))) e =
-    when (i == n) (reportError (a, e))
+    when (i == n) (reportError $ WeederException a e)
 errorIfIdIs _ _ _ = pure ()

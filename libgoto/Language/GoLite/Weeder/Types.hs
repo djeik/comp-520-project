@@ -13,19 +13,37 @@ The errors detected are described in the other submodules of
 'Language.GoLite.Weeder'; this module only specifies the types required.
 -}
 
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Language.GoLite.Weeder.Types where
 
 import Data.Void ( Void )
 
+import Text.PrettyPrint
+
 import Language.GoLite.Monad.Traverse
+import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
 
 -- | Errors that can occur during weeding are tagged with a source position and
 -- a string detailing the error.
-type WeederException = (SrcSpan, String)
+data WeederException = WeederException { sourcePos :: SrcSpan, errorMsg :: String }
+
+-- | Shows the source position, followed by a colon, followed by the error.
+instance Pretty WeederException where
+    pretty e =  (text $ show $ sourcePos e)
+            <> text ":"
+            <+> (text $ errorMsg e)
+
+-- | Used to declare a custom pretty instance for a list of weeder exceptions.
+newtype WeederExceptions = WeederExceptions { weederErrors :: [WeederException] }
+
+-- | Shows every exception on its own line instead of a standard list.
+instance Pretty WeederExceptions where
+    pretty es = hcat $ punctuate (text "\n") (map pretty $ weederErrors es)
 
 -- | Internal state used by the weeder.
 data WeederState
@@ -40,7 +58,6 @@ data WeederState
         , weedErrors :: [WeederException]
         -- ^ Errors accumulated so far.
         }
-    deriving (Show)
 
 -- | Increases the level of for-loop nesting by one.
 incForLevel :: WeederState -> WeederState

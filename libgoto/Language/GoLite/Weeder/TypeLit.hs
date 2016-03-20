@@ -46,6 +46,6 @@ weedFields fs = do
     forM_ fs (\f ->
         let (Ann a (Ident n)) = fst f in
         if n /= "_" && n `S.member` s then
-            reportError (a, "duplicate name " ++ n)
+            reportError $ WeederException a ("duplicate name " ++ n)
         else
             void $ pure $ S.insert n s)

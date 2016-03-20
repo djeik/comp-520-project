@@ -90,14 +90,18 @@ goto g = case g of
         ex <- parseGoLiteFile f
         case ex of
             Left e -> hPutStrLn stderr $ noNewLines $ show e
-            Right r -> putStrLn $ renderGoLite (pretty r)
+            Right r -> case weedGoLiteProgram r of
+                Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
+                Nothing -> putStrLn $ renderGoLite (pretty r)
     PrettyType f -> do
         ex <- parseGoLiteFile f
         case ex of
             Left e -> hPutStrLn stderr $ noNewLines $ show e
-            Right r -> do
-                let p = G.typecheckPackage r
-                putStrLn $ renderGoLite (pretty p)
+            Right r -> case weedGoLiteProgram r of
+                Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
+                Nothing -> do
+                    let p = G.typecheckPackage r
+                    putStrLn $ renderGoLite (pretty p)
     RoundTrip f -> do
         ex <- parseGoLiteFile f
         case ex of
@@ -106,24 +110,39 @@ goto g = case g of
                 putStrLn $ noNewLines $ show e
                 exitFailure
             Right r -> do
-                let s = renderGoLite (pretty r)
-                case parseOnly G.packageP "<pretty>" s of
-                    Left e -> do
-                        putStrLn $ "failed to parse pretty-printed program"
-                        putStrLn $ noNewLines $ show e
-                        putStrLn $ s
-                        exitFailure
-                    Right r' -> do
-                        let s' = renderGoLite (pretty r')
-                        case s == s' of
-                            True -> putStrLn "OK"
-                            False -> do
-                                putStrLn "Round-trip failed.\n"
-                                putStrLn "First pretty-print:"
-                                putStrLn s
-                                putStrLn "\nSecond pretty-print:"
-                                putStrLn s'
+                case weedGoLiteProgram r of
+                    Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
+                    Nothing -> do
+                        let s = renderGoLite (pretty r)
+                        case parseOnly G.packageP "<pretty>" s of
+                            Left e -> do
+                                putStrLn $ "failed to parse pretty-printed program"
+                                putStrLn $ noNewLines $ show e
+                                putStrLn $ s
                                 exitFailure
+                            Right r' -> case weedGoLiteProgram r of
+                                Just es -> do
+                                    putStrLn $ "failed to weed pretty-printed program"
+                                    putStrLn $ renderGoLite (pretty es)
+                                    putStrLn $ s
+                                    exitFailure
+                                Nothing -> do
+                                    let s' = renderGoLite (pretty r')
+                                    case s == s' of
+                                        True -> putStrLn "OK"
+                                        False -> do
+                                            putStrLn "Round-trip failed.\n"
+                                            putStrLn "First pretty-print:"
+                                            putStrLn s
+                                            putStrLn "\nSecond pretty-print:"
+                                            putStrLn s'
+                                            exitFailure
+
+weedGoLiteProgram :: SrcAnnPackage -> Maybe G.WeederExceptions
+weedGoLiteProgram p =
+    case G.weed p of
+        [] -> Nothing
+        xs -> Just $ G.WeederExceptions xs
 
 parseGoLiteFile :: InputFile -> IO (Either G.ParseError SrcAnnPackage)
 parseGoLiteFile f = do

@@ -35,7 +35,7 @@ weedExpr = cata phi where
     phi (Ann a (UnaryOp o _)) =
         let o' = bare o in
         when (o' == Dereference || o' == Reference || o' == Receive)
-            (reportError (a, "Unsupported operator"))
+            (reportError $ WeederException a "Unsupported operator")
 
     -- Conversion: weed the type
     phi (Ann _ (Conversion ty _)) = weedType ty
@@ -46,7 +46,7 @@ weedExpr = cata phi where
 
     -- Type assertion: unsupported
     phi (Ann a (TypeAssertion _ _)) =
-        reportError (a, "Type assertions are unsupported")
+        reportError $ WeederException a "Type assertions are unsupported"
 
     -- Call: weed the type
     phi (Ann _ (Call _ ty _)) = do

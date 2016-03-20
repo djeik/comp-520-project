@@ -12,6 +12,8 @@ declarations.
 
 module Language.GoLite.Weeder (
   weed
+, WeederException( .. )
+, WeederExceptions( .. )
 ) where
 
 import Language.GoLite.Weeder.Core
@@ -42,21 +44,14 @@ weedTopLevelDecl :: SrcAnnTopLevelDecl -> Weeder ()
 weedTopLevelDecl (TopLevelDecl d) = weedDecl d
 weedTopLevelDecl (TopLevelFun f) = weedFunDecl f
 
-{- | Weeds a function declaration.
-
-    * Functions named @init@ may not declare any arguments or return types.
-    * Functions with declared return types must end with a terminating statement.
--}
+-- | Weeds a function declaration. Functions with declared return types must end
+-- with a terminating statement.
 weedFunDecl :: SrcAnnFunDecl -> Weeder ()
-weedFunDecl (FunDecl (Ann a (Ident n)) pars rty bod) = do
-    when (n == "init" && (pars /= [] || rty /= Nothing))
-        (reportError (a, "func init must have no arguments \
-                            \and no return values"))
+weedFunDecl (FunDecl (Ann a _) pars rty bod) = do
 
-    when (n /= "init"
-        && isJust rty
+    when (isJust rty
         && (bod == [] || (not $ isTerminating $ bareStmt (last bod))))
-        (reportError (a, "missing return at end of function"))
+        (reportError $ WeederException a "missing return at end of function")
 
     weedFields pars
 
@@ -81,7 +76,7 @@ weedFunDecl (FunDecl (Ann a (Ident n)) pars rty bod) = do
         * No case contains a break.
         * Every case ends in a terminating statement.
 
-    * Every other statement is non-terminating.
+    * No other statement is terminating.
 -}
 isTerminating :: BasicStatement -> Bool
 isTerminating (Fix (ReturnStmt _)) = True

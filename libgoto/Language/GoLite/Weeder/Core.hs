@@ -44,4 +44,4 @@ isIdAsOperand _ _ = False
 -- identifier's position and the given error message.
 errorOnBlankIdentifier :: SrcAnnIdent -> String -> Weeder ()
 errorOnBlankIdentifier (Ann a (Ident n)) m =
-    when (n == "_") (reportError (a, m))
+    when (n == "_") (reportError $ WeederException a m)
