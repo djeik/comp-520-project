@@ -380,6 +380,19 @@ data Scope
         }
     deriving (Eq, Ord, Show)
 
+-- | The root scope containing builtin functions and types.
+defaultRootScope :: Scope
+defaultRootScope = Scope
+    { scopeMap = M.fromList
+        [ ( "make"
+          , VariableInfo
+            { symLocation = Builtin
+            , symType = builtinType MakeType
+            }
+          )
+        ]
+    }
+
 data Symbol a
     = NamedSymbol SymbolName
     -- ^ A named symbol.
