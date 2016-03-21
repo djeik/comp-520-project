@@ -148,6 +148,10 @@ data TypeError
     | UntypedNil
         { errorLocation :: SrcSpan
         }
+    -- | No new variables were introduced on the left-hand side of :=
+    | NoNewVariables
+        { errorLocation :: SrcSpan
+        }
     -- | An expression whose value was required was found to have a type that
     -- does not have values.
     | IllegalNonvalueType
@@ -297,6 +301,7 @@ typeErrorLocation e = case e of
     BinaryTypeMismatch { errorLocation = a } -> SourcePosition a
     UntypedNil { errorLocation = a } -> SourcePosition a
     IllegalNonvalueType { errorLocation = a } -> SourcePosition a
+    NoNewVariables { errorLocation = a } -> SourcePosition a
 
 -- | All errors that can actually be thrown.
 data TypecheckError

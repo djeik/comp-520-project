@@ -87,11 +87,11 @@ modifyTopScope f = do
             top' <- f top
             modify $ \s -> s { _scopes = top' : others }
 
--- | Adds a variable to the top scope.
+-- | Adds a symbol to the top scope.
 --
 -- If the scope stack is empty, throws 'EmptyScopeStack'.
 --
--- If the variable already exists, then a non-fatal redeclaration error is
+-- If the symbol already exists, then a non-fatal redeclaration error is
 -- raised and the insertion is not performed.
 declareSymbol :: SymbolName -> SymbolInfo -> Typecheck ()
 declareSymbol name info = modifyTopScope $ \(Scope m) -> do
@@ -102,6 +102,18 @@ declareSymbol name info = modifyTopScope $ \(Scope m) -> do
                 , redeclNew = info
                 }
             pure (Scope m) -- return the scope unchanged
+        Nothing -> pure (Scope $ M.insert name info m)
+
+-- | Adds a symbol to the top scope.
+--
+-- If the scope stack is empty, throws 'EmptyScopeStack'.
+--
+-- If the symbol already exists in the top scope, this function silently does
+-- nothing.
+declareSymbol' :: SymbolName -> SymbolInfo -> Typecheck ()
+declareSymbol' name info = modifyTopScope $ \(Scope m) -> do
+    case M.lookup name m of
+        Just _ -> pure (Scope m)
         Nothing -> pure (Scope $ M.insert name info m)
 
 -- | Looks up a variable in the scope stack.
@@ -689,11 +701,18 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                 pure $ ExprStmt t
 
             ShortVarDecl idents exprs -> do
+                hasNoRedeclarations <- null . filter (== Nothing)
+                    <$> mapM (lookupSymbol . unIdent . bare) idents
+
+                when hasNoRedeclarations $ reportError $ NoNewVariables
+                        { errorLocation = a
+                        }
+
                 ies <- forM (zip idents exprs) $ \(Ann b (Ident i), e) -> do
                     e' <- typecheckExpr e
                     let (ty, _) = topAnn e'
 
-                    declareSymbol i $ VariableInfo
+                    declareSymbol' i $ VariableInfo
                         { symLocation = SourcePosition b
                         , symType = ty
                         }

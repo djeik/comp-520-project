@@ -213,7 +213,9 @@ instance Pretty (Literal a) where
 
 -- | Identifiers are just wrapped strings.
 data Ident a
-    = Ident String
+    = Ident
+        { unIdent :: String
+        }
     deriving (Eq, Functor, Ord, Read, Show)
 
 -- | Unwraps the string from the 'Ident' as displays it.
