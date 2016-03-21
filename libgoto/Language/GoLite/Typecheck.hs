@@ -844,7 +844,7 @@ typecheckBuiltin a b mty exprs = do
                                 when (not $ isIntegral $ Fix x')
                                     (mismatchWithUnk tyx
                                         typedIntType (Ann ax $ Just x) $> ())
-                                pure t)
+                                pure (fst (topAnn ty))
 
         -- Panic takes an interface{}, so really we don't care what it is.
         -- The argument is useless since we're not implementing recover, but we
