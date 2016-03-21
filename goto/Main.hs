@@ -108,7 +108,7 @@ goto g = case g of
                     (Right _, _errors -> []) -> putStrLn "success"
                     (Right _, _errors -> xs) -> do
                         forM_ xs $ \er -> do
-                            print er
+                            putStrLn (renderGoLite (pretty er))
     RoundTrip f -> do
         ex <- parseGoLiteFile f
         case ex of

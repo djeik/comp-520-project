@@ -27,11 +27,12 @@ transformation is in "Language.GoLite.Typecheck".
 module Language.GoLite.Typecheck.Types where
 
 import Language.GoLite.Monad.Traverse
+import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Typecheck
 import Language.GoLite.Types
 
-import Text.PrettyPrint ( Doc )
+import Text.PrettyPrint
 
 -- | The typecheck monad tracks errors in its state. Fatal errors cause a true
 -- exception to the thrown (in the 'ExceptT' sense) whereas non-fatal errors
@@ -144,6 +145,41 @@ data TypeError
         , errorLocation :: SrcSpan
         }
     deriving (Eq, Show)
+
+newtype ErrorPosition = ErrorPosition SymbolLocation
+
+instance Pretty ErrorPosition where
+    pretty (ErrorPosition loc) = case loc of
+        SourcePosition span ->
+            let start = srcStart span in
+            let name = text (sourceName start) in
+            let column = int (sourceColumn start) in
+            let line = int (sourceLine start) in
+            name <> colon <> line <> colon <> column <> colon
+        Builtin ->
+            text "builtin location:"
+
+instance Pretty TypeError where
+    pretty err = case err of
+        TypeMismatch {} ->
+            pretty (ErrorPosition (typeErrorLocation err)) $+$ nest indentLevel (
+                text "cannot match expected type" $+$ nest indentLevel (
+                    pretty (mismatchExpectedType err)
+                ) $+$
+                text "with actual type" $+$ nest indentLevel (
+                    pretty (mismatchActualType err)
+                ) $+$ (case mismatchCause err of
+                    Ann a Nothing -> empty
+                    Ann a (Just e) ->
+                        text "in the expression" $+$ nest indentLevel (
+                            pretty e
+                        )
+                )
+            )
+        _ ->
+            pretty (ErrorPosition (typeErrorLocation err)) $+$ nest indentLevel (
+                text "unknown type error"
+            )
 
 type MismatchCause = SrcAnn Maybe TySrcAnnExpr
 

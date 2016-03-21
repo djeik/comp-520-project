@@ -64,6 +64,10 @@ module Language.GoLite.Syntax.SrcAnn
 , bareType
 , bareStmt
 , bareExpr
+  -- * Reexports for dealing with @SourcePos@
+, sourceName
+, sourceLine
+, sourceColumn
 ) where
 
 import Language.GoLite.Annotation
