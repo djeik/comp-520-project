@@ -19,7 +19,11 @@ result is a typechecked syntax tree, as described in
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Language.GoLite.Typecheck where
+module Language.GoLite.Typecheck
+( runTypecheck
+, _errors
+, typecheckPackage
+) where
 
 import Language.GoLite.Misc
 import Language.GoLite.Monad.Traverse
