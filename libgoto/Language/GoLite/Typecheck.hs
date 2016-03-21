@@ -191,8 +191,8 @@ typecheckVarDecl d = case d of
         declTy <- case mty of
             Nothing -> throwError ParserInvariantViolation
                 { errorDescription
-                    = text "not both the expression list and type may be"
-                    <+> text "omitted from a declaration"
+                    = text "at least one of the expression list and type must\
+                            \be present in a declaration"
                 }
             Just ty -> canonicalize ty
 
@@ -219,9 +219,21 @@ typecheckVarDecl d = case d of
             (ty', expr') <- case ty of
                 Nothing -> do
                     expr' <- typecheckExpr expr
-                    let (ty, _) = topAnn expr'
-                    pure (ty, expr')
-
+                    let (tye, ae) = topAnn expr'
+                    case tye of
+                        Fix NilType -> do
+                            reportError $ UntypedNil ae
+                            pure (unknownType, expr')
+                        Fix VoidType -> do
+                            reportError $ IllegalDeclType tye ae
+                            pure (unknownType, expr')
+                        Fix (FuncType _ _) -> do
+                            reportError $ IllegalDeclType tye ae
+                            pure (unknownType, expr')
+                        Fix (BuiltinType _) -> do
+                            reportError $ IllegalDeclType tye ae
+                            pure (unknownType, expr')
+                        _ -> pure (tye, expr')
                 Just declTy -> do
                     let (t, _) = topAnn declTy
                     expr' <- requireExprType t empty expr
@@ -608,7 +620,20 @@ typecheckFunctionBody fty = mapM typecheckStmt where
         f (Ann a s) = Fix . Ann a <$> case s of
             DeclStmt decl -> DeclStmt <$> typecheckDecl decl
 
-            ExprStmt expr -> ExprStmt <$> typecheckExpr expr
+            ExprStmt expr -> do
+                t <- typecheckExpr expr
+                case bare $ unFix t of
+                    (Call ee _ _) -> do
+                        let (tyCall, _) = topAnn ee
+                        when (not $ isAllowedInExprStmt tyCall)
+                            (reportError $ UnsatisfyingType
+                                { unsatOffender = tyCall
+                                , unsatReason = text "cannot be used in \
+                                  \expression statement context"
+                                , errorLocation = a})
+                    _ -> throwError $ ParserInvariantViolation
+                                    $ text "ExprStmt should always be a call"
+                pure $ ExprStmt t
 
             ShortVarDecl idents exprs -> do
                 ies <- forM (zip idents exprs) $ \(Ann b (Ident i), e) -> do
@@ -701,8 +726,20 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                 CaseExpr exprs -> case mcond of
                     Nothing -> CaseExpr
                         <$> mapM (requireExprType typedBoolType empty) exprs
-                    Just e -> CaseExpr
-                        <$> mapM (requireExprType (fst (topAnn e)) empty) exprs
+                    Just e -> do
+                        let (ty, a) = topAnn e
+                        let reqd =
+                            case ty of
+                                Fix NilType -> do
+                                    reportError $ UnsatisfyingType
+                                        { unsatOffender = ty
+                                        , unsatReason = "cannot be used as the \
+                                          \expression of a switch statement"
+                                        , errorLocation = a }
+                                    unknownType
+                                _ -> ty
+
+                        CaseExpr <$> mapM (requireExprType reqd empty) exprs
 
 typecheckAssignment
     :: SrcSpan -- ^ The source span of the assignment

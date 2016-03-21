@@ -152,7 +152,7 @@ instance Pretty Type where
             TypeSum [] -> empty
             TypeSum [x] -> pretty x
             -- "Intended" use for TypeSum
-            TypeSum xs -> hsep (punctuate comma (map pretty xs))
+            TypeSum xs -> hsep (punctuate comma (map pretty $ init xs))
                             <+> text "or"
                             <+> (pretty $ last xs)
 
@@ -204,6 +204,17 @@ isBuiltinType :: Type -> Bool
 isBuiltinType (Fix t) = case t of
     BuiltinType _ -> True
     _ -> False
+
+-- | Decides whether a type is allowed as a function call in expression statement
+-- context. Only the builtins @append@, @cap@, @len@ and @make@ are not allowed
+-- in that context.
+isAllowedInExprStmt :: Type -> Bool
+isAllowedInExprStmt (Fix t) = case t of
+    BuiltinType AppendType -> False
+    BuiltinType CapType -> False
+    BuiltinType LenType -> False
+    BuiltinType MakeType -> False
+    _ -> True
 
 -- | Decides whether the type is of an untyped constant.
 isUntyped :: Type -> Bool

@@ -144,6 +144,16 @@ data TypeError
         , mismatchTypeR :: Type
         , errorLocation :: SrcSpan
         }
+    -- | Nil was used in a variable declaration without a type.
+    | UntypedNil
+        { errorLocation :: SrcSpan
+        }
+    -- | A variable was declared with a type that variables cannot have.
+    | IllegalDeclType
+        { offendingType :: Type
+        , errorLocation :: SrcSpan
+        }
+
     deriving (Eq, Show)
 
 newtype ErrorPosition = ErrorPosition SymbolLocation
@@ -196,6 +206,8 @@ typeErrorLocation e = case e of
     ArgumentLengthMismatch { errorLocation = a } -> SourcePosition a
     CallTypeMismatch { mismatchCause = Ann a _ } -> SourcePosition a
     BinaryTypeMismatch { errorLocation = a } -> SourcePosition a
+    UntypedNil { errorLocation = a } -> SourcePosition a
+    IllegalDeclType { errorLocation = a } -> SourcePosition a
 
 -- | All errors that can actually be thrown.
 data TypecheckError
