@@ -12,6 +12,7 @@ Defines the core types used in the internal representation of GoLite code.
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Language.GoLite.Types where
 
@@ -240,8 +241,8 @@ isString (Fix t) = case t of
     StringType _ -> True
     _ -> False
 
--- | Decides whether two types are comparable. Types are comparable iff they
--- are identical, except in the following cases:
+-- | Decides whether two types are comparable. Types are comparable iff their
+-- default types are identical, except in the following cases:
 --
 --    * Slice types are not comparable to each other.
 --    * Slice types can be compared to nil.
@@ -251,7 +252,7 @@ isString (Fix t) = case t of
 --
 -- This function is commutative: isComparable = flip . isComparable
 isComparable :: Type -> Type -> Bool
-isComparable (Fix t) (Fix u) = case (t, u) of
+isComparable (defaultType -> Fix t) (defaultType -> Fix u) = case (t, u) of
     (Slice _, Slice _) -> False
     (Slice _, NilType) -> True
     (NilType, Slice _) -> True

@@ -566,7 +566,7 @@ typecheckBinaryOp o a l r
             if p tyr && p tyl then
                 -- If they both satisfy the predicate, make sure they don't
                 -- differ. We don't unalias them here.
-                if tyr /= tyl then do
+                if defaultType tyr /= defaultType tyl then do
                     reportError $ BinaryTypeMismatch
                         { mismatchTypeL = tyl
                         , mismatchTypeR = tyr
