@@ -33,6 +33,7 @@ f $> c = fmap (const c) f
 
 -- | Zips two lists and returns the part that would have been truncated.
 safeZip :: [a] -> [b] -> ([(a, b)], Maybe (Either [a] [b]))
+safeZip [] [] = ([], Nothing)
 safeZip [] ys = ([], Just $ Right ys)
 safeZip xs [] = ([], Just $ Left xs)
 safeZip (x:xs) (y:ys) = ((x, y) : xys, z) where
