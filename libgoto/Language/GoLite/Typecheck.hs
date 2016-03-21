@@ -187,23 +187,43 @@ typecheckTypeDecl d = case d of
 -- | Typechecks a source position-annotated 'VarDecl'.
 typecheckVarDecl :: SrcAnnVarDecl -> Typecheck TySrcAnnVarDecl
 typecheckVarDecl d = case d of
+    VarDeclBody idents mty [] -> do
+        declTy <- case mty of
+            Nothing -> throwError ParserInvariantViolation
+                { errorDescription
+                    = text "not both the expression list and type may be"
+                    <+> text "omitted from a declaration"
+                }
+            Just ty -> canonicalize ty
+
+        forM_ idents $ \(Ann a (Ident i)) -> do
+            declareSymbol i $ VariableInfo
+                { symLocation = SourcePosition a
+                , symType = fst $ topAnn declTy
+                }
+
+        pure $ VarDeclBody idents (pure declTy) []
+
     VarDeclBody idents mty exprs -> do
         let (ies, rest) = safeZip idents exprs
 
-        unless (isNothing rest)
-            (throwError $ WeederInvariantViolation
-                        $ text "VarDecl with differing lengths on each side.")
+        unless (isNothing rest) $ throwError WeederInvariantViolation
+            { errorDescription
+                = text "VarDecl with differing length on each side:"
+                <+> text (show rest)
+            }
+
+        ty <- traverse canonicalize mty
 
         ies' <- forM ies $ \(Ann a (Ident i), expr) -> do
-            (ty', expr') <- case mty of
+            (ty', expr') <- case ty of
                 Nothing -> do
                     expr' <- typecheckExpr expr
                     let (ty, _) = topAnn expr'
                     pure (ty, expr')
 
                 Just declTy -> do
-                    declTy' <- canonicalize declTy
-                    let (t, _) = topAnn declTy'
+                    let (t, _) = topAnn declTy
                     expr' <- requireExprType t empty expr
                     pure (t, expr')
 
@@ -216,7 +236,7 @@ typecheckVarDecl d = case d of
 
         let (idents', exprs') = unzip ies'
 
-        VarDeclBody <$> pure idents' <*> traverse canonicalize mty <*> pure exprs'
+        pure $ VarDeclBody idents' ty exprs'
 
 -- | Typechecks a source position-annotated 'FunDecl'.
 typecheckFun :: SrcAnnFunDecl -> Typecheck TySrcAnnFunDecl
