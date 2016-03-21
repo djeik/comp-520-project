@@ -252,21 +252,29 @@ isString (Fix t) = case t of
     StringType _ -> True
     _ -> False
 
--- | Decides whether two types are comparable. Types are comparable iff their
--- default types are identical, except in the following cases:
---
---    * Slice types are not comparable to each other.
---    * Slice types can be compared to nil.
---
--- Comparable types can be tested for equality or inequality using @==@ and
--- @!=@.
---
--- This function is commutative: isComparable = flip . isComparable
+{- | Decides whether two types are comparable. Types are comparable iff their
+   default types are identical, except in the following cases:
+
+      * Slice types are not comparable to each other.
+      * Slice types can be compared to nil.
+      * Array types are comparable if their inner types are comparable and they
+        have the same length.
+
+   Comparable types can be tested for equality or inequality using @==@ and
+   @!=@.
+
+  This function is commutative: isComparable = flip . isComparable -}
 isComparable :: Type -> Type -> Bool
 isComparable (defaultType -> Fix t) (defaultType -> Fix u) = case (t, u) of
     (Slice _, Slice _) -> False
     (Slice _, NilType) -> True
     (NilType, Slice _) -> True
+    (Array m t, Array n u) -> m == n && t `isComparable` u
+    (Struct ts, Struct us) -> and $
+                                map (\((i, t'), (i', u')) ->
+                                        bare i == bare i'
+                                    &&  t' `isComparable` u')
+                                    (zip ts us)
     (_, _)-> t == u
 
 -- | Decides whether a type is arithmetic. An arithmetic type can have
