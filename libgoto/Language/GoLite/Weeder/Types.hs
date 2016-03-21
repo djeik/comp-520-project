@@ -30,7 +30,11 @@ import Language.GoLite.Syntax.SrcAnn
 
 -- | Errors that can occur during weeding are tagged with a source position and
 -- a string detailing the error.
-data WeederException = WeederException { sourcePos :: SrcSpan, errorMsg :: String }
+data WeederException = WeederException
+    { sourcePos :: SrcSpan
+    , errorMsg :: String
+    }
+    deriving ( Show )
 
 -- | Shows the source position, followed by a colon, followed by the error.
 instance Pretty WeederException where
@@ -39,7 +43,9 @@ instance Pretty WeederException where
             <+> (text $ errorMsg e)
 
 -- | Used to declare a custom pretty instance for a list of weeder exceptions.
-newtype WeederExceptions = WeederExceptions { weederErrors :: [WeederException] }
+newtype WeederExceptions = WeederExceptions
+    { weederErrors :: [WeederException] }
+    deriving ( Show )
 
 -- | Shows every exception on its own line instead of a standard list.
 instance Pretty WeederExceptions where

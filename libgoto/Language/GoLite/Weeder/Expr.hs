@@ -18,8 +18,6 @@ module Language.GoLite.Weeder.Expr
 import Language.GoLite.Weeder.Core
 import Language.GoLite.Weeder.TypeLit
 
-import Data.Functor.Foldable ( cata )
-
 {-| Weeds an expression and its sub-expressions.
 
     * The blank identifier may not be used in an expression. Cases where this is
@@ -29,32 +27,46 @@ import Data.Functor.Foldable ( cata )
     * Types in an expression are weeeded.
 -}
 weedExpr :: SrcAnnExpr -> Weeder ()
-weedExpr = cata phi where
+-- Binary operator: weed both sides.
+weedExpr (Fix (Ann _ (BinaryOp _ l r))) = weedExpr l >> weedExpr r
 
-    -- Unary operator: weed the operator.
-    phi (Ann a (UnaryOp o _)) =
-        let o' = bare o in
-        when (o' == Dereference || o' == Reference || o' == Receive)
-            (reportError $ WeederException a "Unsupported operator")
+-- Unary operator: weed the operand.
+weedExpr (Fix (Ann _ (UnaryOp _ e))) = weedExpr e
 
-    -- Conversion: weed the type
-    phi (Ann _ (Conversion ty _)) = weedType ty
+-- Conversion: weed the type and operand.
+weedExpr (Fix (Ann _ (Conversion ty e))) = weedType ty >> weedExpr e
 
-    -- Selector: check that the identifier is not the blank identifier
-    phi (Ann _ (Selector _ i)) =
-        errorOnBlankIdentifier i "cannot refer to blank field"
+-- Selector: check that the identifier is not the blank identifier, then weed
+-- the operand.
+weedExpr (Fix (Ann _ (Selector e i))) = do
+    errorOnBlankIdentifier i "cannot refer to blank field"
+    weedExpr e
 
-    -- Type assertion: unsupported
-    phi (Ann a (TypeAssertion _ _)) =
-        reportError $ WeederException a "Type assertions are unsupported"
+-- Index: weed the indexer and indexee.
+weedExpr (Fix (Ann _ (Index e v))) = weedExpr e >> weedExpr v
 
-    -- Call: weed the type
-    phi (Ann _ (Call _ ty _)) = do
-        void $ pure (weedType <$> ty)
+-- Slice: weed the expression and all slice parts. We don't check that the
+-- combinations of Maybes is valid since the parser should reject it.
+weedExpr (Fix (Ann _ (Slice e l h b))) = do
+    weedExpr e
+    void $ pure (weedExpr <$> l)
+    void $ pure (weedExpr <$> h)
+    void $ pure (weedExpr <$> b)
 
-    -- Variable: not the blank identifier.
-    phi (Ann _ (Variable v)) =
-        errorOnBlankIdentifier v "_ cannot be used as a value"
+-- Type assertion: weed the expression and type being asserted.
+weedExpr (Fix (Ann a (TypeAssertion _ _))) =
+    (reportError $ WeederException a "type assertions are unsupported")
 
-    -- Others: nothing
-    phi _ = pure ()
+-- Call: check that if a type is present, make is used. Then, weed the callee
+-- and params expressions, as well as the type.
+weedExpr (Fix (Ann _ (Call callee ty params))) = do
+    weedExpr callee
+    void $ pure (weedType <$> ty)
+    void $ mapM weedExpr params
+
+-- Literals: literally nothing.
+weedExpr (Fix (Ann _ (Literal _))) = pure ()
+
+-- Variable: not the blank identifier.
+weedExpr (Fix (Ann _ (Variable v))) =
+    errorOnBlankIdentifier v "_ cannot be used as a value"

@@ -18,6 +18,8 @@ module Language.GoLite.Misc
 , distTuple
 , unFix
 , enumerate
+, bun
+, bun'
   -- * Convenience re-exports
 , isJust
 , isNothing
@@ -48,3 +50,15 @@ unFix (Fix x) = x
 -- | Enumerates the elements of a list, starting at 1.
 enumerate :: [a] -> [(Int, a)]
 enumerate = zip [1..]
+
+-- | Near-dual of @nub@. Keeps only the elements of a list that have already
+-- been seen before in the list.
+bun :: Eq a => [a] -> [a]
+bun = bun' elem
+
+-- | Same as "bun" but with a user-supplied \"contains\" function.
+bun' :: (a -> [a] -> Bool) -> [a] -> [a]
+bun' in_ x = fst $ foldr (\c a -> ( if c `in_` (snd a) then c:(fst a) else fst a
+                              , c:(snd a)))
+                    ([], [])
+                    x

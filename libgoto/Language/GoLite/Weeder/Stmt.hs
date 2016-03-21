@@ -19,25 +19,15 @@ import Language.GoLite.Weeder.Expr
 import Language.GoLite.Weeder.TypeLit
 
 -- | Weeds a declaration (either variable or type) and its components.
--- In a variable declaration, nil cannot be used as a value when no type is
--- specified.
 weedDecl :: SrcAnnDeclaration -> Weeder ()
 weedDecl (TypeDecl (TypeDeclBody _ ty)) = weedType ty
 weedDecl (VarDecl (VarDeclBody _ ty es)) = do
-
-    when (isNothing ty) (void $ mapM errorOnNil es)
     void $ pure (weedType <$> ty)
     void $ mapM weedExpr es
-    where
-        errorOnNil :: SrcAnnExpr -> Weeder ()
-        errorOnNil e =
-            when ("nil" `isIdAsOperand` e)
-                (reportError $ WeederException (topAnn e) "use of untyped nil")
+
 
 {- | Weeds a statement and its components.
 
-    * In expression statements, some built-ins cannot appear as calls (namely
-      @append@, @cap@, @complex@, @imag@, @len@, @make@, @new@, and @real@)
     * In an assignment, the blank identifier may not appear as an operand on
       the right-hand side.
     * In an assignment-operation, the blank identifier may not appear as a
@@ -45,7 +35,6 @@ weedDecl (VarDecl (VarDeclBody _ ty es)) = do
     * In a return statement, the expression must be present if and only if the
       function declares a return type.
     * In a switch statement, only one default is allowed.
-    * In a switch statement, \"nil\" may not be a case expression.
     * A break statement may not occur outside of a for/switch statement.
     * A continue statement may not occur outside of a for statement.
     * Fallthrough statements are not supported.
@@ -55,17 +44,8 @@ weedStmt :: SrcAnnStatement -> Weeder ()
 -- Declaration statement: weed the inner declaration.
 weedStmt (Fix (Ann _ (DeclStmt d))) = weedDecl d
 
--- Expression statement: check that it's not a function that can't appear in
--- statement context, then weed the inner expression.
-weedStmt (Fix (Ann a (ExprStmt e))) = do
-    case bareExpr e of
-        (Fix (Call (Fix (Variable (Ident n))) _ _)) ->
-            when
-                (n `elem` ["append", "cap", "complex", "imag", "len", "make",
-                            "new", "real"])
-                (reportError $ WeederException a (n ++ " evaluated but not used."))
-        _ -> pure ()
-    weedExpr e
+-- Expression statement: then weed the inner expression.
+weedStmt (Fix (Ann _ (ExprStmt e))) = weedExpr e
 
 -- Short variable declaration: weed the inner expressions.
 weedStmt (Fix (Ann _ (ShortVarDecl _ es))) = void $ mapM weedExpr es
@@ -155,22 +135,12 @@ weedStmt (Fix (Ann _ (Block b))) = void $ mapM weedStmt b
 -- Empty statement: nothing.
 weedStmt (Fix (Ann _ EmptyStmt)) = pure ()
 
--- Case head: for a normal case with expressions, check that none of the
--- expressions are "nil", then weed the expressions. Weed the inner statements.
+-- Case head: for a normal case with expressions, weed the expressions.
+-- Weed the inner statements.
 weedCaseHead :: (SrcAnnCaseHead, [SrcAnnStatement]) -> Weeder ()
 weedCaseHead c = do
     case fst c of
         CaseExpr es -> do
-            void $ mapM errorIfNil es
             void $ mapM weedExpr es
         _ -> pure ()
     void $ mapM weedStmt (snd c)
-
--- | Produces an error if the expression is simply \"nil\".
-errorIfNil :: SrcAnnExpr -> Weeder ()
-errorIfNil e = errorIfIdIs "nil" e "cannot use \"nil\" in this position"
-
-errorIfIdIs :: String -> SrcAnnExpr -> String -> Weeder ()
-errorIfIdIs i (Fix (Ann _ (Variable (Ann a (Ident n))))) e =
-    when (i == n) (reportError $ WeederException a e)
-errorIfIdIs _ _ _ = pure ()

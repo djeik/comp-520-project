@@ -16,9 +16,7 @@ module Language.GoLite.Weeder.TypeLit
 , weedFields
 ) where
 
-import Data.Functor.Foldable ( cata )
-import qualified Data.Set as S
-
+import Language.GoLite.Misc
 import Language.GoLite.Weeder.Core
 
 {- | Weeds a type.
@@ -28,24 +26,23 @@ import Language.GoLite.Weeder.Core
     * A named type may not be the blank identifier.
 -}
 weedType :: SrcAnnType -> Weeder ()
-weedType = cata phi where
-
-    phi (Ann _ (NamedType i)) =
+weedType (Fix (Ann _ (NamedType i))) =
         errorOnBlankIdentifier i "Cannot name a type with the blank identifier"
+weedType (Fix (Ann _ (StructType fields))) = weedFields fields
+weedType (Fix (Ann _ (ArrayType _ ty))) = weedType ty
+weedType (Fix (Ann _ (SliceType ty))) = weedType ty
 
-    phi (Ann _ (StructType fields)) = weedFields fields
-
-    phi _ = pure ()
 
 -- | Weeds a field. Checks that the field names are unique.
-weedFields :: [(SrcAnnIdent, b)] -> Weeder ()
+weedFields :: [(SrcAnnIdent, SrcAnnType)] -> Weeder ()
 weedFields fs = do
-    -- This is pretty ugly, but lets us pinpoint exactly where the duplicate
-    -- identifiers are.
-    let s = S.empty
-    forM_ fs (\f ->
-        let (Ann a (Ident n)) = fst f in
-        if n /= "_" && n `S.member` s then
-            reportError $ WeederException a ("duplicate name " ++ n)
-        else
-            void $ pure $ S.insert n s)
+    forM_ fs (\f -> weedType $ snd f)
+    let dupes = filter notBlank $ bun' containsId (map fst fs)
+    forM_ dupes (\(Ann a (Ident n)) ->
+        reportError $ WeederException a ("duplicate name " ++ n))
+
+    where
+        notBlank (Ann _ (Ident n)) = n /= "_"
+        containsId x@(Ann _ (Ident n)) ((Ann _ (Ident n')):ids) =
+            if n == n' then True else containsId x ids
+        containsId _ [] = False

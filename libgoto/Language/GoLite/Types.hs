@@ -300,8 +300,6 @@ data BuiltinType
     | LenType
     -- | The type of the @make@ builtin.
     | MakeType
-    -- | The type of the @panic@ builtin.
-    | PanicType
     deriving (Eq, Ord, Read, Show)
 
 instance Pretty BuiltinType where
@@ -311,7 +309,6 @@ instance Pretty BuiltinType where
         CopyType -> text "_ty_copy"
         LenType -> text "_ty_len"
         MakeType -> text "_ty_make"
-        PanicType -> text "_ty_panic"
 
 builtinType :: BuiltinType -> Type
 builtinType = Fix . BuiltinType

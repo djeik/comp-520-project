@@ -12,6 +12,11 @@ declarations.
 
 module Language.GoLite.Weeder (
   weed
+, weedPackage
+, weedTopLevelDecl
+, weedFunDecl
+, Weeder ( .. )
+, WeederState ( .. )
 , WeederException( .. )
 , WeederExceptions( .. )
 ) where
@@ -64,7 +69,6 @@ weedFunDecl (FunDecl (Ann a _) pars rty bod) = do
 {- | Checks if a statement is terminating.
 
     * A return statement is terminating.
-    * A call to the @panic@ function is terminating.
     * A block is terminating if it ends with a terminating statement.
     * An if statement is terminating if both branches are present and both end
       with a terminating statement.
@@ -79,11 +83,7 @@ weedFunDecl (FunDecl (Ann a _) pars rty bod) = do
     * No other statement is terminating.
 -}
 isTerminating :: BasicStatement -> Bool
-isTerminating (Fix (ReturnStmt _)) = True
-isTerminating (Fix (ExprStmt e)) =
-    case e of
-        (Fix (Call (Fix (Variable (Ident n))) _ _)) -> n == "panic"
-        _ -> False
+isTerminating (Fix (ReturnStmt (Just _))) = True
 isTerminating (Fix (Block stmts)) = isTerminating' stmts
 isTerminating (Fix (IfStmt _ _ thens elses)) =
     isTerminating' thens &&
