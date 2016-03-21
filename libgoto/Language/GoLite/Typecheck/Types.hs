@@ -168,12 +168,18 @@ data TypecheckError
     | EmptyScopeStack
     -- ^ An attempt to modify the scope stack was made when the stack was
     -- empty.
-    | WeederInvariantViolation Doc
+    | WeederInvariantViolation
+        { errorDescription :: Doc
+        }
     -- ^ An illegal situation that should have been caught by a weeding pass
     -- arose during typechecking.
+    | ParserInvariantViolation
+        { errorDescription :: Doc
+        }
     | UncategorizedOperator
     -- ^ An operator could not be categorized as either arithmetic, comparison,
     -- logical, or ordering.
+    deriving (Eq, Show)
 
 -- | Typechecking is a traversal requiring state and the possibility of fatal
 -- errors.
