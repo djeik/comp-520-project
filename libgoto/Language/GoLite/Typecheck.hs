@@ -538,14 +538,23 @@ typecheckBinaryOp o a l r
         checkBinary isLogical (text "is not logical")
 
     | isOrderingOp $ bare o =
-        checkBinary isOrdered (text "cannot be ordered")
+        -- Ordering operators produce booleans
+        checkBinaryYieldingType
+            isOrdered
+            (text "cannot be ordered")
+            (Just untypedBoolType)
 
     | isIntegralOp $ bare o =
         checkBinary isIntegral (text "is not integral")
 
     | otherwise = throwError UncategorizedOperator
     where
-        checkBinary p e =
+        -- Convenience alias.
+        checkBinary p e = checkBinaryYieldingType p e Nothing
+
+        -- Checks the type of the binary expression, yielding the given type if
+        -- there is Just one, or the type of the left operand if it is Nothing.
+        checkBinaryYieldingType p e mty =
             let (tyl, al) = topAnn l in
             let (tyr, ar) = topAnn r in do
 
@@ -576,9 +585,13 @@ typecheckBinaryOp o a l r
                     -- If they are both untyped, the expression is untyped.
                     -- Otherwise, it is typed.
                     if isUntyped tyl && isUntyped tyr then
-                        pure tyl
+                        pure $ case mty of
+                            Nothing -> tyl
+                            Just ty -> ty
                     else
-                        pure $ defaultType tyl
+                        pure $ defaultType $ case mty of
+                            Nothing -> tyl
+                            Just ty -> ty
             else
                 pure unknownType
 
@@ -727,7 +740,6 @@ typecheckAssignment a e1 e2 (Ann aop op) = do
     * len([]T) -> int
     * len([x]T) -> int
     * make(<type literal []T>, int, [int]) -> []T
-    * panic(<any type>) -> void
 
     Note that for array or slice types, aliases work equally well.
 -}
@@ -801,7 +813,8 @@ typecheckBuiltin a b mty exprs = do
                 -- Normal case: two slices
                 (Ty.Slice tyx', Ty.Slice tyy') -> do
 
-                    -- Check that the inner types agree.
+                    -- We have copy([]T, []U). Check that T <== U, since the
+                    -- first argument is the destination.
                     (tyx', tyy') <== TypeMismatch
                         { mismatchExpectedType = tyx'
                         , mismatchActualType = tyy'
@@ -869,11 +882,6 @@ typecheckBuiltin a b mty exprs = do
                                     (mismatchWithUnk tyx
                                         typedIntType (Ann ax $ Just x) $> ())
                                 pure (fst (topAnn ty))
-
-        -- Panic takes an interface{}, so really we don't care what it is.
-        -- The argument is useless since we're not implementing recover, but we
-        -- still want it to be able to compile Golite with a golang compiler.
-        PanicType -> withArgLengthCheck 1 a exprs (\_ -> pure voidType)
 
     where
         -- Checks that there are the specified number of arguments and, if yes,
@@ -961,19 +969,6 @@ requireExprType t d e = do
         , mismatchActualType = ty
         , mismatchCause = Ann b (Just e')
         , errorReason = d
-        }
-    pure e'
-
--- Checks that the type of an expression satisfies a given predicate. If not,
--- a 'UnsatisfyingType' error is reported with the given reason.
-requireTypeToSatisfy :: (Type -> Bool) -> Doc -> SrcAnnExpr -> Typecheck TySrcAnnExpr
-requireTypeToSatisfy p d e = do
-    e' <- typecheckExpr e
-    let (ty, b) = topAnn e'
-    unless (p ty) $ reportError $ UnsatisfyingType
-        { unsatOffender = ty
-        , unsatReason = d
-        , errorLocation = b
         }
     pure e'
 
