@@ -199,7 +199,7 @@ typecheckVarDecl d = case d of
         forM_ idents $ \(Ann a (Ident i)) -> do
             declareSymbol i $ VariableInfo
                 { symLocation = SourcePosition a
-                , symType = fst $ topAnn declTy
+                , symType = defaultType (fst (topAnn declTy))
                 }
 
         pure $ VarDeclBody idents (pure declTy) []
@@ -229,7 +229,7 @@ typecheckVarDecl d = case d of
 
             declareSymbol i $ VariableInfo
                 { symLocation = SourcePosition a
-                , symType = ty'
+                , symType = defaultType ty'
                 }
 
             pure $ (Ann a (Ident i), expr')
