@@ -194,7 +194,7 @@ instance Pretty ErrorSymbolKind where
 instance Pretty TypeError where
     pretty err = case err of
         TypeMismatch {} ->
-            pretty (ErrorPosition (typeErrorLocation err)) $+$ nest indentLevel (
+            pretty loc $+$ nest indentLevel (
                 text "cannot match expected type" $+$ nest indentLevel (
                     pretty (mismatchExpectedType err)
                 ) $+$
@@ -208,10 +208,76 @@ instance Pretty TypeError where
                         )
                 )
             )
-        _ ->
-            pretty (ErrorPosition (typeErrorLocation err)) $+$ nest indentLevel (
-                text "unknown type error"
+
+        Redeclaration {} ->
+            pretty loc $+$ nest indentLevel (
+                text "redeclaration of" $+$ nest indentLevel (
+                    pretty (ErrorSymbol $ redeclOrigin err)
+                ) $+$
+                text "with" $+$ nest indentLevel (
+                    pretty (ErrorSymbol $ redeclNew err)
+                )
             )
+
+        NotInScope {} ->
+            pretty loc $+$ nest indentLevel (
+                text "not in scope" <+> doubleQuotes (pretty $ notInScopeIdent err)
+            )
+
+        SymbolKindMismatch {} ->
+            pretty loc $+$ nest indentLevel (
+                text "cannot match expected symbol kind" $+$ nest indentLevel (
+                    pretty (ErrorSymbolKind $ mismatchExpectedKind err)
+                ) $+$
+                text "with the symbol" $+$ nest indentLevel (
+                    pretty (ErrorSymbol $ mismatchActualInfo err)
+                ) $+$
+                text "represented by the symbol" <+> pretty (mismatchIdent err)
+            )
+
+        NoSuchField {} ->
+            let (ty, _) = topAnn (fieldExpr err) in
+            pretty loc $+$ nest indentLevel (
+                text "no such field" <+> doubleQuotes (pretty $ fieldIdent err) <+>
+                text "in the expression" $+$ nest indentLevel (
+                    pretty $ fieldExpr err
+                ) $+$
+                text "of type" $+$ nest indentLevel (
+                    pretty ty
+                )
+            )
+
+        UnsatisfyingType {} ->
+            pretty loc $+$ nest indentLevel (
+                text "unsatisfying type" $+$ nest indentLevel (
+                    pretty $ unsatOffender err
+                ) $+$ (if isEmpty (unsatReason err)
+                    then empty
+                    else text "because" $+$ nest indentLevel (
+                        unsatReason err
+                    )
+                )
+            )
+
+        TypeArgumentError {} ->
+            pretty loc <+> text "type argument error" $+$ nest indentLevel (
+                (case typeArgument err of
+                    Nothing -> empty
+                    Just t ->
+                        text "due to the type" $+$ nest indentLevel (
+                            pretty t
+                        )
+                ) $+$
+                text "because" <+> errorReason err
+            )
+
+        _ ->
+            pretty loc $+$ nest indentLevel (
+                text "unknown type error" $+$ text (show err)
+            )
+
+        where
+            loc = ErrorPosition (typeErrorLocation err)
 
 type MismatchCause = SrcAnn Maybe TySrcAnnExpr
 
