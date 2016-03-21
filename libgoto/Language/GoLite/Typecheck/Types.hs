@@ -148,8 +148,9 @@ data TypeError
     | UntypedNil
         { errorLocation :: SrcSpan
         }
-    -- | A variable was declared with a type that variables cannot have.
-    | IllegalDeclType
+    -- | An expression whose value was required was found to have a type that
+    -- does not have values.
+    | IllegalNonvalueType
         { offendingType :: Type
         , errorLocation :: SrcSpan
         }
@@ -295,7 +296,7 @@ typeErrorLocation e = case e of
     CallTypeMismatch { mismatchCause = Ann a _ } -> SourcePosition a
     BinaryTypeMismatch { errorLocation = a } -> SourcePosition a
     UntypedNil { errorLocation = a } -> SourcePosition a
-    IllegalDeclType { errorLocation = a } -> SourcePosition a
+    IllegalNonvalueType { errorLocation = a } -> SourcePosition a
 
 -- | All errors that can actually be thrown.
 data TypecheckError

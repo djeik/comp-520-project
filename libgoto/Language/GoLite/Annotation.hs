@@ -75,6 +75,10 @@ dupAnn f@(Ann x _) = Ann x f
 topAnn :: AnnFix x f -> x
 topAnn (Fix (Ann x _)) = x
 
+
+replaceTopAnn :: (x -> x) -> AnnFix x f -> AnnFix x f
+replaceTopAnn f (Fix (Ann a x)) = Fix (Ann (f a) x)
+
 -- | Strip all annotations from a syntax tree.
 --
 -- /Warning:/ this strips annotations only from the *primary* recursion in the

@@ -279,12 +279,26 @@ isArithmetic (Fix t) = case t of
     RuneType _ -> True
     _ -> False
 
--- | Determines wheter a type is logical (basically a boolean). Logical types
+-- | Determines whether a type is logical (basically a boolean). Logical types
 -- can have logical operators applied to them (@&&@, @||@, @!@)
 isLogical :: Type -> Bool
 isLogical (Fix t) = case t of
     BoolType _ -> True
     _ -> False
+
+-- | Determines whether a type can be used as a value. Non-value types are
+-- disallowed in contexts where a value of any type is allowed. Those are:
+--      * Variable declarations with no type
+--      * Switch expressions
+isValue :: Type -> Bool
+isValue (Fix t) = case t of
+    BuiltinType _ -> False
+    FuncType _ _ -> False
+    NilType -> False
+    TypeSum _ -> False -- Shouldn't occur, but just for completeness' sake.
+    VoidType -> False
+    _ -> True
+
 
 -- | Determines the default type of untyped types.
 --
@@ -298,6 +312,7 @@ defaultType (Fix t) = Fix $ case t of
     FloatType False -> FloatType True
     BoolType False -> BoolType True
     _ -> t
+
 
 -- | The types of builtins.
 data BuiltinType

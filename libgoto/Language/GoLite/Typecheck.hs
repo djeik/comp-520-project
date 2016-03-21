@@ -224,16 +224,11 @@ typecheckVarDecl d = case d of
                         Fix NilType -> do
                             reportError $ UntypedNil ae
                             pure (unknownType, expr')
-                        Fix VoidType -> do
-                            reportError $ IllegalDeclType tye ae
-                            pure (unknownType, expr')
-                        Fix (FuncType _ _) -> do
-                            reportError $ IllegalDeclType tye ae
-                            pure (unknownType, expr')
-                        Fix (BuiltinType _) -> do
-                            reportError $ IllegalDeclType tye ae
-                            pure (unknownType, expr')
-                        _ -> pure (tye, expr')
+                        _ ->
+                            if not $ isValue tye then do
+                                reportError $ IllegalNonvalueType tye ae
+                                pure (unknownType, expr')
+                            else pure (tye, expr')
 
                 Just declTy -> do
                     let (t, _) = topAnn declTy
@@ -485,6 +480,15 @@ typecheckExpr = cata f where
                         , unsatReason = text "Expected logical type"
                         , errorLocation = a }
                     pure unknownType
+            BitwiseNot ->
+                if isIntegral $ unalias ty then
+                    pure ty
+                else do
+                    reportError $ UnsatisfyingType
+                        { unsatOffender = ty
+                        , unsatReason = text "Expected integral type"
+                        , errorLocation = a }
+                    pure unknownType
             _ ->
                 if isArithmetic $ unalias ty then
                     pure ty
@@ -695,7 +699,20 @@ typecheckFunctionBody fty = mapM typecheckStmt where
 
             SwitchStmt minit mcond cases -> do
                 minit' <- sequence minit
-                mcond' <- traverse typecheckExpr mcond
+                mcond' <- forM mcond $
+                            (\e -> do
+                                e' <- typecheckExpr e
+                                let (ty, a) = topAnn e'
+                                if not $ isValue ty then do
+                                    reportError (IllegalNonvalueType
+                                        { offendingType = ty
+                                        , errorLocation = a })
+                                    -- Reconstruct an expression annotated
+                                    -- with unknown type.
+                                    pure $ replaceTopAnn (\(_, a) -> (unknownType, a))
+                                        e'
+                                else pure $ e')
+
                 cases' <- forM cases $ \(hd, body) -> (,)
                     <$> typecheckCaseHead mcond' hd
                     <*> sequence body
@@ -724,25 +741,9 @@ typecheckFunctionBody fty = mapM typecheckStmt where
         typecheckCaseHead mcond hd
             = case hd of
                 CaseDefault -> pure CaseDefault
-                CaseExpr exprs -> case mcond of
-                    Nothing -> CaseExpr
-                        <$> mapM (requireExprType typedBoolType empty) exprs
-                    Just e -> do
-                        let (ty, a) = topAnn e
-                        reqd <-
-                            case ty of
-                                (Fix NilType) -> do
-                                    reportError $ UnsatisfyingType
-                                        { unsatOffender = ty
-                                        , unsatReason
-                                            = text "cannot be used as the \
-                                            \expression of a switch statement"
-                                        , errorLocation = a
-                                        }
-                                    pure unknownType
-                                _ -> pure ty
-
-                        CaseExpr <$> mapM (requireExprType reqd empty) exprs
+                CaseExpr exprs -> CaseExpr <$> case mcond of
+                    Nothing -> mapM (requireExprType typedBoolType empty) exprs
+                    Just e -> mapM (requireExprType (fst (topAnn e)) empty) exprs
 
 typecheckAssignment
     :: SrcSpan -- ^ The source span of the assignment
