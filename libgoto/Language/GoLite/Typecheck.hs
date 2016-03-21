@@ -234,6 +234,7 @@ typecheckVarDecl d = case d of
                             reportError $ IllegalDeclType tye ae
                             pure (unknownType, expr')
                         _ -> pure (tye, expr')
+
                 Just declTy -> do
                     let (t, _) = topAnn declTy
                     expr' <- requireExprType t empty expr
@@ -729,15 +730,18 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                     Just e -> do
                         let (ty, a) = topAnn e
                         let reqd =
-                            case ty of
-                                Fix NilType -> do
-                                    reportError $ UnsatisfyingType
-                                        { unsatOffender = ty
-                                        , unsatReason = "cannot be used as the \
-                                          \expression of a switch statement"
-                                        , errorLocation = a }
-                                    unknownType
-                                _ -> ty
+                                case ty of
+                                    Fix NilType -> do
+                                        reportError $ UnsatisfyingType
+                                            { unsatOffender = ty
+                                            , unsatReason
+                                                = text "cannot be used as the \
+                                                \expression of a switch \
+                                                \statement"
+                                            , errorLocation = a
+                                            }
+                                        pure unknownType
+                                    _ -> pure ty
 
                         CaseExpr <$> mapM (requireExprType reqd empty) exprs
 

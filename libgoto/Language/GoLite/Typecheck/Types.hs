@@ -160,8 +160,8 @@ newtype ErrorPosition = ErrorPosition SymbolLocation
 
 instance Pretty ErrorPosition where
     pretty (ErrorPosition loc) = case loc of
-        SourcePosition span ->
-            let start = srcStart span in
+        SourcePosition s ->
+            let start = srcStart s in
             let name = text (sourceName start) in
             let column = int (sourceColumn start) in
             let line = int (sourceLine start) in
@@ -179,8 +179,8 @@ instance Pretty TypeError where
                 text "with actual type" $+$ nest indentLevel (
                     pretty (mismatchActualType err)
                 ) $+$ (case mismatchCause err of
-                    Ann a Nothing -> empty
-                    Ann a (Just e) ->
+                    Ann _ Nothing -> empty
+                    Ann _ (Just e) ->
                         text "in the expression" $+$ nest indentLevel (
                             pretty e
                         )
