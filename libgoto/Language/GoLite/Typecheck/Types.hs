@@ -313,6 +313,9 @@ data TypecheckError
     | ParserInvariantViolation
         { errorDescription :: Doc
         }
+    | TypecheckerInvariantViolation
+        { errorDescription :: Doc
+        }
     | UncategorizedOperator
     -- ^ An operator could not be categorized as either arithmetic, comparison,
     -- logical, or ordering.

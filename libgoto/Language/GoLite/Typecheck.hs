@@ -301,8 +301,9 @@ typecheckExpr = cata f where
         Conversion ty me -> do
             ty' <- canonicalize ty
             e' <- me
-            typecheckConversion ty' e'
-            pure (fst $ topAnn ty', Conversion ty' e')
+            let cty = fst (topAnn ty')
+            typecheckConversion cty e'
+            pure (cty, Conversion ty' e')
 
         Selector me i -> do
             e' <- me
@@ -416,37 +417,85 @@ typecheckExpr = cata f where
             args <- sequence margs
             ty <- forM mty canonicalize
 
-            let (funTy, b) = topAnn e'
-            t <- case unFix funTy of
-                BuiltinType bu -> typecheckBuiltin a bu ty args
-                FuncType fargs fret -> do
-                    typecheckCall a ty args fargs
-                    pure fret
-                _ -> do
-                    reportError $ TypeMismatch
-                        { mismatchExpectedType = Fix $ FuncType
-                            { funcTypeArgs = map
-                                (\a' ->
-                                    let (t, c) = topAnn a'
-                                    in (Ann c Blank, t))
-                                args
-                            , funcTypeRet = unknownType
-                            }
-                        , mismatchActualType = funTy
-                        , mismatchCause = Ann b (Just e')
-                        , errorReason = empty
-                        }
-                    pure unknownType
+            let normal = do
+                    let (funTy, b) = topAnn e'
+                    t <- case unFix funTy of
+                        BuiltinType bu -> typecheckBuiltin a bu ty args
+                        FuncType fargs fret -> do
+                            typecheckCall a ty args fargs
+                            pure fret
+                        _ -> do
+                            reportError $ TypeMismatch
+                                { mismatchExpectedType = Fix $ FuncType
+                                    { funcTypeArgs = map
+                                        (\a' ->
+                                            let (t, c) = topAnn a'
+                                            in (Ann c Blank, t))
+                                        args
+                                    , funcTypeRet = unknownType
+                                    }
+                                , mismatchActualType = funTy
+                                , mismatchCause = Ann b (Just e')
+                                , errorReason = empty
+                                }
+                            pure unknownType
 
-            -- See whether the type of e' is the special built-in type of
-            -- `make` and check that that coresponds with whether mty is Just
-            -- or Nothing.
-            -- Check that e' is a function type.
-            -- Check that the type of each argument corresponds to the declared
-            -- types of the function parameters.
-            -- The type of the call is the declared return type of the
-            -- function.
-            pure (t, Call e' ty args)
+                    -- See whether the type of e' is the special built-in type
+                    -- of `make` and check that that coresponds with whether
+                    -- mty is Just or Nothing.
+                    -- Check that e' is a function type.
+                    -- Check that the type of each argument corresponds to the
+                    -- declared types of the function parameters.
+                    -- The type of the call is the declared return type of the
+                    -- function.
+                    pure (t, Call e' ty args)
+
+            case bare (unFix e') of
+                Variable (Ann b (Ident name)) -> do
+                    minfo <- lookupSymbol name
+                    case minfo of
+                        Nothing -> throwError $ TypecheckerInvariantViolation
+                            { errorDescription
+                                = text "lookupSymbol is Nothing in Call"
+                            }
+
+                        Just info -> case info of
+                            VariableInfo {} -> normal
+                            TypeInfo {} -> do
+                                let symTy = symType info
+                                case ty of
+                                    Just t -> do
+                                        reportError $ TypeArgumentError
+                                            { errorReason
+                                                = text "only make can receive \
+                                                \type arguments"
+                                            , typeArgument
+                                                = Just $ fst (topAnn t)
+                                            , errorLocation = b
+                                            }
+                                    Nothing -> pure ()
+
+                                let n = length args
+
+                                case args of
+                                    [] -> do
+                                        reportError $ ArgumentLengthMismatch
+                                            { argumentExpectedLength = 1
+                                            , argumentActualLength = n
+                                            , errorLocation = b
+                                            }
+                                        pure $ (unknownType, Call e' ty args)
+                                    x:_ -> do
+                                        typecheckConversion symTy x
+                                        let at = Ann
+                                                (symTy, b)
+                                                (NamedType (Ann b $ Ident name))
+                                        pure $
+                                            ( symTy
+                                            , Conversion (Fix at) x
+                                            )
+
+                _ -> normal
 
         Literal (Ann la l) ->
             fmap (\ty -> (ty, Literal $ Ann (ty, la) l)) $ case l of
@@ -502,13 +551,12 @@ typecheckExpr = cata f where
 
     -- | Checks that a conversion is valid.
     typecheckConversion
-        :: TySrcAnnType
+        :: Type
         -> TySrcAnnExpr
         -> Typecheck ()
-    typecheckConversion t e = do
-        let (ty, _) = topAnn t
+    typecheckConversion ty e = do
         let (t', b) = topAnn e
-        (fst $ topAnn t, t') <== TypeMismatch
+        (ty, t') <== TypeMismatch
             { mismatchExpectedType = ty
             , mismatchActualType = t'
             , mismatchCause = Ann b (Just e)
