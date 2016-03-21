@@ -121,11 +121,11 @@ instance Pretty Type where
         f :: GoTypeF Doc -> Doc
         f t = case t of
             VoidType -> text "void"
-            IntType _ -> text "int"
-            RuneType _ -> text "rune"
-            StringType _ -> text "string"
-            FloatType _ -> text "float"
-            BoolType _ -> text "bool"
+            IntType b -> text "int" <+> if b then empty else text "(untyped)"
+            RuneType b -> text "rune" <+> if b then empty else text "(untyped)"
+            StringType b -> text "string" <+> if b then empty else text "(untyped)"
+            FloatType b -> text "float" <+> if b then empty else text "(untyped)"
+            BoolType b -> text "bool" <+> if b then empty else text "(untyped)"
             NilType -> text "nil"
             UnknownType -> text "_ty_unknown"
             AliasType (Ann _ (T.Ident alias)) t' ->
