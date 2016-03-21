@@ -65,6 +65,7 @@ runTypecheck t
         TypecheckState
             { _errors = []
             , _scopes = [defaultRootScope]
+            , dumpedScopes = []
             }
     )
 
@@ -74,6 +75,7 @@ data TypecheckState
     = TypecheckState
         { _errors :: [TraversalError Typecheck]
         , _scopes :: [Scope]
+        , dumpedScopes :: [(Scope, Int)]
         }
     deriving (Eq, Show)
 

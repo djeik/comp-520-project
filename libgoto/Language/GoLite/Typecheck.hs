@@ -52,7 +52,8 @@ popScope = do
     case scopes of
         [] -> throwError ScopeImbalance
         s:ss -> do
-            modify $ \t -> t { _scopes = ss }
+            modify $ \t -> t { _scopes = ss,
+                            dumpedScopes = (s, length ss):(dumpedScopes t) }
             pure s
 
 -- | Pushes an empty scope onto the stack.
@@ -171,7 +172,7 @@ canonicalize = annCata f where
 -- | Typechecks a source position-annotated 'Package'.
 typecheckPackage :: SrcAnnPackage -> Typecheck TySrcAnnPackage
 typecheckPackage (Package ident decls)
-    = Package <$> pure ident <*> (mapM typecheckTopLevelDecl decls)
+    = Package <$> pure ident <*> (mapM typecheckTopLevelDecl decls) <* dropScope
 
 -- | Typechecks a source position-annotated 'TopLevelDecl'.
 typecheckTopLevelDecl :: SrcAnnTopLevelDecl -> Typecheck TySrcAnnTopLevelDecl
@@ -734,9 +735,10 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                 Just e -> do
                     e' <- typecheckExpr e
                     let (ty, b) = topAnn e'
+                    let rty = funcTypeRet (unFix fty)
                     -- TODO check that fty is not void, throw weeder invariant error otherwise
-                    (fty, ty) <== TypeMismatch
-                        { mismatchExpectedType = fty
+                    (rty, ty) <== TypeMismatch
+                        { mismatchExpectedType = rty
                         , mismatchActualType = ty
                         , mismatchCause = Ann b (Just e')
                         , errorReason = text "the types are not assignment compatible"

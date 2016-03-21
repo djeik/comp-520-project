@@ -6,12 +6,16 @@ import qualified Language.GoLite as G
 import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Typecheck
+import Language.GoLite.Typecheck.Types
 
-import Control.Monad ( forM_ )
+import Control.Monad ( forM_, when )
 import Options.Applicative
 import System.Exit ( exitFailure )
 
-import System.IO ( hPutStrLn, stderr )
+import System.IO
+import System.FilePath ( (-<.>) )
+
+import Text.PrettyPrint ( nest )
 
 data InputFile
     = Stdin
@@ -32,6 +36,8 @@ data Goto
         -- ^ The actual command
         , oneError :: Bool
         -- ^ Flag to print only the first error.
+        , dumpSymTab :: Bool
+        -- ^ Whether or not to dump the top frame of the symtab on scope exits
         }
     deriving (Eq, Show)
 
@@ -95,6 +101,12 @@ cmdParser
             ( long "oneError"
               <> help "Specifies that only the first error should be printed."
             )
+        ) <*>
+        ( switch
+            ( long "dumpSymTab"
+              <> help "When specified, dumps the top frame of the symbol table \
+                    \at each scope exit"
+            )
         )
     ) $
     progDesc "Compiler for GoLite"
@@ -103,64 +115,74 @@ noNewLines :: String -> String
 noNewLines = foldr (\a b -> (if a == '\n' then ' ' else a) : b) []
 
 goto :: Goto -> IO ()
-goto g = let oneErr = oneError g in case cmd g of
-    Pretty f -> do
-        ex <- parseGoLiteFile f
-        case ex of
-            Left e -> hPutStrLn stderr $ noNewLines $ show e
-            Right r -> case weedGoLiteProgram oneErr r of
-                Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
-                Nothing -> putStrLn $ renderGoLite (pretty r)
-    PrettyType f -> do
-        ex <- parseGoLiteFile f
-        case ex of
-            Left e -> hPutStrLn stderr $ noNewLines $ show e
-            Right r -> do
-                case weedGoLiteProgram oneErr r of
-                    Just es -> do
-                        hPutStrLn stderr $ renderGoLite (pretty es)
-                    Nothing -> do
-                        case runTypecheck (G.typecheckPackage r) of
-                            (Left fatal, _) -> print fatal
-                            (Right _, _errors -> []) -> putStrLn "success"
-                            (Right _, _errors -> xs) -> do
-                                forM_ xs $ \er -> do
-                                    putStrLn (renderGoLite (pretty er))
-    RoundTrip f -> do
-        ex <- parseGoLiteFile f
-        case ex of
-            Left e -> do
-                putStrLn $ "failed to parse input program"
-                putStrLn $ noNewLines $ show e
-                exitFailure
-            Right r -> do
-                case weedGoLiteProgram oneErr r of
+goto g =
+    let oneErr = oneError g in
+    let dumpSyms = dumpSymTab g in
+    case cmd g of
+        Pretty f -> do
+            ex <- parseGoLiteFile f
+            case ex of
+                Left e -> hPutStrLn stderr $ noNewLines $ show e
+                Right r -> case weedGoLiteProgram oneErr r of
                     Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
-                    Nothing -> do
-                        let s = renderGoLite (pretty r)
-                        case parseOnly G.packageP "<pretty>" s of
-                            Left e -> do
-                                putStrLn $ "failed to parse pretty-printed program"
-                                putStrLn $ noNewLines $ show e
-                                putStrLn $ s
-                                exitFailure
-                            Right r' -> case weedGoLiteProgram oneErr r of
-                                Just es -> do
-                                    putStrLn $ "failed to weed pretty-printed program"
-                                    putStrLn $ renderGoLite (pretty es)
+                    Nothing -> putStrLn $ renderGoLite (pretty r)
+        PrettyType f -> do
+            ex <- parseGoLiteFile f
+            case ex of
+                Left e -> hPutStrLn stderr $ noNewLines $ show e
+                Right r -> do
+                    case weedGoLiteProgram oneErr r of
+                        Just es -> do
+                            hPutStrLn stderr $ renderGoLite (pretty es)
+                        Nothing -> do
+                            case runTypecheck (G.typecheckPackage r) of
+                                (Left fatal, _) -> print fatal
+                                (Right _, s) -> do
+                                    case _errors s of
+                                        [] -> putStrLn "success"
+                                        xs -> forM_ xs $ \er -> do
+                                                putStrLn (renderGoLite (pretty er))
+
+                                    when (dumpSyms)
+                                        (withFile (show f -<.> "symtab") WriteMode $ \h ->
+                                            let ds = reverse $ dumpedScopes s in
+                                            forM_ ds $ \(ss, depth) ->
+                                                hPutStrLn h (renderGoLite $ nest (depth * 4) (pretty ss)))
+        RoundTrip f -> do
+            ex <- parseGoLiteFile f
+            case ex of
+                Left e -> do
+                    putStrLn $ "failed to parse input program"
+                    putStrLn $ noNewLines $ show e
+                    exitFailure
+                Right r -> do
+                    case weedGoLiteProgram oneErr r of
+                        Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
+                        Nothing -> do
+                            let s = renderGoLite (pretty r)
+                            case parseOnly G.packageP "<pretty>" s of
+                                Left e -> do
+                                    putStrLn $ "failed to parse pretty-printed program"
+                                    putStrLn $ noNewLines $ show e
                                     putStrLn $ s
                                     exitFailure
-                                Nothing -> do
-                                    let s' = renderGoLite (pretty r')
-                                    case s == s' of
-                                        True -> putStrLn "OK"
-                                        False -> do
-                                            putStrLn "Round-trip failed.\n"
-                                            putStrLn "First pretty-print:"
-                                            putStrLn s
-                                            putStrLn "\nSecond pretty-print:"
-                                            putStrLn s'
-                                            exitFailure
+                                Right r' -> case weedGoLiteProgram oneErr r of
+                                    Just es -> do
+                                        putStrLn $ "failed to weed pretty-printed program"
+                                        putStrLn $ renderGoLite (pretty es)
+                                        putStrLn $ s
+                                        exitFailure
+                                    Nothing -> do
+                                        let s' = renderGoLite (pretty r')
+                                        case s == s' of
+                                            True -> putStrLn "OK"
+                                            False -> do
+                                                putStrLn "Round-trip failed.\n"
+                                                putStrLn "First pretty-print:"
+                                                putStrLn s
+                                                putStrLn "\nSecond pretty-print:"
+                                                putStrLn s'
+                                                exitFailure
 
 weedGoLiteProgram :: Bool -> SrcAnnPackage -> Maybe G.WeederExceptions
 weedGoLiteProgram oneErr p =

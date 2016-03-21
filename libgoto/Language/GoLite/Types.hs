@@ -43,6 +43,11 @@ data SymbolInfo' loc ty
 
 type SymbolInfo = SymbolInfo' SymbolLocation Type
 
+instance Pretty SymbolInfo where
+    pretty sym =
+        prettyBrackets True (pretty (symLocation sym))
+        <+> nest indentLevel (pretty $ symType sym)
+
 -- | 'SymbolInfo' but with no real data inside, leaving essentially only the
 -- constructors.
 type SymbolKind = SymbolInfo' () ()
@@ -60,6 +65,16 @@ data SymbolLocation
     -- | The symbol is in a source file.
     | SourcePosition !SrcSpan
     deriving (Eq, Ord, Show)
+
+instance Pretty SymbolLocation where
+    pretty sym = case sym of
+        Builtin -> text "<universe>"
+        SourcePosition s ->
+            let start = srcStart s in
+            let name = text (sourceName start) in
+            let column = int (sourceColumn start) in
+            let line = int (sourceLine start) in
+            name <> colon <> line <> colon <> column <> colon
 
 -- | The base functor for a canonical representation of a GoLite type.
 data GoTypeF f
@@ -432,6 +447,9 @@ data Scope
         { scopeMap :: M.Map SymbolName SymbolInfo
         }
     deriving (Eq, Ord, Show)
+
+instance Pretty Scope where
+    pretty s = vcat $ map (\(n, s) -> text (n ++ "->") <+> pretty s) (M.assocs $ scopeMap s)
 
 -- | The root scope containing builtin functions and types.
 defaultRootScope :: Scope
