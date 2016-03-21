@@ -854,7 +854,7 @@ typecheckBuiltin a b mty exprs = do
                 Just ty ->
                     -- Note: this isn't really optimal for error messages, we'd
                     -- expect 3 arguments, but one will be a type.
-                    withArgLengthCheck 2 a exprs (\_ ->
+                    withArgLengthCheck 2 a exprs $ const $
                         let x = head exprs in
                         let y = exprs !! 1 in
                         let (tyx, ax) = topAnn x in
