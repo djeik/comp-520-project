@@ -140,7 +140,7 @@ goto g =
                                 (Right _, s) -> do
                                     case _errors s of
                                         [] -> putStrLn "success"
-                                        xs -> forM_ xs $ \er -> do
+                                        xs -> forM_ (if oneErr then [head xs] else xs) $ \er -> do
                                                 putStrLn (renderGoLite (pretty er))
 
                                     when (dumpSyms)
