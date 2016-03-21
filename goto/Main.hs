@@ -1,9 +1,13 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Main where
 
 import qualified Language.GoLite as G
 import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
+import Language.GoLite.Typecheck
 
+import Control.Monad ( forM_ )
 import Options.Applicative
 import System.Exit ( exitFailure )
 
@@ -99,9 +103,12 @@ goto g = case g of
             Left e -> hPutStrLn stderr $ noNewLines $ show e
             Right r -> case weedGoLiteProgram r of
                 Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
-                Nothing -> do
-                    let p = G.typecheckPackage r
-                    putStrLn $ renderGoLite (pretty p)
+                Nothing -> case runTypecheck (G.typecheckPackage r) of
+                    (Left fatal, _) -> print fatal
+                    (Right _, _errors -> []) -> putStrLn "success"
+                    (Right _, _errors -> xs) -> do
+                        forM_ xs $ \er -> do
+                            print er
     RoundTrip f -> do
         ex <- parseGoLiteFile f
         case ex of
