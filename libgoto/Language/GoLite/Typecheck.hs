@@ -112,10 +112,10 @@ canonicalize = annCata f where
     f :: SrcSpan -> SrcAnnTypeF (Typecheck TySrcAnnType) -> Typecheck TySrcAnnType
     f a t = case t of
         SliceType m -> do
-            s@(Fix (Ann (t', _) s')) <- m
+            s@(Fix (Ann (t', _) _)) <- m
             pure $ Fix $ Ann (Fix $ Ty.Slice t', a) (SliceType s)
         ArrayType b@(Ann _ (getConst -> n)) m -> do
-            s@(Fix (Ann (t', _) s')) <- m
+            s@(Fix (Ann (t', _) _)) <- m
             pure $ Fix $ Ann (Fix $ Array n t', a) (ArrayType b s)
         StructType h -> do
             h' <- forM h $ \(i, t') ->
