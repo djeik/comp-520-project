@@ -27,6 +27,15 @@ parseInputFile "-" = Stdin
 parseInputFile x = FilePath x
 
 data Goto
+    = Goto
+        { cmd :: GotoCmd
+        -- ^ The actual command
+        , oneError :: Bool
+        -- ^ Flag to print only the first error.
+        }
+    deriving (Eq, Show)
+
+data GotoCmd
     = Pretty
         { filename :: InputFile
         }
@@ -44,7 +53,7 @@ main = execParser cmdParser >>= goto
 cmdParser :: ParserInfo Goto
 cmdParser
     = info (
-        subparser (
+        Goto <$> subparser (
             command "pretty" (
                 info (
                     Pretty <$> fmap parseInputFile (
@@ -81,6 +90,11 @@ cmdParser
                 briefDesc <>
                 progDesc "Typechecks and pretty-prints with type annotations."
             )
+        ) <*>
+        ( switch
+            ( long "oneError"
+              <> help "Specifies that only the first error should be printed."
+            )
         )
     ) $
     progDesc "Compiler for GoLite"
@@ -89,12 +103,12 @@ noNewLines :: String -> String
 noNewLines = foldr (\a b -> (if a == '\n' then ' ' else a) : b) []
 
 goto :: Goto -> IO ()
-goto g = case g of
+goto g = let oneErr = oneError g in case cmd g of
     Pretty f -> do
         ex <- parseGoLiteFile f
         case ex of
             Left e -> hPutStrLn stderr $ noNewLines $ show e
-            Right r -> case weedGoLiteProgram r of
+            Right r -> case weedGoLiteProgram oneErr r of
                 Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
                 Nothing -> putStrLn $ renderGoLite (pretty r)
     PrettyType f -> do
@@ -102,7 +116,7 @@ goto g = case g of
         case ex of
             Left e -> hPutStrLn stderr $ noNewLines $ show e
             Right r -> do
-                case weedGoLiteProgram r of
+                case weedGoLiteProgram oneErr r of
                     Just es -> do
                         hPutStrLn stderr $ renderGoLite (pretty es)
                     Nothing -> do
@@ -120,7 +134,7 @@ goto g = case g of
                 putStrLn $ noNewLines $ show e
                 exitFailure
             Right r -> do
-                case weedGoLiteProgram r of
+                case weedGoLiteProgram oneErr r of
                     Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
                     Nothing -> do
                         let s = renderGoLite (pretty r)
@@ -130,7 +144,7 @@ goto g = case g of
                                 putStrLn $ noNewLines $ show e
                                 putStrLn $ s
                                 exitFailure
-                            Right r' -> case weedGoLiteProgram r of
+                            Right r' -> case weedGoLiteProgram oneErr r of
                                 Just es -> do
                                     putStrLn $ "failed to weed pretty-printed program"
                                     putStrLn $ renderGoLite (pretty es)
@@ -148,11 +162,11 @@ goto g = case g of
                                             putStrLn s'
                                             exitFailure
 
-weedGoLiteProgram :: SrcAnnPackage -> Maybe G.WeederExceptions
-weedGoLiteProgram p =
+weedGoLiteProgram :: Bool -> SrcAnnPackage -> Maybe G.WeederExceptions
+weedGoLiteProgram oneErr p =
     case G.weed p of
         [] -> Nothing
-        xs -> Just $ G.WeederExceptions xs
+        xs -> Just $ G.WeederExceptions (if oneErr then [head xs] else xs)
 
 parseGoLiteFile :: InputFile -> IO (Either G.ParseError SrcAnnPackage)
 parseGoLiteFile f = do
