@@ -6,14 +6,14 @@ func main() {
     var f2 = 1;
     var t int;
 
-    n := 100;
+    n = 100;
 
     println(f1);
-    for n := 0 ; n < 100; n++ {
+    for n = 0 ; n < 100; n++ {
         println(f2);
 
-        t := f1 + f2;
-        f1 := f2;
-        f2 := t;
+        t = f1 + f2;
+        f1 = f2;
+        f2 = t;
     }
 }
