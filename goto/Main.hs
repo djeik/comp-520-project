@@ -101,14 +101,17 @@ goto g = case g of
         ex <- parseGoLiteFile f
         case ex of
             Left e -> hPutStrLn stderr $ noNewLines $ show e
-            Right r -> case weedGoLiteProgram r of
-                Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
-                Nothing -> case runTypecheck (G.typecheckPackage r) of
-                    (Left fatal, _) -> print fatal
-                    (Right _, _errors -> []) -> putStrLn "success"
-                    (Right _, _errors -> xs) -> do
-                        forM_ xs $ \er -> do
-                            putStrLn (renderGoLite (pretty er))
+            Right r -> do
+                case weedGoLiteProgram r of
+                    Just es -> do
+                        hPutStrLn stderr $ renderGoLite (pretty es)
+                    Nothing -> do
+                        case runTypecheck (G.typecheckPackage r) of
+                            (Left fatal, _) -> print fatal
+                            (Right _, _errors -> []) -> putStrLn "success"
+                            (Right _, _errors -> xs) -> do
+                                forM_ xs $ \er -> do
+                                    putStrLn (renderGoLite (pretty er))
     RoundTrip f -> do
         ex <- parseGoLiteFile f
         case ex of
