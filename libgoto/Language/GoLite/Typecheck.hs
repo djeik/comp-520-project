@@ -769,14 +769,16 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                 mcond' <- forM mcond $
                             (\e -> do
                                 e' <- typecheckExpr e
-                                let (ty, a) = topAnn e'
+                                let (ty, a') = topAnn e'
                                 if not $ isValue ty then do
-                                    reportError (IllegalNonvalueType
+                                    reportError $ IllegalNonvalueType
                                         { offendingType = ty
-                                        , errorLocation = a })
+                                        , errorLocation = a'
+                                        }
                                     -- Reconstruct an expression annotated
                                     -- with unknown type.
-                                    pure $ replaceTopAnn (\(_, a) -> (unknownType, a))
+                                    pure $ replaceTopAnn
+                                        (\(_, a'') -> (unknownType, a''))
                                         e'
                                 else pure $ e')
 

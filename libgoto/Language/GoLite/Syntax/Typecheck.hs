@@ -169,3 +169,11 @@ instance Pretty TySrcAnnExpr where
                         )
             Conversion t (_, _, e') -> (6, ty,) $
                 pretty t <> prettyParens True e'
+            Selector _ _ ->
+                error "unimplemented: typechecked selector pretty print"
+            Index _ _ ->
+                error "unimplemented: typechecked index pretty print"
+            TypeAssertion _ _ ->
+                error "unimplemented: typechecked type assertion pretty print"
+            Call _ _ _ ->
+                error "unimplemented: typechecked call pretty print"
