@@ -13,6 +13,7 @@ Defines type synonyms for typechecked syntax trees.
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Language.GoLite.Syntax.Typecheck where
 
@@ -106,15 +107,23 @@ type TySrcAnnGoRune
 type TySrcAnnGoString
     = TySrcAnn (Const GoString) ()
 
-instance
-    ( Pretty id
-    , Pretty bin
-    , Pretty un
-    , Pretty lit
-    , Pretty ty
-    , HasPrecedence bin
-    , HasPrecedence un
-    ) => Pretty (TySrcAnnFix (ExprF id bin un lit ty)) where
+instance Pretty TySrcAnnType where
+    pretty = annCata phi where
+        phi :: (Type, SrcSpan) -> SrcAnnTypeF Doc -> Doc
+        phi (t, _) e = case e of
+            SliceType d -> text "[]" <> d <+> pretty (Comment t)
+            ArrayType n d -> prettyBrackets True (pretty n) <> d <+> pretty (Comment t)
+            NamedType (bare -> name) -> pretty name <+> pretty (Comment t)
+            StructType fields ->
+                text "struct {" $+$ nest indentLevel (
+                    vcat (map (\(bare -> i, d) -> pretty i <+> d) fields)
+                ) $+$
+                text "}" <+> pretty (Comment t)
+
+instance Pretty TySrcAnnLiteral where
+    pretty = error "unimplemented: pretty typechecked literal"
+
+instance Pretty TySrcAnnExpr where
     pretty = (\(_, _, x) -> x) . cata f where
         f ::
             ( Pretty id
@@ -154,3 +163,5 @@ instance
                                 Just (_, tu, u) ->
                                     text ":" <> u <+> pretty (Comment tu)
                         )
+            Conversion t (_, _, e') -> (6, ty,) $
+                pretty t <> prettyParens True e'
