@@ -40,7 +40,7 @@ import Text.PrettyPrint ( Doc )
 -- indicates a fatal error and 'Right' indicates either success or non-fatal
 -- errors.
 newtype Typecheck a
-    = Typecheck { runTypecheck :: Traversal TypecheckError TypecheckState a }
+    = Typecheck { unTypecheck :: Traversal TypecheckError TypecheckState a }
     deriving
         ( Functor
         , Applicative
@@ -48,6 +48,24 @@ newtype Typecheck a
         , MonadError TypecheckError
         , MonadState TypecheckState
         )
+
+-- | Fully runs a computation in the 'Typecheck' monad using the default root
+-- scope.
+runTypecheck :: Typecheck a -> (Either TypecheckError a, TypecheckState)
+runTypecheck t
+    = runIdentity (
+        runStateT (
+            runExceptT (
+                runTraversal (
+                    unTypecheck t
+                )
+            )
+        ) $
+        TypecheckState
+            { _errors = []
+            , _scopes = [defaultRootScope]
+            }
+    )
 
 -- | The state of the typechecker is the stack of scopes being traversed and
 -- the list of accumulated non-fatal errors.
