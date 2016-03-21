@@ -62,4 +62,4 @@ newtype Comment a
 -- | Prints the contents in a block-comment. This is unsafe in the sense that
 -- if the pretty-printed contents contains \"*/\", you're fucked.
 instance Pretty a => Pretty (Comment a) where
-    pretty e = text "/*" <+> pretty e <+> text "*/"
+    pretty (Comment e) = text "/*" <+> pretty e <+> text "*/"
