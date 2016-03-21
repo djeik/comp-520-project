@@ -121,7 +121,11 @@ instance Pretty TySrcAnnType where
                 text "}" <+> pretty (Comment t)
 
 instance Pretty TySrcAnnLiteral where
-    pretty = error "unimplemented: pretty typechecked literal"
+    pretty (Ann (ty, _) lit) = case lit of
+        IntLit x -> pretty x <+> pretty (Comment ty)
+        FloatLit x -> pretty x <+> pretty (Comment ty)
+        RuneLit x -> pretty x <+> pretty (Comment ty)
+        StringLit x -> doubleQuotes (text x) <+> pretty (Comment ty)
 
 instance Pretty TySrcAnnExpr where
     pretty = (\(_, _, x) -> x) . cata f where
