@@ -169,6 +169,28 @@ instance Pretty ErrorPosition where
         Builtin ->
             text "builtin location:"
 
+data ErrorSymbol = ErrorSymbol SymbolInfo
+
+instance Pretty ErrorSymbol where
+    pretty (ErrorSymbol sym) = case sym of
+        VariableInfo {} ->
+            text "variable (defined at"
+            <+> pretty (ErrorPosition $ symLocation sym)
+            <> text ")"
+            <+> text "with declared type" $+$ nest indentLevel (pretty $ symType sym)
+        TypeInfo {} ->
+            text "type (defined at"
+            <+> pretty (ErrorPosition $ symLocation sym)
+            <> text ")"
+            <+> text "with underlying type" $+$ nest indentLevel (pretty $ symType sym)
+
+newtype ErrorSymbolKind = ErrorSymbolKind SymbolKind
+
+instance Pretty ErrorSymbolKind where
+    pretty (ErrorSymbolKind sym) = case sym of
+        VariableInfo {} -> text "variable"
+        TypeInfo {} -> text "type"
+
 instance Pretty TypeError where
     pretty err = case err of
         TypeMismatch {} ->
