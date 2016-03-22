@@ -325,12 +325,12 @@ typeAssertion e = do
 
 -- | Parses a function call argument list.
 arguments :: Parser (Maybe SrcAnnType, [SrcAnnExpr])
-arguments = noType <|> withType where
+arguments = withType <|> noType where
     noType = do
         exprs <- (expr >>= noSemiP) `sepBy` symbol ","
         pure (Nothing, exprs)
     withType = do
-        ty <- type_ >>= noSemiP
+        ty <- try $ type_ >>= noSemiP
         symbol ","
         exprs <- (expr >>= noSemiP) `sepBy` symbol ","
         pure (Just ty, exprs)
