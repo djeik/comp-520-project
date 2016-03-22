@@ -445,6 +445,7 @@ typecheckExpr = cata f where
                         FuncType fargs fret -> do
                             typecheckCall a ty args fargs
                             pure fret
+                        UnknownType -> pure unknownType
                         _ -> do
                             reportError $ TypeMismatch
                                 { mismatchExpectedType = Fix $ FuncType

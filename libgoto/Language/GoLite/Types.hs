@@ -187,11 +187,13 @@ unalias (Fix t) = case t of
 
 -- | Decides whether a type is a named type.
 isAliasType :: Type -> Bool
+isAliasType (Fix UnknownType) = True
 isAliasType t = t /= unalias t
 
 -- | Determines whether a type is a slice type.
 isSliceType :: Type -> Bool
 isSliceType (Fix t) = case t of
+    UnknownType -> True
     Slice _ -> True
     _ -> False
 
@@ -200,24 +202,28 @@ isReferenceType :: Type -> Bool
 isReferenceType (Fix t) = case t of
     Slice _ -> True
     FuncType _ _ -> True
+    UnknownType -> True
     _ -> False
 
 -- | Decides whether a type is the built-in 'NilType'.
 isNilType :: Type -> Bool
 isNilType (Fix t) = case t of
     NilType -> True
+    UnknownType -> True
     _ -> False
 
 -- | Decides whether a type is a function type.
 isFuncType :: Type -> Bool
 isFuncType (Fix t) = case t of
     FuncType _ _ -> True
+    UnknownType -> True
     _ -> False
 
 -- | Decides whether a type is one of the builtin types
 isBuiltinType :: Type -> Bool
 isBuiltinType (Fix t) = case t of
     BuiltinType _ -> True
+    UnknownType -> True
     _ -> False
 
 -- | Decides whether a type is allowed as a function call in expression statement
@@ -229,6 +235,7 @@ isAllowedInExprStmt (Fix t) = case t of
     BuiltinType CapType -> False
     BuiltinType LenType -> False
     BuiltinType MakeType -> False
+    UnknownType -> True
     _ -> True
 
 -- | Decides whether the type is of an untyped constant.
@@ -239,6 +246,7 @@ isUntyped (Fix t) = case t of
     StringType False -> True
     FloatType False -> True
     BoolType False -> True
+    UnknownType -> True
     _ -> False
 
 -- | Decides whether a type is ordered. All basic types except boolean are
@@ -250,6 +258,7 @@ isOrdered (Fix t) = case t of
     FloatType _ -> True
     RuneType _ -> True
     StringType _-> True
+    UnknownType -> True
     _ -> False
 
 -- | Tests whether a type is integral. Ints and runes are integral (both the
@@ -258,6 +267,7 @@ isIntegral :: Type -> Bool
 isIntegral (Fix t) = case t of
     IntType _ -> True
     RuneType _ -> True
+    UnknownType -> True
     _ -> False
 
 -- | Tests whether a type is a typed or untyped string. Necessary for checking
@@ -265,6 +275,7 @@ isIntegral (Fix t) = case t of
 isString :: Type -> Bool
 isString (Fix t) = case t of
     StringType _ -> True
+    UnknownType -> True
     _ -> False
 
 isConvertible :: Type -> Bool
@@ -273,6 +284,7 @@ isConvertible (Fix t) = case t of
     RuneType _ -> True
     FloatType _ -> True
     BoolType _ -> True
+    UnknownType -> True
     _ -> False
 
 {- | Decides whether two types are comparable. Types are comparable iff their
@@ -286,7 +298,10 @@ isConvertible (Fix t) = case t of
    Comparable types can be tested for equality or inequality using @==@ and
    @!=@.
 
-  This function is commutative: isComparable = flip . isComparable -}
+  In the absence of 'UnknownType', this function is commutative.
+
+  > isComparable = flip . isComparable
+-}
 isComparable :: Type -> Type -> Bool
 isComparable (defaultType -> Fix t) (defaultType -> Fix u) = case (t, u) of
     (Slice _, Slice _) -> False
@@ -298,6 +313,8 @@ isComparable (defaultType -> Fix t) (defaultType -> Fix u) = case (t, u) of
                                         bare i == bare i'
                                     &&  t' `isComparable` u')
                                     (zip ts us)
+    (UnknownType, _) -> True
+    (_, UnknownType) -> True
     (_, _)-> t == u
 
 -- | Decides whether a type is arithmetic. An arithmetic type can have
@@ -308,6 +325,7 @@ isArithmetic (Fix t) = case t of
     IntType _ -> True
     FloatType _ -> True
     RuneType _ -> True
+    UnknownType -> True
     _ -> False
 
 -- | Determines whether a type is logical (basically a boolean). Logical types
@@ -315,6 +333,7 @@ isArithmetic (Fix t) = case t of
 isLogical :: Type -> Bool
 isLogical (Fix t) = case t of
     BoolType _ -> True
+    UnknownType -> True
     _ -> False
 
 -- | Determines whether a type can be used as a value. Non-value types are
@@ -328,6 +347,7 @@ isValue (Fix t) = case t of
     NilType -> False
     TypeSum _ -> False -- Shouldn't occur, but just for completeness' sake.
     VoidType -> False
+    UnknownType -> True
     _ -> True
 
 
