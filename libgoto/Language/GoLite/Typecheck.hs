@@ -111,9 +111,9 @@ declareSymbol' name info = modifyTopScope $ \(Scope m) -> do
 -- | Looks up a variable in the scope stack.
 --
 -- This function does not report any errors.
-lookupSymbol :: SymbolName -> Typecheck (Maybe SymbolInfo)
-lookupSymbol "_" = pure $ Just $ VariableInfo Builtin unknownType
-lookupSymbol name = foldr (<|>) Nothing . map (M.lookup name . scopeMap) <$> gets _scopes
+lookupSymbol :: SymbolName -> Typecheck (Maybe (Integer, SymbolInfo))
+lookupSymbol "_" = pure $ Just $ (0, VariableInfo Builtin unknownType)
+lookupSymbol name = foldr (<|>) Nothing . map (sequence . fmap (M.lookup name)) . zip [0..] . map scopeMap <$> gets _scopes
 
 -- | Computes the canonical type representation for a source-annotated type.
 canonicalize :: SrcAnnType -> Typecheck TySrcAnnType
@@ -138,7 +138,7 @@ canonicalize = annCata f where
             minfo <- lookupSymbol name
 
             info <- case minfo of
-                Just info -> case info of
+                Just (_, info) -> case info of
                     VariableInfo _ _ -> do
                         reportError $ SymbolKindMismatch
                             { mismatchExpectedKind = typeKind
@@ -423,7 +423,7 @@ typecheckExpr = cata f where
                 Just (Fix (Ann _ (NamedType i@(Ann b (Ident name))))) -> do
                     inf <- lookupSymbol name
                     case inf of
-                        Just info -> case info of
+                        Just (_, info) -> case info of
                             VariableInfo _ _ -> do
                                 -- Obtain the args, synthesize a fake expression
                                 -- from the type, then repackage everything.
@@ -468,7 +468,7 @@ typecheckExpr = cata f where
                     minfo <- lookupSymbol name
                     case minfo of
                         Nothing -> normal
-                        Just info -> case info of
+                        Just (_, info) -> case info of
                             VariableInfo {} -> normal
                             TypeInfo {} -> do
                                 let symTy = symType info
@@ -516,7 +516,7 @@ typecheckExpr = cata f where
         Variable x@(Ann _ (Ident name)) -> do
             minfo <- lookupSymbol name
             case minfo of
-                Just info -> pure (symType info, Variable x)
+                Just (_, info) -> pure (symType info, Variable x)
                 Nothing -> do
                     reportError $ NotInScope { notInScopeIdent = x }
                     pure (unknownType, Variable x)
