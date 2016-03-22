@@ -797,10 +797,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
 
             ForStmt minit mcond mstep body -> withScope $ ForStmt
                 <$> sequence minit
-                <*> sequence
-                    (fmap
-                        (requireExprType typedBoolType empty)
-                        mcond)
+                <*> sequence (requireExprType typedBoolType empty <$> mcond)
                 <*> sequence mstep
                 <*> sequence body
 
