@@ -415,8 +415,26 @@ typecheckExpr = cata f where
 
         Call me mty margs -> do
             e' <- me
-            args <- sequence margs
-            ty <- forM mty canonicalize
+
+            let usual = sequence (forM mty canonicalize, sequence margs)
+            (ty', args) <- case mty of
+                Just (Fix (Ann _ (NamedType i@(Ann b (Ident name))))) -> do
+                    inf <- lookupSymbol name
+                    case inf of
+                        Just info -> case info of
+                            VariableInfo _ _ -> do
+                                -- Obtain the args, synthesize a fake expression
+                                -- from the type, then repackage everything.
+                                args <- sequence margs
+                                synth <- typecheckExpr (Fix (Ann b (Variable i)))
+                                pure (pure Nothing, synth:args)
+                            TypeInfo _ _ -> usual
+                        -- This will cause an error, but that's kind of what we
+                        -- want.
+                        Nothing -> usual
+                _ -> usual
+
+            ty <- ty'
 
             let normal = do
                     let (funTy, b) = topAnn e'
@@ -441,14 +459,6 @@ typecheckExpr = cata f where
                                 }
                             pure unknownType
 
-                    -- See whether the type of e' is the special built-in type
-                    -- of `make` and check that that coresponds with whether
-                    -- mty is Just or Nothing.
-                    -- Check that e' is a function type.
-                    -- Check that the type of each argument corresponds to the
-                    -- declared types of the function parameters.
-                    -- The type of the call is the declared return type of the
-                    -- function.
                     pure (t, Call e' ty args)
 
             case bare (unFix e') of

@@ -92,7 +92,7 @@ checkTypecheck bad good name contents = case parseOnly packageP name contents of
     Left pe -> expectationFailure (show pe)
     Right pr -> case weedGoLiteProgram pr of
         Just wes -> expectationFailure (show wes)
-        Nothing -> case runTypecheck (typecheckPackage p) of
+        Nothing -> case runTypecheck (typecheckPackage pr) of
             (Left fatal, _) -> bad (TypeFatal fatal)
             (Right p, tst) -> case _errors tst of
                 [] -> good p
