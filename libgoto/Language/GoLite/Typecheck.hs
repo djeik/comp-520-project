@@ -354,6 +354,7 @@ typecheckExpr = cata f where
             t <- case unFix iety of
                 Ty.Slice t -> pure t
                 Array _ t -> pure t
+                StringType _ -> pure typedRuneType
                 _ -> do
                     reportError $ TypeMismatch
                         { mismatchExpectedType = arrayType 0 unknownType
