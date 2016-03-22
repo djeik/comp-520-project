@@ -345,13 +345,9 @@ typecheckExpr = cata f where
 
             let (iety, be) = topAnn ie
             let (defaultType -> ievty, bev) = topAnn iev
-            -- see the documentation of the Index constructor in
-            -- Syntax/Types/Expr.hs for how to typecheck indexing expressions.
-            -- Needs cross-referencing with the GoLite spec to ignore pointers,
-            -- etc.
 
-            -- check that the expression to index in is indexable (is an array
-            -- or a slice) and get the element type
+            -- check that the expression to index in is indexable (is an array,
+            -- a slice, or a string) and get the element type
             t <- case unFix iety of
                 Ty.Slice t -> pure t
                 Array _ t -> pure t
@@ -381,8 +377,9 @@ typecheckExpr = cata f where
             e' <- me
             let (ty, b) = topAnn e'
 
-            elemTy <- case unFix ty of
-                Ty.Slice t -> pure t
+            -- check that the expression to slice is a slice
+            case unFix ty of
+                Ty.Slice _ -> pure ()
                 _ -> do
                     reportError $ TypeMismatch
                         { mismatchExpectedType = sliceType unknownType
@@ -390,7 +387,6 @@ typecheckExpr = cata f where
                         , mismatchCause = Ann b (Just e')
                         , errorReason = empty
                         }
-                    pure unknownType
 
             lo <- sequence melo
             hi <- sequence mehi
@@ -407,7 +403,7 @@ typecheckExpr = cata f where
 
             mapM_ (traverse checkIndex) [lo, hi, bound]
 
-            pure (elemTy, T.Slice e' lo hi bound)
+            pure (ty, T.Slice e' lo hi bound)
 
         TypeAssertion me ty -> do
             e' <- me
