@@ -59,8 +59,9 @@ weedFunDecl (FunDecl (Ann a _) pars rty bod) = do
         (reportError $ WeederException a "missing return at end of function")
 
     weedFields pars
-
-    void $ pure (weedType <$> rty)
+    case rty of
+        Nothing -> pure ()
+        Just ty -> weedType ty
 
     modify $ \s -> s { funcHasReturn = (isJust rty) }
     void $ mapM weedStmt bod

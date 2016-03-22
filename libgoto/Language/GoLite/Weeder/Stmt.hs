@@ -22,7 +22,9 @@ import Language.GoLite.Weeder.TypeLit
 weedDecl :: SrcAnnDeclaration -> Weeder ()
 weedDecl (TypeDecl (TypeDeclBody _ ty)) = weedType ty
 weedDecl (VarDecl (VarDeclBody _ ty es)) = do
-    void $ pure (weedType <$> ty)
+    case ty of
+        Nothing -> pure ()
+        Just ty' -> weedType ty'
     void $ mapM weedExpr es
 
 
@@ -63,7 +65,7 @@ weedStmt (Fix (Ann _ (Assignment lhs op rhs))) = do
         weedExprAllowingBlanks e = when (not ("_" `isIdAsOperand` e)) (weedExpr e)
 
 -- Print statement: weed the inner expressions
-weedStmt (Fix (Ann _ (PrintStmt es))) = pure $ (void . map) weedExpr es
+weedStmt (Fix (Ann _ (PrintStmt es))) = void $ mapM weedExpr es
 
 -- Return statement with no expression: check that we're in a function that has
 -- no return.

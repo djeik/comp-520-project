@@ -15,6 +15,7 @@ module Language.GoLite.Weeder.Expr
 ( weedExpr
 ) where
 
+import Language.GoLite.Misc
 import Language.GoLite.Weeder.Core
 import Language.GoLite.Weeder.TypeLit
 
@@ -31,7 +32,15 @@ weedExpr :: SrcAnnExpr -> Weeder ()
 weedExpr (Fix (Ann _ (BinaryOp _ l r))) = weedExpr l >> weedExpr r
 
 -- Unary operator: weed the operand.
-weedExpr (Fix (Ann _ (UnaryOp _ e))) = weedExpr e
+weedExpr (Fix (Ann _ (UnaryOp (Ann a o) e))) = do
+    let err = reportError $ WeederException a "unsupported unary op"
+    case o of
+        Receive -> err
+        Reference -> err
+        Dereference -> err
+        _ -> pure ()
+
+    weedExpr e
 
 -- Conversion: weed the type and operand.
 weedExpr (Fix (Ann _ (Conversion ty e))) = weedType ty >> weedExpr e
@@ -49,9 +58,18 @@ weedExpr (Fix (Ann _ (Index e v))) = weedExpr e >> weedExpr v
 -- combinations of Maybes is valid since the parser should reject it.
 weedExpr (Fix (Ann _ (Slice e l h b))) = do
     weedExpr e
-    void $ pure (weedExpr <$> l)
-    void $ pure (weedExpr <$> h)
-    void $ pure (weedExpr <$> b)
+
+    case l of
+        Nothing -> pure ()
+        Just l' -> weedExpr l'
+
+    case h of
+        Nothing -> pure ()
+        Just h' -> weedExpr h'
+
+    case b of
+        Nothing -> pure ()
+        Just b' -> weedExpr b'
 
 -- Type assertion: weed the expression and type being asserted.
 weedExpr (Fix (Ann a (TypeAssertion _ _))) =
@@ -61,7 +79,9 @@ weedExpr (Fix (Ann a (TypeAssertion _ _))) =
 -- and params expressions, as well as the type.
 weedExpr (Fix (Ann _ (Call callee ty params))) = do
     weedExpr callee
-    void $ pure (weedType <$> ty)
+    case ty of
+        Nothing -> pure ()
+        Just ty' -> weedType ty'
     void $ mapM weedExpr params
 
 -- Literals: literally nothing.
