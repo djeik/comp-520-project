@@ -549,20 +549,31 @@ typecheckExpr = cata f where
                     pure unknownType
 
 
-    -- | Checks that a conversion is valid.
-    typecheckConversion
-        :: Type
-        -> TySrcAnnExpr
-        -> Typecheck ()
-    typecheckConversion ty e = do
-        let (t', b) = topAnn e
-        (ty, t') <== TypeMismatch
-            { mismatchExpectedType = ty
-            , mismatchActualType = t'
-            , mismatchCause = Ann b (Just e)
-            , errorReason = empty
-            }
-        pure ()
+-- | Checks that a conversion is valid.
+--
+-- We say that a conversion between types S and T is valid if one of the
+-- following is true:
+--  * the underlying types of S and T are both convertible
+--  * the underlying types of S and T are assignment compatible
+--
+-- /See also/ 'isConvertible', 'unalias'
+typecheckConversion
+    :: Type
+    -> TySrcAnnExpr
+    -> Typecheck ()
+typecheckConversion ty e = do
+    let (t', b) = topAnn e
+    case (unalias ty, unalias t') of
+        (isConvertible -> True, isConvertible -> True) -> pure ()
+        t@(_, _) -> do
+            t <== TypeMismatch
+                { mismatchExpectedType = ty
+                , mismatchActualType = t'
+                , mismatchCause = Ann b (Just e)
+                , errorReason = empty
+                }
+            pure ()
+    pure ()
 
 -- | Computes the canonical type of a binary operator expression.
 typecheckBinaryOp

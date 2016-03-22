@@ -267,6 +267,14 @@ isString (Fix t) = case t of
     StringType _ -> True
     _ -> False
 
+isConvertible :: Type -> Bool
+isConvertible (Fix t) = case t of
+    IntType _ -> True
+    RuneType _ -> True
+    FloatType _ -> True
+    BoolType _ -> True
+    _ -> False
+
 {- | Decides whether two types are comparable. Types are comparable iff their
    default types are identical, except in the following cases:
 
