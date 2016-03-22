@@ -142,41 +142,47 @@ instance Pretty TySrcAnnExpr where
             -> (Int, Type, Doc)
         f (Ann (ty, _) e) = case e of
             BinaryOp op (dl, tl, l) (dr, tr, r) -> (precedence op, ty,) $
-                prettyParens (dl <= precedence op) l <+> pretty (Comment tl)
+                prettyParens (dl <= precedence op) l
                 <+>
                 pretty op
                 <+>
-                prettyParens (dr <= precedence op) r <+> pretty (Comment tr)
+                pretty (Comment ty)
+                <+>
+                prettyParens (dr <= precedence op) r
             UnaryOp op (dp, tp, p) -> (precedence op, ty,) $
                 pretty op
                 <>
                 prettyParens (dp <= precedence op) p
                 <+>
-                pretty (Comment tp)
-            Literal l -> (6, ty, pretty l)
-            Variable x -> (6, ty, pretty x)
+                pretty (Comment ty)
+            Literal l -> (6, ty,) $ pretty l
+            Variable x -> (6, ty,) $ pretty x <+> pretty (Comment ty)
             Ty.Slice (ep, tp, ex) lo hi up ->
                 let p q = case q of
                         Nothing -> empty
-                        Just (_, t, q') -> q' <+> pretty (Comment t)
+                        Just (_, t, q') -> q'
                     in (6, ty,) $
-                        prettyParens (ep <= 6) (ex <+> pretty (Comment tp)) <+>
+                        prettyParens (ep <= 6) ex <+>
                         prettyBrackets True (
                             p lo <> text ":" <> p hi <> case up of
                                 Nothing -> empty
                                 Just (_, tu, u) ->
-                                    text ":" <> u <+> pretty (Comment tu)
-                        )
+                                    text ":" <> u
+                        ) <+>
+                        pretty (Comment ty)
             Conversion t (_, _, e') -> (6, ty,) $
-                pretty t <> prettyParens True e'
+                pretty t <> prettyParens True e' <+> pretty (Comment ty)
             Selector (ps, tys, e') name -> (6, ty,) $
-                prettyParens (ps <= 6) e' <+> pretty (Comment tys) <+> text "."
-                <+> pretty name
+                prettyParens (ps <= 6) e' <+> text "." <+> pretty name <+>
+                pretty (Comment ty)
             Index (di, tyi, ei) (dj, tyj, ej) -> (6, ty,) $
-                ei <+> pretty (Comment tyi) <+>
-                prettyBrackets True (ej <+> pretty (Comment tyj))
-            TypeAssertion _ _ ->
-                error "unimplemented: typechecked type assertion pretty print"
+                ei <+> prettyBrackets True ej <+> pretty (Comment ty)
+            TypeAssertion (dex, _, ex) ty' -> (6, ty,) $ cat
+                [ prettyParens (dex <= 6) ex
+                , text "."
+                , prettyParens True (pretty ty')
+                ] <+>
+                pretty (Comment ty)
             Call (fp, ft, fb) mty args -> (6, ty,) $
                 prettyParens (fp <= 6) (prettyPrec 6 fb) <>
                 prettyParens True (
