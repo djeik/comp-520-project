@@ -13,6 +13,7 @@ GoLite code.
 
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Language.GoLite.Pretty 
 ( Pretty(..)
@@ -26,6 +27,7 @@ module Language.GoLite.Pretty
 
 import Control.Applicative ( Const(..) )
 import Data.Functor.Identity
+import Numeric ( floatToDigits )
 import Text.PrettyPrint
 
 -- | Essentially a clone of 'Text.Show.Show'.
@@ -51,7 +53,13 @@ instance Pretty Int where
     pretty = int
 
 instance Pretty Double where
-    pretty = double
+    pretty n
+        = (if n < 0 then text "-" else empty) <>
+        if e >= 0
+            then let (pre, post) = splitAt e d in
+                hcat (int <$> pre) <> text "." <> hcat (int <$> post)
+            else text "." <> text (replicate (abs e) '0') <> hcat (int <$> d)
+        where (d, e) = floatToDigits 10 (abs n)
 
 instance Pretty a => Pretty (Const a b) where
     pretty = pretty . getConst
