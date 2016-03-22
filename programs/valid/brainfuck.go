@@ -11,12 +11,12 @@ var (
 	output rune = '.';
 );
 
-var memory [1024]int32;
-var ptr int32 = 0;
+var memory [1024]int;
+var ptr int = 0;
 
-func int32erpret(program string) {
+func interpret(program string) {
 	var n = len(program)
-	var stk int32 = 0
+	var stk int = 0
 
 	for pc := 0 ; pc < n ; pc++ {
 		switch program[pc] {
