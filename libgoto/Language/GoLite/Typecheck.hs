@@ -111,6 +111,7 @@ declareSymbol' name info = modifyTopScope $ \(Scope m) -> do
 --
 -- This function does not report any errors.
 lookupSymbol :: SymbolName -> Typecheck (Maybe SymbolInfo)
+lookupSymbol "_" = pure $ Just $ VariableInfo Builtin unknownType
 lookupSymbol name = foldr (<|>) Nothing . map (M.lookup name . scopeMap) <$> gets _scopes
 
 -- | Computes the canonical type representation for a source-annotated type.
