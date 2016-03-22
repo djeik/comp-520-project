@@ -8,6 +8,8 @@ import Weeder
 
 import Language.GoLite
 import Language.GoLite.Syntax.SrcAnn
+import Language.GoLite.Syntax.Typecheck
+import Language.GoLite.Typecheck.Types
 
 import System.Directory
 import System.FilePath
@@ -65,6 +67,37 @@ main = do
                     name
                     contents
 
+    hspec $ describe "Semantically valid programs" $ do
+        forM_ validTypeSources $ \(name, contents) ->
+            it ("typechecks the valid program " ++ name) $
+                checkTypecheck
+                    (expectationFailure . show)
+                    (const (pure ()))
+                    name
+                    contents
+
+        forM_ invalidTypeSources $ \(name, contents) ->
+            it ("fails to parse the invalid program " ++ name) $
+                checkTypecheck
+                    (const (pure ()))
+                    (const (expectationFailure "should not typecheck"))
+                    name
+                    contents
+
+checkTypecheck
+    :: (SemanticError -> Expectation)
+    -> (TySrcAnnPackage -> Expectation)
+    -> String -> String -> Expectation
+checkTypecheck bad good name contents = case parseOnly packageP name contents of
+    Left pe -> expectationFailure (show pe)
+    Right p -> case weedGoLiteProgram p of
+        Just wes -> expectationFailure (show wes)
+        Nothing -> case runTypecheck (typecheckPackage p) of
+            (Left fatal, _) -> bad (TypeFatal fatal)
+            (Right p, tst) -> case _errors tst of
+                [] -> good p
+                tes -> bad (Type tes)
+
 checkParse
     :: (SyntaxError -> Expectation)
     -> (SrcAnnPackage -> Expectation)
@@ -83,6 +116,11 @@ weedGoLiteProgram p =
     case weed p of
         [] -> Nothing
         xs -> Just $ WeederExceptions xs
+
+data SemanticError =
+      Type [TypeError]
+    | TypeFatal TypecheckError
+    deriving ( Show )
 
 data SyntaxError =
       Parse ParseError

@@ -84,20 +84,27 @@ weedStmt (Fix (Ann a (ReturnStmt (Just e)))) = do
 -- If statement: weed the initializer, expression, then statements and else
 -- statements.
 weedStmt (Fix (Ann _ (IfStmt init' e thens elses))) = do
-    void $ pure (weedStmt <$> init')
+    case init' of
+        Nothing -> pure ()
+        Just init'' -> weedStmt init''
     weedExpr e
     void $ mapM weedStmt thens
-    void $ pure $ fmap (mapM weedStmt) elses
+    case elses of
+        Nothing -> pure ()
+        Just elses' -> void $ mapM weedStmt elses
 
 -- Switch statement: check that there is only one default clause, then weed the
 -- initializer, the expression and the clauses.
 weedStmt (Fix (Ann a (SwitchStmt init' e clauses))) = do
-    void $ pure (weedStmt <$> init')
-    void $ pure (weedExpr <$> e)
+    case init' of
+        Nothing -> pure ()
+        Just init'' -> weedStmt init''
 
-    let defs = filter isDefaultCase clauses
+    case e of
+        Nothing -> pure ()
+        Just e' -> weedExpr e'
 
-    when (length defs > 1)
+    when (length (filter isDefaultCase clauses) > 1)
         (reportError $ WeederException a "multiple defaults in switch")
 
     modify $ \s -> incSwitchLevel s
@@ -106,9 +113,17 @@ weedStmt (Fix (Ann a (SwitchStmt init' e clauses))) = do
 
 -- For statement: weed the pre-statement, condition, post-statement and body.
 weedStmt (Fix (Ann _ (ForStmt pre cond post body))) = do
-    void $ pure (weedStmt <$> pre)
-    void $ pure (weedExpr <$> cond)
-    void $ pure (weedStmt <$> post)
+    case pre of
+        Nothing -> pure ()
+        Just pre' -> weedStmt pre'
+
+    case cond of
+        Nothing -> pure ()
+        Just cond' -> weedExpr cond'
+
+    case post of
+        Nothing -> pure ()
+        Just pre' -> weedStmt post'
 
     modify $ \s -> incForLevel s
     void $ mapM weedStmt body
