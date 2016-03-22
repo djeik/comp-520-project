@@ -142,11 +142,11 @@ instance Pretty TySrcAnnExpr where
             -> (Int, Type, Doc)
         f (Ann (ty, _) e) = case e of
             BinaryOp op (dl, tl, l) (dr, tr, r) -> (precedence op, ty,) $
-                prettyParens (dl <= precedence op) (l <+> pretty (Comment tl))
+                prettyParens (dl <= precedence op) l <+> pretty (Comment tl)
                 <+>
                 pretty op
                 <+>
-                prettyParens (dr <= precedence op) (r <+> pretty (Comment tr))
+                prettyParens (dr <= precedence op) r <+> pretty (Comment tr)
             UnaryOp op (dp, tp, p) -> (precedence op, ty,) $
                 pretty op
                 <>
@@ -169,11 +169,26 @@ instance Pretty TySrcAnnExpr where
                         )
             Conversion t (_, _, e') -> (6, ty,) $
                 pretty t <> prettyParens True e'
-            Selector _ _ ->
-                error "unimplemented: typechecked selector pretty print"
-            Index _ _ ->
-                error "unimplemented: typechecked index pretty print"
+            Selector (ps, tys, e') name -> (6, ty,) $
+                prettyParens (ps <= 6) e' <+> pretty (Comment tys) <+> text "."
+                <+> pretty name
+            Index (di, tyi, ei) (dj, tyj, ej) -> (6, ty,) $
+                ei <+> pretty (Comment tyi) <+>
+                prettyBrackets True (ej <+> pretty (Comment tyj))
             TypeAssertion _ _ ->
                 error "unimplemented: typechecked type assertion pretty print"
-            Call _ _ _ ->
-                error "unimplemented: typechecked call pretty print"
+            Call (fp, ft, fb) mty args -> (6, ty,) $
+                prettyParens (fp <= 6) (prettyPrec 6 fb) <>
+                prettyParens True (
+                    case args of
+                        [] -> pretty ty
+                        s -> case mty of
+                            Nothing ->
+                                sep $
+                                punctuate comma $
+                                map (\(_, q, d) -> d <+> pretty (Comment q)) s
+                            Just t ->
+                                sep $
+                                punctuate comma $
+                                pretty t : map (\(_, q, d) -> d <+> pretty (Comment q)) s
+                )
