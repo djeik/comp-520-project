@@ -181,11 +181,11 @@ typecheckDecl d = case d of
 -- | Typechecks a source position-annotated 'TypeDecl'.
 typecheckTypeDecl :: SrcAnnTypeDecl -> Typecheck SrcAnnTypeDecl
 typecheckTypeDecl d = case d of
-    TypeDeclBody (Ann a (Ident i)) ty -> do
+    TypeDeclBody si@(Ann a (Ident i)) ty -> do
         ty' <- canonicalize ty
         declareSymbol i $ TypeInfo
             { symLocation = SourcePosition a
-            , symType = fst (topAnn ty')
+            , symType = aliasType si (fst (topAnn ty'))
             }
         pure $ TypeDeclBody (Ann a (Ident i)) ty
 

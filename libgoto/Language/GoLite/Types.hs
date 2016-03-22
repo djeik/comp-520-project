@@ -462,6 +462,9 @@ unknownType = Fix UnknownType
 structType :: [(SrcAnn Symbol (), Type)] -> Type
 structType = Fix . Struct
 
+aliasType :: SrcAnnIdent -> Type -> Type
+aliasType i = Fix . AliasType i
+
 typeSum :: [Type] -> Type
 typeSum = Fix . TypeSum
 
