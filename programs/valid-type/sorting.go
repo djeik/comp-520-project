@@ -3,29 +3,9 @@ package heapsort
 
 var index int
 var size int = 10
-var numbers [10]int
+var numbers []int
 var global_heap [1000]int
 var global_heapSize int
-
-func main(){
-  numbers[0] = 0
-  numbers[1] = 17
-  numbers[2] = 13
-  numbers[3] = 8
-  numbers[4] = 79
-  numbers[5] = 65
-  numbers[6] = 44
-  numbers[7] = 72
-  numbers[8] = 66
-  numbers[9] = 53
-
-  var heap [1000]int
-  heapSort(10, numbers)
-
-  var sorted []int
-  sorted = getSortedList()
-  // sorted now contains a sorted list of our numbers
-}
 
 func heapSort(size int, numbers []int) {
   var lastIndex int = 1
@@ -44,7 +24,7 @@ func heapSort(size int, numbers []int) {
 
     keepLooping = true
     current = lastIndex
-    
+
     for keepLooping {
       newIndex = current/2
       if newIndex > 0  && myHeap[newIndex] < myHeap[current] {
@@ -94,4 +74,25 @@ func getSortedList() []int{
   }
 
   return sorted
+}
+
+
+func main(){
+  numbers[0] = 0
+  numbers[1] = 17
+  numbers[2] = 13
+  numbers[3] = 8
+  numbers[4] = 79
+  numbers[5] = 65
+  numbers[6] = 44
+  numbers[7] = 72
+  numbers[8] = 66
+  numbers[9] = 53
+
+  var heap [1000]int
+  heapSort(10, numbers)
+
+  var sorted []int
+  sorted = getSortedList()
+  // sorted now contains a sorted list of our numbers
 }

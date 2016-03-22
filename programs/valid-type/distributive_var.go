@@ -10,7 +10,7 @@ var ( a rune
 
 var (
     x int
-    y float64 = x
+    y float64 = 2.
     z1, z2 string
 )
 

@@ -1,7 +1,7 @@
 package main
 
 func main() {
-    var x []string;
+    var s []string;
     s[0] = "a"
     s[1] = "b"
     s[2] = "c"

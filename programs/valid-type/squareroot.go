@@ -2,8 +2,8 @@
 /* ------------------- */
 package main
 
-func sqrt(x int) float {
-	var quot float
+func sqrt(x float64) float64 {
+	var quot float64
 	guess := 1.0
 
 	for iter := 10; iter > 0; iter-- {

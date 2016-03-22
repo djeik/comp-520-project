@@ -14,7 +14,7 @@ func main() {
                                     println(true || false)
                                         println(!true)
 
-                x := 5; if x < y {
+                x, y, z := 5,2,1; if x < y {
         return
 } else if x > z {
         return

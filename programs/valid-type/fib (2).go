@@ -6,7 +6,7 @@ func main() {
     var f2 = 1;
     var t int;
 
-    n := 100;
+    n = 100;
 
     println(f1);
     for n := 0 ; n < 100; n++ {

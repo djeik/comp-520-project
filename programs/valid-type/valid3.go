@@ -1,14 +1,8 @@
 // fibo using memoization
 
 package main
-
 var n = 10
 var fib [10]int
-func main(){
-	fib[0]=1
-	fib[1]=1
-	fibo(10)
-}
 
 func fibo(n int) int {
 	if n<=0 {
@@ -22,4 +16,10 @@ func fibo(n int) int {
 		}
 		return f
 	}
+}
+
+func main(){
+	fib[0]=1
+	fib[1]=1
+	fibo(10)
 }

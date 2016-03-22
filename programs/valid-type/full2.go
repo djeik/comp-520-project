@@ -46,7 +46,7 @@ func main(){
     // int stuff
     x = (+1 + -x - +-^3/(x*5%x)) & 2 &^ x
     // bool stuff
-    y = !y||y&&y==(x < x)!=(x > x)||x>=x&&x<=x; 
+    y = !y||y&&y==(x < x)!=(x > x)||x>=x&&x<=x;
 
     /* * weird comments stuff * / / / /* / * *  // */
 
@@ -139,5 +139,5 @@ func main(){
     for i := 0; i < 10; i++ {
     }
 
-    afsdjfk := string(int(float64((((((((((5)+((((xyx))))*((((((((((g(100)[0][0][0][0])))))))))))))))))))))
+    afsdjfk := (int(float64((((((((((5)+((((xyx))))*((((((((((g(100)[0][0][0][0])))))))))))))))))))))
 }

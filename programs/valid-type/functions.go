@@ -39,5 +39,5 @@ func main() {
     println("1+2+3 =", res)
 
     // Function call
-    plusPlus(1,5);
+    plusPlus(1,5,7);
 }

@@ -1,6 +1,8 @@
 package main;
 func main(){
-    
+
+    var x bool
+
     if x := true; x {
 
     }

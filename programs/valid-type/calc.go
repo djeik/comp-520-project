@@ -7,17 +7,16 @@ package coolmath
 
 type exponent int
 
-func main() {
-  println(",------------,")
-  println("| CALCULATOR |")
-  println("'------------'")
+func power(a float64, b float64) float64 {
+  var ret float64 = 1.
+  var power = exponent(b)
 
-  print(compute(0,1,1))
-  print(compute(1,5,4))
-  print(compute(2,10,22.0))
-  print(compute(3, 19.11, .1))
-  print(compute(4, 2,4))        /* 2^4 */
-  print(compute(4, -10, 0))     /* negate -10 */
+  for power > 0 {
+    ret = ret * a
+    power = power - 1
+  }
+
+  return ret
 }
 
 func compute(op int, a float64, b float64) float64 {
@@ -38,17 +37,20 @@ func compute(op int, a float64, b float64) float64 {
     println("Invalid operator")
     break
   }
-  return -1
+  return -1.
 }
 
-func power(a float64, b float64) float64 {
-  var ret int = 1
-  var power = exponent(b)
 
-  for power > 0 {
-    ret = ret * a
-    power = power - 1
-  }
 
-  return ret
+func main() {
+  println(",------------,")
+  println("| CALCULATOR |")
+  println("'------------'")
+
+  print(compute(0,1.,1.))
+  print(compute(1,5.,4.))
+  print(compute(2,10.,22.0))
+  print(compute(3, 19.11, .1))
+  print(compute(4, 2.,4.))        /* 2^4 */
+  print(compute(4, -10., 0.))     /* negate -10 */
 }

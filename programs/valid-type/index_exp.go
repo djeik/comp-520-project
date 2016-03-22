@@ -4,5 +4,5 @@ func main() {
     var b []int
     var x = 2
     a := b[0]
-    a[x] = 3
+    a = 3
 }

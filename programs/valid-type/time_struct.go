@@ -8,7 +8,7 @@ type Time struct {
 }
 
 func main() {
-  var time Time = Time(12, 30)
+  var time Time
   time.Hour = 6
   time.Minute = 30
 }

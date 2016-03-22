@@ -8,5 +8,5 @@ func main () {
 	var y [] string
 	y = append(y, "poop")
 	q := append(y, "poo")
-	q[5] = 5
+	q[5] = "5"
 }

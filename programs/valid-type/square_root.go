@@ -5,7 +5,7 @@ package main
 func main() {
   var (
     k = 10
-    x, z float64 = 36, 1
+    x, z = 36, 1
   )
 
   for i := 0; i < k; i++ {

@@ -4,7 +4,7 @@
 
 package main
 
-var x float64 = 10
+var x float64 = 10.
 var lnx, term float64
 var niter int = 100
 
@@ -16,7 +16,7 @@ func main() {
 
 		// Calculate (x - 1)^i.
 		for j := 0 ; j < i ; j++ {
-			term *= (x - 1)
+			term *= (x - 1.)
 		}
 
 		// (x - 1)^i / i.
@@ -28,7 +28,7 @@ func main() {
 		} else {
 			lnx += term
 		}
-		
+
 		println(lnx)
 	}
 

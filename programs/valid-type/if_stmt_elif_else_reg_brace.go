@@ -3,7 +3,7 @@
 package main
 
 func main() {
-	x := true
+	x, y := true, false
 	if z:= true; y {
 		println(z)
 	} else if z:= true; x {

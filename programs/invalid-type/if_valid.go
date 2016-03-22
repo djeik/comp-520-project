@@ -1,7 +1,9 @@
 package main
 
+func f() bool { return false; }
+
 func main() {
-    var x, max int
+    var x, max, y int
     if x > max {
         x = max
     }

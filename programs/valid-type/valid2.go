@@ -1,11 +1,5 @@
 package main
 
-func main(){
-	var x,y = 80,28
-	print("the gcd of 80 and 28 is:")
-	print(gcd(x,y))
-}
-
 func gcd(a, b int) int {
 	c:=1;
 	for a!= 0 {
@@ -14,4 +8,11 @@ func gcd(a, b int) int {
 		b = c
 	}
 	return b
+}
+
+
+func main(){
+	var x,y = 80,28
+	print("the gcd of 80 and 28 is:")
+	print(gcd(x,y))
 }

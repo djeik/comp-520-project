@@ -3,26 +3,6 @@
 
 package main
 
-// Array to be sorted.
-var nums []int
-
-/* Main */
-func main() {
-  nums = append(nums, 10)
-  nums = append(nums, 9)
-  nums = append(nums, 8)
-  nums = append(nums, 7)
-  nums = append(nums, 6)
-  nums = append(nums, 5)
-  nums = append(nums, 4)
-  nums = append(nums, 3)
-  nums = append(nums, 2)
-  nums = append(nums, 1)
-
-  selectionSort(nums, 10)
-  println(binarySearch(nums, 10, 10) >= 0)
-}
-
 /* Selection Sort */
 func selectionSort(nums []int, size int) {
   for i := 0; i < size; i++ {
@@ -56,4 +36,24 @@ func binarySearch(nums []int, size int, target int) int {
   }
 
   return -1
+}
+
+// Array to be sorted.
+var nums []int
+
+/* Main */
+func main() {
+  nums = append(nums, 10)
+  nums = append(nums, 9)
+  nums = append(nums, 8)
+  nums = append(nums, 7)
+  nums = append(nums, 6)
+  nums = append(nums, 5)
+  nums = append(nums, 4)
+  nums = append(nums, 3)
+  nums = append(nums, 2)
+  nums = append(nums, 1)
+
+  selectionSort(nums, 10)
+  println(binarySearch(nums, 10, 10) >= 0)
 }

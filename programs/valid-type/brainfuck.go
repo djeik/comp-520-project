@@ -50,7 +50,7 @@ func interpret(program string) {
 			}
 		case end:
 			if memory[ptr] != 0 {
-				stk_ = stk
+				stk_ := stk
 				stk++
 				pc--
 				for {

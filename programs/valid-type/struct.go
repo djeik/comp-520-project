@@ -1,6 +1,9 @@
 // go lecture (6), slide 8
 package main
 
+type point struct {
+    x, y, z int
+}
 
 func test(a, b point) point {
 	var p point
@@ -11,9 +14,6 @@ func test(a, b point) point {
 }
 
 func main () {
-	type point struct {
-		x, y, z int
-	}
 	var p point
 	p.x = 1
 	p.y = 2
