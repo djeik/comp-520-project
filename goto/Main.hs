@@ -9,6 +9,8 @@ import Language.GoLite.Typecheck
 import Language.GoLite.Typecheck.Types
 
 import Control.Monad ( forM_, when )
+import Data.List ( sortBy )
+import Data.Ord ( comparing )
 import Options.Applicative
 import System.Exit ( exitFailure )
 
@@ -138,7 +140,7 @@ goto g =
                             case runTypecheck (G.typecheckPackage r) of
                                 (Left fatal, _) -> print fatal
                                 (Right p, s) -> do
-                                    case _errors s of
+                                    case reverse $ sortBy (comparing typeErrorLocation) (_errors s) of
                                         [] -> do
                                             putStrLn (renderGoLite (pretty p))
                                         xs -> forM_ (if oneErr then [head xs] else xs) $ \er -> do
