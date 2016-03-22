@@ -709,10 +709,10 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                 pure $ ExprStmt t
 
             ShortVarDecl idents exprs -> do
-                hasNoRedeclarations <- null . filter (== Nothing)
+                noNew <- all (not . isValidDeclaration)
                     <$> mapM (lookupSymbol . unIdent . bare) idents
 
-                when hasNoRedeclarations $ reportError $ NoNewVariables
+                when noNew $ reportError $ NoNewVariables
                         { errorLocation = a
                         }
 

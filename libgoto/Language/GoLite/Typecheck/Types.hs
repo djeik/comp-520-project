@@ -374,6 +374,15 @@ data TypecheckError
     -- logical, or ordering.
     deriving (Eq, Show)
 
+-- | Decides whether a declaration is allowed in isolation.
+isValidDeclaration :: Maybe (Integer, SymbolInfo) -> Bool
+isValidDeclaration e = case e of
+    Nothing -> True -- the identifier is unique in the scope stack
+    Just (distance, _) ->
+        if distance <= 0
+            then False -- redeclaration
+            else True -- shadowing
+
 -- | Typechecking is a traversal requiring state and the possibility of fatal
 -- errors.
 instance MonadTraversal Typecheck where
