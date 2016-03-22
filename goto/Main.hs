@@ -137,9 +137,10 @@ goto g =
                         Nothing -> do
                             case runTypecheck (G.typecheckPackage r) of
                                 (Left fatal, _) -> print fatal
-                                (Right _, s) -> do
+                                (Right p, s) -> do
                                     case _errors s of
-                                        [] -> putStrLn "success"
+                                        [] -> do
+                                            putStrLn (renderGoLite (pretty p))
                                         xs -> forM_ (if oneErr then [head xs] else xs) $ \er -> do
                                                 putStrLn (renderGoLite (pretty er))
 
