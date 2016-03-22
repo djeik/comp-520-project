@@ -458,11 +458,7 @@ typecheckExpr = cata f where
                 Variable (Ann b (Ident name)) -> do
                     minfo <- lookupSymbol name
                     case minfo of
-                        Nothing -> throwError $ TypecheckerInvariantViolation
-                            { errorDescription
-                                = text "lookupSymbol is Nothing in Call"
-                            }
-
+                        Nothing -> normal
                         Just info -> case info of
                             VariableInfo {} -> normal
                             TypeInfo {} -> do
