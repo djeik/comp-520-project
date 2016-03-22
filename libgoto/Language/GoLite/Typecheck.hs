@@ -317,14 +317,15 @@ typecheckExpr = cata f where
             -- identifier in the struct to get the component's type; that
             -- becomes the type of the selector expression.
             ty' <- case unFix ty of
-                Ty.Struct fs -> case lookup sym fs of
-                    Nothing -> do
-                        reportError $ NoSuchField
-                            { fieldIdent = i
-                            , fieldExpr = e'
-                            }
-                        pure unknownType
-                    Just ty' -> pure ty'
+                Ty.Struct fs ->
+                    case lookup (bare sym) $ map (\(s, fi) -> (bare s, fi)) fs of
+                        Nothing -> do
+                            reportError $ NoSuchField
+                                { fieldIdent = i
+                                , fieldExpr = e'
+                                }
+                            pure unknownType
+                        Just ty' -> pure ty'
                 _ -> do
                     reportError $ TypeMismatch
                         { mismatchExpectedType
