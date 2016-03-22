@@ -128,7 +128,7 @@ instance Pretty TySrcAnnLiteral where
         StringLit x -> doubleQuotes (text $ show x) <+> pretty (Comment ty)
 
 instance Pretty TySrcAnnExpr where
-    pretty = (\(_, _, x) -> x) . cata f where
+    pretty = snd . cata f where
         f ::
             ( Pretty id
             , Pretty bin
@@ -138,10 +138,10 @@ instance Pretty TySrcAnnExpr where
             , HasPrecedence bin
             , HasPrecedence un
             )
-            => TySrcAnn (ExprF id bin un lit ty) (Int, Type, Doc)
-            -> (Int, Type, Doc)
+            => TySrcAnn (ExprF id bin un lit ty) (Int, Doc)
+            -> (Int, Doc)
         f (Ann (ty, _) e) = case e of
-            BinaryOp op (dl, tl, l) (dr, tr, r) -> (precedence op, ty,) $
+            BinaryOp op (dl, l) (dr, r) -> (precedence op,) $
                 prettyParens (dl <= precedence op) l
                 <+>
                 pretty op
@@ -149,41 +149,45 @@ instance Pretty TySrcAnnExpr where
                 pretty (Comment ty)
                 <+>
                 prettyParens (dr <= precedence op) r
-            UnaryOp op (dp, tp, p) -> (precedence op, ty,) $
+
+            UnaryOp op (dp, p) -> (precedence op,) $
                 pretty op
                 <>
                 prettyParens (dp <= precedence op) p
                 <+>
                 pretty (Comment ty)
-            Literal l -> (6, ty,) $ pretty l
-            Variable x -> (6, ty,) $ pretty x <+> pretty (Comment ty)
-            Ty.Slice (ep, tp, ex) lo hi up ->
+
+            Literal l -> (6,) $ pretty l
+
+            Variable x -> (6,) $ pretty x <+> pretty (Comment ty)
+
+            Ty.Slice (ep, ex) lo hi up ->
                 let p q = case q of
                         Nothing -> empty
-                        Just (_, t, q') -> q'
-                    in (6, ty,) $
+                        Just (_, q') -> q'
+                    in (6,) $
                         prettyParens (ep <= 6) ex <+>
                         prettyBrackets True (
                             p lo <> text ":" <> p hi <> case up of
                                 Nothing -> empty
-                                Just (_, tu, u) ->
+                                Just (_, u) ->
                                     text ":" <> u
                         ) <+>
                         pretty (Comment ty)
-            Conversion t (_, _, e') -> (6, ty,) $
+            Conversion t (_, e') -> (6,) $
                 pretty t <> prettyParens True e' <+> pretty (Comment ty)
-            Selector (ps, tys, e') name -> (6, ty,) $
+            Selector (ps, e') name -> (6,) $
                 prettyParens (ps <= 6) e' <+> text "." <+> pretty name <+>
                 pretty (Comment ty)
-            Index (di, tyi, ei) (dj, tyj, ej) -> (6, ty,) $
-                ei <+> prettyBrackets True ej <+> pretty (Comment ty)
-            TypeAssertion (dex, _, ex) ty' -> (6, ty,) $ cat
+            Index (di, ei) (_, ej) -> (6,) $
+                prettyParens (di <= 6) ei <+> prettyBrackets True ej <+> pretty (Comment ty)
+            TypeAssertion (dex, ex) ty' -> (6,) $ cat
                 [ prettyParens (dex <= 6) ex
                 , text "."
                 , prettyParens True (pretty ty')
                 ] <+>
                 pretty (Comment ty)
-            Call (fp, ft, fb) mty args -> (6, ty,) $
+            Call (fp, fb) mty args -> (6,) $
                 prettyParens (fp <= 6) (prettyPrec 6 fb) <>
                 prettyParens True (
                     case args of
@@ -192,9 +196,9 @@ instance Pretty TySrcAnnExpr where
                             Nothing ->
                                 sep $
                                 punctuate comma $
-                                map (\(_, q, d) -> d <+> pretty (Comment q)) s
+                                map (pretty . snd) s
                             Just t ->
                                 sep $
                                 punctuate comma $
-                                pretty t : map (\(_, q, d) -> d <+> pretty (Comment q)) s
+                                pretty t : map (pretty . snd) s
                 )

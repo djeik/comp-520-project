@@ -284,7 +284,7 @@ isComparable (defaultType -> Fix t) (defaultType -> Fix u) = case (t, u) of
     (Slice _, Slice _) -> False
     (Slice _, NilType) -> True
     (NilType, Slice _) -> True
-    (Array m t, Array n u) -> m == n && t `isComparable` u
+    (Array m t', Array n u') -> m == n && t' `isComparable` u'
     (Struct ts, Struct us) -> and $
                                 map (\((i, t'), (i', u')) ->
                                         bare i == bare i'
@@ -449,7 +449,10 @@ data Scope
     deriving (Eq, Ord, Show)
 
 instance Pretty Scope where
-    pretty s = vcat $ map (\(n, s) -> text (n ++ "->") <+> pretty s) (M.assocs $ scopeMap s)
+    pretty s
+        = vcat $ map
+            (\(n, s') -> text (n ++ "->") <+> pretty s')
+            (M.assocs $ scopeMap s)
 
 -- | The root scope containing builtin functions and types.
 defaultRootScope :: Scope
