@@ -1133,11 +1133,8 @@ infixl 3 <==
     , True <- cleanFields fs1 == cleanFields fs2
     = pure False
     -- (2.)
-    | not (isAliasType t1 && isAliasType t2) && unalias t1 == unalias t2
-        = (unalias t1, unalias t2) <== e
-    -- (3.)
     | isReferenceType t1 && isNilType t2 = pure False
-    -- (4.)
+    -- (3.)
     | isUntyped t2
         = (t1, defaultType t2) <== e
     | otherwise = e'
@@ -1154,9 +1151,7 @@ A value x is assignable to a variable of type T ("x is assignable to T") in any
 of these cases:
 
  1. x's type is identical to T.
- 2. at least one of x's type V and T is not an alias type, and both V and T
-    have the same underlying type.
- 3. x is the predeclared identifier nil and T is a pointer, function, slice,
+ 2. x is the predeclared identifier nil and T is a pointer, function, slice,
     map, channel, or interface type.
- 4. x is an untyped constant representable by a value of type T.
+ 3. x is an untyped constant representable by a value of type T.
 -}
