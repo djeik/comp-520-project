@@ -330,8 +330,8 @@ arguments = withType <|> noType where
         exprs <- (expr >>= noSemiP) `sepBy` symbol ","
         pure (Nothing, exprs)
     withType = do
-        ty <- try $ type_ >>= noSemiP
-        symbol ","
+        ty <- try $ (type_ >>= noSemiP) <* symbol ","
+
         exprs <- (expr >>= noSemiP) `sepBy` symbol ","
         pure (Just ty, exprs)
 
