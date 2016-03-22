@@ -15,8 +15,8 @@ type (
     var interp_string, raw_string = "hello\n\a\b\f\r\t\v\\'", `hello`
     var s string; var _p []Polar
     // Slice types, 2.7.2; Array types, 2.7.3
-    
-func main(a,b int) string {
+
+func fun(a,b int) string {
         // println("hello world")
 
 	return a

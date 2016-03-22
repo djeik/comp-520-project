@@ -1,6 +1,6 @@
 package main
 
-func main() int {
+func fun() int {
     if x > max {
         x = max
     }

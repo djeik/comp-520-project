@@ -3,7 +3,7 @@
 package main
 
 
-func main () int {
+func fun () int {
     switch tag {
         default: s3()
         case 0, 1, 2, 3:

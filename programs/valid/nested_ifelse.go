@@ -1,6 +1,8 @@
 package main
 
-func main() {
+func fun() int {
+	var max = 5
+	var x int
 	if x > max {
 		x = max
 	} else {
@@ -10,4 +12,6 @@ func main() {
 		return x
 	}
 	}
+
+	return 3
 }
