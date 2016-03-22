@@ -702,7 +702,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
 
                     declareSymbol' i $ VariableInfo
                         { symLocation = SourcePosition b
-                        , symType = ty
+                        , symType = defaultType ty
                         }
 
                     pure $ (Ann a (Ident i), e')
