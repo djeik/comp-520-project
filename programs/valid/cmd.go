@@ -12,6 +12,12 @@ var (
 /* Two extra slots of buffer. */
 type state struct { sp int; stk [66]int; }
 
+func exit() {
+	println("Actually exit is unsupported!");
+}
+
+func end() { println("Hurrah!"); }
+
 func operate(op instruction, st state) state {
 
     if error := "Stack overflow!"; st.sp >= 64 {
@@ -58,5 +64,3 @@ func exec(program [128]instruction) {
 
     end()
 }
-
-func end() { println("Hurrah!"); }
