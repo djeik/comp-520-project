@@ -35,7 +35,7 @@ getTestSources sourcesDir = getGoFiles >>= mapM readWithPath where
     getGoFiles = filter isGoFile <$> getSourcePaths
     isGoFile = (==) ".go" . takeExtension
     getSourcePaths = getDirectoryContents sourcesDir
-    readWithPath p = (,) <$> pure p <*> readFile (sourcesDir </> p)
+    readWithPath p = (,) <$> pure (sourcesDir </> p) <*> readFile (sourcesDir </> p)
 
 main :: IO ()
 main = do
