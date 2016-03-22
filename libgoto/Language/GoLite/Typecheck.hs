@@ -315,10 +315,10 @@ typecheckExpr = cata f where
             let (ty, b) = topAnn e'
             let sym = annNat symbolFromIdent i
 
-            -- check that ty is a struct type, perform the lookup of the
-            -- identifier in the struct to get the component's type; that
-            -- becomes the type of the selector expression.
-            ty' <- case unFix ty of
+            -- check that ty is a struct type or an alias thereof, perform the
+            -- lookup of the identifier in the struct to get the component's
+            -- type; that becomes the type of the selector expression.
+            ty' <- case unFix $ unalias ty of
                 Ty.Struct fs ->
                     case lookup (bare sym) $ map (\(s, fi) -> (bare s, fi)) fs of
                         Nothing -> do

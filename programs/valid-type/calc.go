@@ -11,9 +11,9 @@ func power(a float64, b float64) float64 {
   var ret float64 = 1.
   var power = exponent(b)
 
-  for power > 0 {
+  for power > exponent(0) {
     ret = ret * a
-    power = power - 1
+    power = power - exponent(1)
   }
 
   return ret

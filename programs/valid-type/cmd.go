@@ -4,9 +4,10 @@ type instruction int
 
 var (
     EXIT instruction
-    PUSH1, PUSH2, PRINT instruction = 1, 2, 3
-    NOP instruction = 4
-    ADD, SUB, MUL instruction = 5, 6, 7;)
+    PUSH1, PUSH2, PRINT instruction = instruction(1), instruction(2), instruction(3)
+    NOP instruction = instruction(4)
+    ADD, SUB, MUL instruction = instruction(5), instruction(6), instruction(7)
+)
 
 
 /* Two extra slots of buffer. */
@@ -48,7 +49,7 @@ func operate(op instruction, st state) state {
 func exec(program [128]instruction) {
 
     var pc = 0
-    var st struct { sp int; stk [66]int; }
+    var st state
 
     for pc < len(program) {
         if program[pc] == EXIT {

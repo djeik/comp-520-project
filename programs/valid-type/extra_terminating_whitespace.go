@@ -14,5 +14,5 @@ type point struct {
 }
 
 func main() {   
-	var a x = 0
+	var a x = x(0)
 }   

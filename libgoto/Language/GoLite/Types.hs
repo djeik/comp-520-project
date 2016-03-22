@@ -192,14 +192,14 @@ isAliasType t = t /= unalias t
 
 -- | Determines whether a type is a slice type.
 isSliceType :: Type -> Bool
-isSliceType (Fix t) = case t of
+isSliceType (unalias -> Fix t) = case t of
     UnknownType -> True
     Slice _ -> True
     _ -> False
 
 -- | Decides whether a type is a reference type, i.e. admits the value @nil@.
 isReferenceType :: Type -> Bool
-isReferenceType (Fix t) = case t of
+isReferenceType (unalias -> Fix t) = case t of
     Slice _ -> True
     FuncType _ _ -> True
     UnknownType -> True
@@ -253,7 +253,7 @@ isUntyped (Fix t) = case t of
 -- ordered. No other type is ordered. Ordered types can be compared using
 -- the order operators @<@, @>@, @>=@ and @<=@.
 isOrdered :: Type -> Bool
-isOrdered (Fix t) = case t of
+isOrdered (unalias -> Fix t) = case t of
     IntType _ -> True
     FloatType _ -> True
     RuneType _ -> True
@@ -264,7 +264,7 @@ isOrdered (Fix t) = case t of
 -- | Tests whether a type is integral. Ints and runes are integral (both the
 -- typed and untyped versions). No other type is integral.
 isIntegral :: Type -> Bool
-isIntegral (Fix t) = case t of
+isIntegral (unalias -> Fix t) = case t of
     IntType _ -> True
     RuneType _ -> True
     UnknownType -> True
@@ -273,13 +273,13 @@ isIntegral (Fix t) = case t of
 -- | Tests whether a type is a typed or untyped string. Necessary for checking
 -- addition operations.
 isString :: Type -> Bool
-isString (Fix t) = case t of
+isString (unalias -> Fix t) = case t of
     StringType _ -> True
     UnknownType -> True
     _ -> False
 
 isConvertible :: Type -> Bool
-isConvertible (Fix t) = case t of
+isConvertible (unalias -> Fix t) = case t of
     IntType _ -> True
     RuneType _ -> True
     FloatType _ -> True
@@ -321,7 +321,7 @@ isComparable (defaultType -> Fix t) (defaultType -> Fix u) = case (t, u) of
 -- arithmetic operations (addition, multiplication, etc.) applied to it.
 -- The types int, float and rune are arithmetic. No other type is arithmetic.
 isArithmetic :: Type -> Bool
-isArithmetic (Fix t) = case t of
+isArithmetic (unalias -> Fix t) = case t of
     IntType _ -> True
     FloatType _ -> True
     RuneType _ -> True
@@ -331,7 +331,7 @@ isArithmetic (Fix t) = case t of
 -- | Determines whether a type is logical (basically a boolean). Logical types
 -- can have logical operators applied to them (@&&@, @||@, @!@)
 isLogical :: Type -> Bool
-isLogical (Fix t) = case t of
+isLogical (unalias -> Fix t) = case t of
     BoolType _ -> True
     UnknownType -> True
     _ -> False
@@ -341,7 +341,7 @@ isLogical (Fix t) = case t of
 --      * Variable declarations with no type
 --      * Switch expressions
 isValue :: Type -> Bool
-isValue (Fix t) = case t of
+isValue (unalias -> Fix t) = case t of
     BuiltinType _ -> False
     FuncType _ _ -> False
     NilType -> False
