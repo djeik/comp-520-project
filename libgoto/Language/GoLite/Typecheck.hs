@@ -67,16 +67,6 @@ dropScope = popScope $> ()
 withScope :: Typecheck a -> Typecheck a
 withScope m = newScope *> m <* dropScope
 
--- | Gets the top scope.
---
--- if the scope stack is empty, throws 'EmptyScopeStack'.
-topScope :: Typecheck Scope
-topScope = do
-    scopes <- gets _scopes
-    case scopes of
-        [] -> throwError EmptyScopeStack
-        top : _ -> pure top
-
 -- | Runs a pure function on the top scope of the stack. If the stack is empty,
 -- throws 'EmptyScopeStack'.
 modifyTopScope :: (Scope -> Typecheck Scope) -> Typecheck ()
