@@ -761,7 +761,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
 
                     pure $ ReturnStmt Nothing
 
-            IfStmt minit cond thenBody melseBody -> IfStmt
+            IfStmt minit cond thenBody melseBody -> withScope $ IfStmt
                 <$> sequence minit
                 <*> requireExprType
                     typedBoolType
@@ -770,7 +770,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                 <*> sequence thenBody
                 <*> traverse sequence melseBody
 
-            SwitchStmt minit mcond cases -> do
+            SwitchStmt minit mcond cases -> withScope $ do
                 minit' <- sequence minit
                 mcond' <- forM mcond $
                             (\e -> do
@@ -793,7 +793,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                     <*> withScope (sequence body)
                 pure $ SwitchStmt minit' mcond' cases'
 
-            ForStmt minit mcond mstep body -> ForStmt
+            ForStmt minit mcond mstep body -> withScope $ ForStmt
                 <$> sequence minit
                 <*> sequence
                     (fmap
@@ -802,7 +802,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                 <*> sequence mstep
                 <*> sequence body
 
-            Block body -> Block <$> sequence body
+            Block body -> withScope $ Block <$> sequence body
 
             BreakStmt -> pure BreakStmt
             ContinueStmt -> pure ContinueStmt
