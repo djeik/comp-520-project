@@ -66,11 +66,14 @@ blockStatement = do
     it "parses a block containing one, many or no statements" $ do
         parseBlock "{}" `shouldBe` r (block [])
         parseBlock "{x++\n}" `shouldBe`
-            r (block [assignment [variable "x"] PlusEq [int 1]])
+            r (block [increment (variable "x")])
 
         parseBlock "{x++\ny++\n}" `shouldBe`
-            r (block [ assignment [variable "x"] PlusEq [int 1],
-                assignment [variable "y"] PlusEq [int 1] ])
+            r (block
+                [ increment (variable "x")
+                , increment (variable "y")
+                ]
+            )
 
     it "doesn't parse if one of the enclosing statements don't have a semi" $ do
         parseBlock "{x++}" `shouldSatisfy` isLeft
@@ -81,16 +84,25 @@ blockStatement = do
 
     it "parses nested blocks" $ do
         parseBlock "{x++;{y++;{z++;};};}" `shouldBe`
-            r (block [(assignment [variable "x"] PlusEq [int 1]),
-                block [(assignment [variable "y"] PlusEq [int 1]),
-                 block [(assignment [variable "z"] PlusEq [int 1])]]])
+            r (block
+                [ increment (variable "x")
+                , block
+                    [ increment (variable "y")
+                    , block
+                        [ increment (variable "z")
+                        ]
+                    ]
+                ]
+            )
 
     it "handles statements parsers that return multiple statements" $ do
         parseBlock "{var (x = 2; y = 3;); x++;}" `shouldBe`
-            r (block [
-                varDeclStmt ["x"] Nothing [int 2],
-                varDeclStmt ["y"] Nothing [int 3],
-                (assignment [variable "x"] PlusEq [int 1])])
+            r (block
+                [ varDeclStmt ["x"] Nothing [int 2]
+                , varDeclStmt ["y"] Nothing [int 3]
+                , increment (variable "x")
+                ]
+            )
 
     it "does not parse if there are no or missing braces" $ do
         parseBlock "x++" `shouldSatisfy` isLeft

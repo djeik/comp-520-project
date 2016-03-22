@@ -63,8 +63,7 @@ shortVarDeclP = do
 -- | Parses an assignment statement: a list of expressions followed by an
 -- assignment operator (\"=\", \"+=\", etc.) and a list of expressions.
 assignStmt :: Parser (Semi SrcAnnStatement)
-assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
-    <|> try (incDecStmt (fmap (fmap (const ())) opDecrement) MinusEq)
+assignStmt = incDecStmt
     <|> do
             (al, lhs, op) <- try $ do
                 (Ann al lhs) <- withSrcAnnF $
@@ -94,13 +93,16 @@ assignStmt = try (incDecStmt (fmap (fmap (const ())) opIncrement) PlusEq)
                 rhs_b' <- rhs_b
                 pure $ Fix $ Ann a $ Assignment lhs op (rhs_a ++ [rhs_b'])
 
--- | Parses an increment or decrement statement (\"x++\", \"y--\"). This is
--- parsed to the same representation as \"x += 1\" or \"y -= 1\".
-incDecStmt :: Parser (Semi ()) -> AssignOp () -> Parser (Semi SrcAnnStatement)
-incDecStmt opParse op = do
-    e <- addressableExpr
-
-    (Ann opSpan parsedOp) <- withSrcAnnF opParse
+-- | Parses an increment or decrement statement (\"x++\", \"y--\").
+incDecStmt :: Parser (Semi SrcAnnStatement)
+incDecStmt = do
+    (e, Ann opSpan parsedOp) <- try $ do
+        e <- addressableExpr
+        q <- withSrcAnnF $ choice
+            [ fmap (fmap (const Increment)) opIncrement
+            , fmap (fmap (const Decrement)) opDecrement
+            ]
+        pure (e, q)
 
     pure $ do
         e' <- e
@@ -108,18 +110,11 @@ incDecStmt opParse op = do
 
         -- We need to do this to ensure that the Semi state will be propagated
         -- despite our artificial construction below.
-        parsedOp
+        direction <- parsedOp
 
         let a = SrcSpan (srcStart (topAnn e')) (srcEnd opSpan)
-
-        -- Annotate the artificial operator and constant with the position of
-        -- of the IncDec operator. This matches golang behavior.
         pure $ Fix $ Ann a $
-            Assignment
-                [e']
-                (Ann opSpan op)
-                [Fix $ Ann opSpan $ Literal (Ann opSpan $ IntLit 1)]
-
+            IncDecStmt direction e'
 
 -- | Parses an expression as a statement.
 --

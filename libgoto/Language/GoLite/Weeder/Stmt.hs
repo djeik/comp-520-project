@@ -152,6 +152,9 @@ weedStmt (Fix (Ann _ (Block b))) = void $ mapM weedStmt b
 -- Empty statement: nothing.
 weedStmt (Fix (Ann _ EmptyStmt)) = pure ()
 
+-- increment/decrement statement; nothing to do
+weedStmt (Fix (Ann _ (IncDecStmt _ _))) = pure ()
+
 -- Case head: for a normal case with expressions, weed the expressions.
 -- Weed the inner statements.
 weedCaseHead :: (SrcAnnCaseHead, [SrcAnnStatement]) -> Weeder ()

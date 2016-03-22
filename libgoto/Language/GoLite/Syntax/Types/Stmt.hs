@@ -52,6 +52,7 @@ data StatementF decl expr ident assignOp caseHead f
     -- expression whose value is matched against by the expressions in the
     -- "CaseHead"s in the list of cases.
     | ForStmt (Maybe f) (Maybe expr) (Maybe f) [f]
+    | IncDecStmt IncDec expr
     -- ^ All loops are represented as for-loops. If all three "Maybe"s are
     -- "Nothing", then we have an infinite loop. If only the "Expr" is present,
     -- then we have what's essentially a while loop. If either of the
@@ -73,6 +74,14 @@ data StatementF decl expr ident assignOp caseHead f
     -- ^ An empty statement. Does not have any semantic value, but can be
     -- inserted by semicolons.
     deriving (Eq, Functor, Ord, Read, Show)
+
+-- | The direction of an 'IncDecStmt'.
+data IncDec
+    = Increment
+    -- ^ Increase the expression by one.
+    | Decrement
+    -- ^ Decrease the expression by one.
+    deriving (Eq, Ord, Read, Show)
 
 -- | Prints a recursive statement structure bottom-up by dispatching to the
 -- pretty-printers for any contained data.
@@ -158,11 +167,17 @@ instance
                 text "{" $+$
                 nest indentLevel (vcat body) $+$
                 text "}"
+            IncDecStmt dir expr -> pretty expr <> pretty dir
             Block ss ->
                 text "{" $+$
                 nest indentLevel (vcat ss) $+$
                 text "}"
             EmptyStmt -> empty
+
+instance Pretty IncDec where
+    pretty e = case e of
+        Increment -> text "++"
+        Decrement -> text "--"
 
 -- | The head of a case.
 data CaseHead expr

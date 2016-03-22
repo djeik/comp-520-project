@@ -30,6 +30,7 @@ module Language.GoLite.Syntax.Types
 , GoString
 , Comment(..)
   -- * Operators
+, IncDec(..)
 , BinaryOp(..)
 , UnaryOp(..)
 , AssignOp(..)

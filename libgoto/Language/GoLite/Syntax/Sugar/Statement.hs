@@ -21,6 +21,15 @@ assignment
     -> Fix (StatementF d expr i assignOp c)
 assignment lhss op rhss = Fix $ Assignment lhss op rhss
 
+increment :: expr -> Fix (StatementF d expr i a c)
+increment = Fix . IncDecStmt Increment
+
+decrement :: expr -> Fix (StatementF d expr i a c)
+decrement = Fix . IncDecStmt Decrement
+
+incdec :: IncDec -> expr -> Fix (StatementF d expr i a c)
+incdec i = Fix . IncDecStmt i
+
 -- | Constructs a statement tree for 'PrintStmt'.
 printStmt :: [expr] -> Fix (StatementF d expr i a c)
 printStmt = Fix . PrintStmt

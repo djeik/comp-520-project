@@ -46,34 +46,37 @@ switchStatement = do
                 Nothing
                 Nothing
                 [(CaseExpr [variable "a"],
-                    [assignment [variable "x"] PlusEq [int 1]])])
+                    [increment (variable "x") ])])
 
         parseSwitch "switch {case a: x++; default: y++;}" `shouldBe`
             r (switchStmt
                 Nothing
                 Nothing
                 [(CaseExpr [variable "a"],
-                    [assignment [variable "x"] PlusEq [int 1]]),
+                    [increment (variable "x") ]),
                  (CaseDefault,
-                    [assignment [variable "y"] PlusEq [int 1]])])
+                    [increment (variable "y") ])])
 
         parseSwitch "switch {case a: x++; x++; default: y++;}" `shouldBe`
             r (switchStmt
                 Nothing
                 Nothing
                 [(CaseExpr [variable "a"],
-                    [assignment [variable "x"] PlusEq [int 1],
-                    assignment [variable "x"] PlusEq [int 1]]),
+                    [increment (variable "x") ,
+                    increment (variable "x") ]),
                  (CaseDefault,
-                    [assignment [variable "y"] PlusEq [int 1]])])
+                    [increment (variable "y") ])])
 
     it "parses a switch with a multi-clause" $ do
         parseSwitch "switch {case a, b: x++;}" `shouldBe`
             r (switchStmt
                 Nothing
                 Nothing
-                [(CaseExpr [variable "a", variable "b"],
-                    [assignment [variable "x"] PlusEq [int 1]])])
+                [ ( CaseExpr [variable "a", variable "b"]
+                  , [ increment (variable "x") ]
+                  )
+                ]
+            )
 
     it "parses a switch with a clause containing no statements" $ do
         parseSwitch "switch {case a: }" `shouldBe`

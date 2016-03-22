@@ -801,6 +801,20 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                 <*> sequence mstep
                 <*> sequence body
 
+            IncDecStmt dir expr -> do
+                expr' <- typecheckExpr expr
+                if isArithmetic (unalias (fst (topAnn expr')))
+                    then pure $ IncDecStmt dir expr'
+                    else do
+                        reportError UnsatisfyingType
+                            { unsatOffender = fst (topAnn expr')
+                            , unsatReason
+                                = text "the expression to increment/decrement \
+                                \must have arithmetic type"
+                            , errorLocation = a
+                            }
+                        pure $ IncDecStmt dir expr'
+
             Block body -> withScope $ Block <$> sequence body
 
             BreakStmt -> pure BreakStmt

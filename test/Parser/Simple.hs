@@ -10,15 +10,11 @@ assign = do
     let parseAssign = parseOnly (fmap bareStmt $ assignStmt >>= unSemiP)
 
     it "parses increments and decrements" $ do
-        parseAssign "x++;" `shouldBe` r (assignment [variable "x"] PlusEq [int 1])
-        parseAssign "x--;" `shouldBe` r (assignment [variable "x"] MinusEq [int 1])
+        parseAssign "x++;" `shouldBe` r (increment (variable "x"))
+        parseAssign "x--;" `shouldBe` r (decrement (variable "x"))
 
         parseAssign "x ++" `shouldSatisfy` isRight
 
-
-    it "parses e +=/-= 1 equivalently to e++/--" $ do
-        parseAssign "x++;" `shouldBe` parseAssign "x += 1;"
-        parseAssign "x--" `shouldBe` parseAssign "x -= 1;"
 
     it "does not parse mangled/missing increment or decrement operators" $ do
         parseAssign "x+ +" `shouldSatisfy` isLeft
@@ -51,22 +47,13 @@ assign = do
 
     it "parses assignment on addressable operand" $ do
         parseAssign "struc.selector++" `shouldBe`
-            r (assignment
-                [selector (variable "struc") "selector"]
-                PlusEq
-                [int 1])
+            r (increment (selector (variable "struc") "selector"))
 
         parseAssign "arrayz[0]++" `shouldBe`
-            r (assignment
-                [index (variable "arrayz") (int 0)]
-                PlusEq
-                [int 1])
+            r (increment (index (variable "arrayz") (int 0)))
 
         parseAssign "*p++" `shouldBe`
-            r (assignment
-                [Fix $ UnaryOp Dereference (variable "p")]
-                PlusEq
-                [int 1])
+            r (increment (Fix $ UnaryOp Dereference (variable "p")))
 
     it "does not parse an assignment if the operand is not addressable" $ do
         parseAssign "(a + a) >>= 3" `shouldSatisfy` isLeft

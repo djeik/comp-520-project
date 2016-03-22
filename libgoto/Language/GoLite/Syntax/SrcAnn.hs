@@ -193,6 +193,7 @@ bareStmt = cata phi where
     phi (Ann _ FallthroughStmt) = Fix FallthroughStmt
     phi (Ann _ (Block ss)) = Fix (Block ss)
     phi (Ann _ EmptyStmt) = Fix EmptyStmt
+    phi (Ann _ (IncDecStmt d expr)) = Fix (IncDecStmt d (bareExpr expr))
 
 -- | Removes source annotations from a case head.
 bareCaseHead :: SrcAnnCaseHead -> BasicCaseHead
