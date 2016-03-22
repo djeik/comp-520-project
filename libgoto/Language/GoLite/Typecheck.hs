@@ -591,8 +591,8 @@ typecheckBinaryOp o a l r
     | isArithmeticOp $ bare o = case bare o of
         -- Plus is defined on strings.
         Plus -> checkBinary (\ty -> isArithmetic ty || isString ty)
-            (text "must be numerical or string")
-        _ -> checkBinary isArithmetic (text "is not numerical")
+            (text "it is not numerical or string")
+        _ -> checkBinary isArithmetic (text "it is not numerical")
 
     | isComparisonOp $ bare o =
         -- Special case: we check that the types are comparable, and
@@ -613,17 +613,17 @@ typecheckBinaryOp o a l r
                 pure unknownType
 
     | isLogicalOp $ bare o =
-        checkBinary isLogical (text "is not logical")
+        checkBinary isLogical (text "it is not logical")
 
     | isOrderingOp $ bare o =
         -- Ordering operators produce booleans
         checkBinaryYieldingType
             isOrdered
-            (text "cannot be ordered")
+            (text "it cannot be ordered")
             (Just untypedBoolType)
 
     | isIntegralOp $ bare o =
-        checkBinary isIntegral (text "is not integral")
+        checkBinary isIntegral (text "it is not integral")
 
     | otherwise = throwError UncategorizedOperator
     where
@@ -694,7 +694,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                         when (not $ isAllowedInExprStmt tyCall)
                             (reportError $ UnsatisfyingType
                                 { unsatOffender = tyCall
-                                , unsatReason = text "cannot be used in \
+                                , unsatReason = text "it cannot be used in \
                                   \expression statement context"
                                 , errorLocation = a})
                     _ -> throwError $ ParserInvariantViolation
