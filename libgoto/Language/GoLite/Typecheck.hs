@@ -1104,6 +1104,10 @@ infixl 3 <==
 
     -- (1.)
     | t1 == t2 = pure False
+    | Fix (Struct fs1) <- t1
+    , Fix (Struct fs2) <- t2
+    , True <- cleanFields fs1 == cleanFields fs2
+    = pure False
     -- (2.)
     | not (isAliasType t1 && isAliasType t2) && unalias t1 == unalias t2
         = (unalias t1, unalias t2) <== e
@@ -1113,7 +1117,9 @@ infixl 3 <==
     | isUntyped t2
         = (t1, defaultType t2) <== e
     | otherwise = e'
-    where e' = reportError e *> pure True
+    where
+        e' = reportError e *> pure True
+        cleanFields = map (\(i, m) -> (bare i, m))
 
 {- Assignability
  - -------------
