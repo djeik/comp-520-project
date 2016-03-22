@@ -726,12 +726,11 @@ typecheckFunctionBody fty = mapM typecheckStmt where
 
             PrintStmt exprs -> PrintStmt <$> mapM typecheckExpr exprs
 
-            ReturnStmt me -> case me of
+            ReturnStmt me -> let rty = funcTypeRet (unFix fty) in case me of
                 Just e -> do
                     e' <- typecheckExpr e
                     let (ty, b) = topAnn e'
-                    let rty = funcTypeRet (unFix fty)
-                    -- TODO check that fty is not void, throw weeder invariant error otherwise
+
                     (rty, ty) <== TypeMismatch
                         { mismatchExpectedType = rty
                         , mismatchActualType = ty
@@ -739,14 +738,14 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                         , errorReason = text "the types are not assignment compatible"
                         }
 
-                    when (fty == voidType)
+                    when (rty == voidType)
                         (throwError $ WeederInvariantViolation
                                     $ text "Return with expr in void function")
 
                     pure $ ReturnStmt (Just e')
 
                 Nothing -> do
-                    when (fty /= voidType)
+                    when (rty /= voidType)
                         (throwError $ WeederInvariantViolation
                                     $ text "Return with no expr in non-void function")
 
