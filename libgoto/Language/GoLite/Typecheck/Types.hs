@@ -278,6 +278,9 @@ instance Pretty TypeError where
                 text "because" <+> errorReason err
             )
 
+        NoNewVariables {} ->
+            pretty loc <+> text "no new variables introduced by short declaration"
+
         _ ->
             pretty loc $+$ nest indentLevel (
                 text "unknown type error" $+$ text (show err)
