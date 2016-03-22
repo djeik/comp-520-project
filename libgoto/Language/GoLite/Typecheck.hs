@@ -790,7 +790,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
 
                 cases' <- forM cases $ \(hd, body) -> (,)
                     <$> typecheckCaseHead mcond' hd
-                    <*> sequence body
+                    <*> withScope (sequence body)
                 pure $ SwitchStmt minit' mcond' cases'
 
             ForStmt minit mcond mstep body -> ForStmt
