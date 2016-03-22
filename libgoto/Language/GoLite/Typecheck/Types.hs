@@ -198,6 +198,15 @@ instance Pretty ErrorSymbolKind where
         VariableInfo {} -> text "variable"
         TypeInfo {} -> text "type"
 
+newtype Ordinal = Ordinal Int
+
+instance Pretty Ordinal where
+    pretty (Ordinal i) = int i <> case last (show i) of
+        '1' -> text "st"
+        '2' -> text "nd"
+        '3' -> text "rd"
+        _ -> text "th"
+
 instance Pretty TypeError where
     pretty err = case err of
         TypeMismatch {} ->
@@ -281,9 +290,43 @@ instance Pretty TypeError where
         NoNewVariables {} ->
             pretty loc <+> text "no new variables introduced by short declaration"
 
-        _ ->
-            pretty loc $+$ nest indentLevel (
-                text "unknown type error" $+$ text (show err)
+        ArgumentLengthMismatch {} ->
+            pretty loc <+> text "argument length mismatch" $+$ nest indentLevel (
+                text "expected" <+> int (argumentExpectedLength err)
+                <+> text "arguments, but got" <+> int (argumentActualLength err)
+            )
+
+        CallTypeMismatch {} ->
+            pretty loc <+> text "call type mismatch" $+$ nest indentLevel (
+                text "in the" <+> pretty (Ordinal (mismatchPosition err)) <+>
+                text "argument of a function call, can't match expected type" $+$
+                nest indentLevel (
+                    pretty (mismatchExpectedType err)
+                ) $+$
+                text "with actual type" $+$ nest indentLevel (
+                    pretty (mismatchActualType err)
+                )
+            )
+
+        BinaryTypeMismatch {} ->
+            pretty loc <+> text "binary operator type mismatch" $+$ nest indentLevel (
+                text "can't match type of left-hand side" $+$ nest indentLevel (
+                    pretty (mismatchTypeL err)
+                ) $+$
+                text "with type of right-hand side" $+$ nest indentLevel (
+                    pretty (mismatchTypeR err)
+                )
+            )
+
+        UntypedNil {} ->
+            pretty loc <+> text "untyped constant nil"
+
+        IllegalNonvalueType {} ->
+            pretty loc <+> text "illegal non-value type" $+$ nest indentLevel (
+                text "the type" $+$ nest indentLevel (
+                    pretty (offendingType err)
+                ) $+$
+                text "is not a value type"
             )
 
         where
