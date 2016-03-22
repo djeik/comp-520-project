@@ -6,14 +6,17 @@ import Lexer
 import Parser
 import Weeder
 
+
 import Language.GoLite
+import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Typecheck
 import Language.GoLite.Typecheck.Types
 
+import Control.Monad ( forM_ )
 import System.Directory
 import System.FilePath
-import Control.Monad ( forM_ )
+import Text.PrettyPrint
 
 validSourcesDir :: FilePath
 validSourcesDir = "programs/valid"
@@ -54,7 +57,7 @@ main = do
         forM_ validSources $ \(name, contents) ->
             it ("parses the valid program " ++ name) $
                 checkParse
-                    (expectationFailure . show)
+                    (expectationFailure . renderGoLite . pretty)
                     (const (pure ()))
                     name
                     contents
@@ -71,7 +74,7 @@ main = do
         forM_ validTypeSources $ \(name, contents) ->
             it ("typechecks the valid program " ++ name) $
                 checkTypecheck
-                    (expectationFailure . show)
+                    (expectationFailure . renderGoLite . pretty)
                     (const (pure ()))
                     name
                     contents
@@ -122,10 +125,18 @@ data SemanticError =
     | TypeFatal TypecheckError
     deriving ( Show )
 
+instance Pretty SemanticError where
+    pretty (Type e) = vcat (map pretty e)
+    pretty (TypeFatal e) = text $ show e
+
 data SyntaxError =
       Parse ParseError
     | Weed WeederExceptions
     deriving ( Show )
+
+instance Pretty SyntaxError where
+    pretty (Parse e) = text $ show e
+    pretty (Weed e) = pretty e
 
 goLite :: SpecWith ()
 goLite = describe "Language.GoLite" $ do
