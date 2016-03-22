@@ -52,7 +52,11 @@ weedTopLevelDecl (TopLevelFun f) = weedFunDecl f
 -- | Weeds a function declaration. Functions with declared return types must end
 -- with a terminating statement.
 weedFunDecl :: SrcAnnFunDecl -> Weeder ()
-weedFunDecl (FunDecl (Ann a _) pars rty bod) = do
+weedFunDecl (FunDecl (Ann a (Ident i)) pars rty bod) = do
+
+    when (i == "main" && (length pars > 0 || isJust rty))
+        (reportError $ WeederException a "main may not declare parameters or a \
+                                        \return type")
 
     when (isJust rty
         && (bod == [] || (not $ isTerminating $ bareStmt (last bod))))

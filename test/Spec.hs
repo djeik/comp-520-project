@@ -90,7 +90,7 @@ checkTypecheck
     -> String -> String -> Expectation
 checkTypecheck bad good name contents = case parseOnly packageP name contents of
     Left pe -> expectationFailure (show pe)
-    Right p -> case weedGoLiteProgram p of
+    Right pr -> case weedGoLiteProgram pr of
         Just wes -> expectationFailure (show wes)
         Nothing -> case runTypecheck (typecheckPackage p) of
             (Left fatal, _) -> bad (TypeFatal fatal)

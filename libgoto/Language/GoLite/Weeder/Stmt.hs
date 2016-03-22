@@ -91,7 +91,7 @@ weedStmt (Fix (Ann _ (IfStmt init' e thens elses))) = do
     void $ mapM weedStmt thens
     case elses of
         Nothing -> pure ()
-        Just elses' -> void $ mapM weedStmt elses
+        Just elses' -> void $ mapM weedStmt elses'
 
 -- Switch statement: check that there is only one default clause, then weed the
 -- initializer, the expression and the clauses.
@@ -123,7 +123,7 @@ weedStmt (Fix (Ann _ (ForStmt pre cond post body))) = do
 
     case post of
         Nothing -> pure ()
-        Just pre' -> weedStmt post'
+        Just post' -> weedStmt post'
 
     modify $ \s -> incForLevel s
     void $ mapM weedStmt body
