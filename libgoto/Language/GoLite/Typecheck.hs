@@ -85,6 +85,7 @@ modifyTopScope f = do
 -- If the symbol already exists, then a non-fatal redeclaration error is
 -- raised and the insertion is not performed.
 declareSymbol :: SymbolName -> SymbolInfo -> Typecheck ()
+declareSymbol "_" _ = pure ()
 declareSymbol name info = modifyTopScope $ \(Scope m) -> do
     case M.lookup name m of
         Just info' -> do
