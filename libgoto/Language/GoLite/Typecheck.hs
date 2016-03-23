@@ -721,11 +721,19 @@ typecheckFunctionBody fty = mapM typecheckStmt where
 
                 ies <- forM (zip idents exprs) $ \(Ann b (Ident i), e) -> do
                     e' <- typecheckExpr e
-                    let (ty, _) = topAnn e'
+                    let (ty, a') = topAnn e'
+
+                    ty' <-  if not $ isValue ty then do
+                                reportError $ IllegalNonvalueType
+                                    { offendingType = ty
+                                    , errorLocation = a'
+                                    }
+                                pure unknownType
+                            else pure ty
 
                     declareSymbol' i $ VariableInfo
                         { symLocation = SourcePosition b
-                        , symType = defaultType ty
+                        , symType = defaultType ty'
                         }
 
                     pure $ (Ann a (Ident i), e')
