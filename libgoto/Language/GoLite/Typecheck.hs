@@ -379,9 +379,10 @@ typecheckExpr = cata f where
             e' <- me
             let (ty, b) = topAnn e'
 
-            -- check that the expression to slice is a slice
-            case unFix ty of
-                Ty.Slice _ -> pure ()
+            -- check that the expression to slice is a slice/array
+            ty' <- case unFix ty of
+                Ty.Slice ty' -> pure ty'
+                Ty.Array _ ty' -> pure ty'
                 _ -> do
                     reportError $ TypeMismatch
                         { mismatchExpectedType = sliceType unknownType
@@ -389,6 +390,7 @@ typecheckExpr = cata f where
                         , mismatchCause = Ann b (Just e')
                         , errorReason = empty
                         }
+                    pure unknownType
 
             lo <- sequence melo
             hi <- sequence mehi
@@ -405,7 +407,7 @@ typecheckExpr = cata f where
 
             mapM_ (traverse checkIndex) [lo, hi, bound]
 
-            pure (ty, T.Slice e' lo hi bound)
+            pure (ty', T.Slice e' lo hi bound)
 
         TypeAssertion me ty -> do
             e' <- me
