@@ -33,6 +33,8 @@ We have made the following changes to our directory structure:
 \item \texttt{test/Weeder.hs}: Unit tests for the weeder
 \end{itemize}
 
+The instructions are sensibly the same as for the first milestone. Run the script \texttt{run\_milestone2.sh} with the flags to the compiler.
+
 \section{Design decisions}
 We decided to generalize tree traversals in order to reuse similar error-reporting machinery for weeding and typechecking. Briefly, a traversal is the combination of a state and error monads with operations to report and obtain errors. This allows us to collect errors in a traversal as we go along. This is a inherently more user-friendly experience as one doesn't need to fix one error at a time, recompile and so on. The traversal state is also used to keep track of anything we deem useful. In the case of the weeder, we record various flags indicating nesting levels and whether the enclosing function has a return type. In the case of the typechecker, we keep a cactus stack of scopes in our state.
 
