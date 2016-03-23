@@ -40,6 +40,8 @@ data Goto
         -- ^ Flag to print only the first error.
         , dumpSymTab :: Bool
         -- ^ Whether or not to dump the top frame of the symtab on scope exits
+        , ppType :: Bool
+        -- ^ Whether or not to pretty-print types
         }
     deriving (Eq, Show)
 
@@ -85,18 +87,6 @@ cmdParser
                 ) $
                 briefDesc <>
                 progDesc "Checks the pretty-print invariant."
-            ) <>
-            command "pretty-type" (
-                info (
-                    PrettyType <$> fmap parseInputFile (
-                        strArgument (
-                            metavar "[FILE]" <>
-                            value "-"
-                        )
-                    )
-                ) $
-                briefDesc <>
-                progDesc "Typechecks and pretty-prints with type annotations."
             )
         ) <*>
         ( switch
@@ -109,6 +99,11 @@ cmdParser
               <> help "When specified, dumps the top frame of the symbol table \
                     \at each scope exit"
             )
+        ) <*>
+        ( switch
+            ( long "pptype"
+              <> help "When specified, pretty-print types in addition to program"
+            )
         )
     ) $
     progDesc "Compiler for GoLite"
@@ -120,15 +115,9 @@ goto :: Goto -> IO ()
 goto g =
     let oneErr = oneError g in
     let dumpSyms = dumpSymTab g in
+    let ppty = ppType g in
     case cmd g of
         Pretty f -> do
-            ex <- parseGoLiteFile f
-            case ex of
-                Left e -> hPutStrLn stderr $ noNewLines $ show e
-                Right r -> case weedGoLiteProgram oneErr r of
-                    Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
-                    Nothing -> putStrLn $ renderGoLite (pretty r)
-        PrettyType f -> do
             ex <- parseGoLiteFile f
             case ex of
                 Left e -> hPutStrLn stderr $ noNewLines $ show e
@@ -142,7 +131,10 @@ goto g =
                                 (Right p, s) -> do
                                     case reverse $ sortBy (comparing typeErrorLocation) (_errors s) of
                                         [] -> do
-                                            putStrLn (renderGoLite (pretty p))
+                                            if ppty then
+                                                putStrLn (renderGoLite (pretty p))
+                                            else
+                                                putStrLn (renderGoLite (pretty r))
                                         xs -> forM_ (if oneErr then [head xs] else xs) $ \er -> do
                                                 putStrLn (renderGoLite (pretty er))
 
