@@ -350,6 +350,20 @@ isValue (unalias -> Fix t) = case t of
     UnknownType -> True
     _ -> True
 
+-- | Determines whether a type is printable. This is *almost* like isValue,
+-- except that additionally we can't print structs or arrays (??), but we CAN
+-- print function values (??!??!?)
+isPrintable :: Type -> Bool
+isPrintable (unalias -> Fix t) = case t of
+    BuiltinType _ -> False
+    NilType -> False
+    TypeSum _ -> False -- Shouldn't occur, but just for completeness' sake.
+    VoidType -> False
+    Struct _ -> False
+    Array _ _ -> False
+    UnknownType -> True
+    _ -> True
+
 
 -- | Determines the default type of untyped types.
 --

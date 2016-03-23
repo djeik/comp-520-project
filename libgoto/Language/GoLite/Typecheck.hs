@@ -538,7 +538,7 @@ typecheckExpr = cata f where
                 else do
                     reportError $ UnsatisfyingType
                         { unsatOffender = ty
-                        , unsatReason = text "Expected logical type"
+                        , unsatReason = text "it is not logical"
                         , errorLocation = a }
                     pure unknownType
             BitwiseNot ->
@@ -547,7 +547,7 @@ typecheckExpr = cata f where
                 else do
                     reportError $ UnsatisfyingType
                         { unsatOffender = ty
-                        , unsatReason = text "Expected integral type"
+                        , unsatReason = text "it is not logical"
                         , errorLocation = a }
                     pure unknownType
             _ ->
@@ -556,7 +556,7 @@ typecheckExpr = cata f where
                 else do
                     reportError $ UnsatisfyingType
                         { unsatOffender = ty
-                        , unsatReason = text "Expected numerical type"
+                        , unsatReason = text "it is not numerical"
                         , errorLocation = a }
                     pure unknownType
 
@@ -731,10 +731,25 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                                 pure unknownType
                             else pure ty
 
-                    declareSymbol' i $ VariableInfo
-                        { symLocation = SourcePosition b
-                        , symType = defaultType ty'
-                        }
+                    sym <- lookupSymbol i
+                    case sym of
+                        Just (n, inf) -> case n of
+                            0 -> do
+                                    (symType inf, ty') <== TypeMismatch
+                                        { mismatchExpectedType = symType inf
+                                        , mismatchActualType = ty'
+                                        , mismatchCause = Ann a' (Just e')
+                                        , errorReason = empty
+                                        }
+                                    pure ()
+                            _ -> declareSymbol i $ VariableInfo
+                                    { symLocation = SourcePosition b
+                                    , symType = defaultType ty'
+                                    }
+                        Nothing -> declareSymbol i $ VariableInfo
+                                    { symLocation = SourcePosition b
+                                    , symType = defaultType ty'
+                                    }
 
                     pure $ (Ann a (Ident i), e')
 
@@ -747,7 +762,16 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                 let (exprs1', exprs2') = unzip es
                 pure $ Assignment exprs1' assignOp exprs2'
 
-            PrintStmt exprs -> PrintStmt <$> mapM typecheckExpr exprs
+            PrintStmt exprs -> PrintStmt <$> forM exprs (\e -> do
+                e' <- typecheckExpr e
+                let (ty, b) = topAnn e'
+                when (not $ isPrintable ty)
+                    (reportError $ UnsatisfyingType
+                        { unsatOffender = ty
+                        , unsatReason = text "it is not printable, senpai"
+                        , errorLocation = b
+                        })
+                pure e')
 
             ReturnStmt me -> let rty = funcTypeRet (unFix fty) in case me of
                 Just e -> do
