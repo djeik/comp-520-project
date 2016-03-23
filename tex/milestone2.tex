@@ -38,7 +38,6 @@ We decided to generalize tree traversals in order to reuse similar error-reporti
 
 With this in mind, both weeding and typechecking are fairly predictable traversals of the syntax tree. The weeder traversal does not modify the tree, and is only ran for its internal state of errors. The typecheck traversal takes a source-annotated tree to a type-and-source-annotated tree using catamorphisms over functor fixed points in a way that is similar to our annotation-stripping strategy employed in milestone 1.
 
-
 \section{Extra features}
 We decided to implement some Go features not supported in GoLite, because we found that in certain cases, not special-casing our code to conform strictly to GoLite resulted in better code. Note that the extra features we support are still part of Go.
 \begin{itemize}
@@ -57,7 +56,97 @@ We decided to implement some Go features not supported in GoLite, because we fou
 \\
 Documentation and random bug-fixing all over the code was joint work.
 
+\section{Typechecking rules}
+
+\begin{itemize}
+\item A package typechecks if all its top-level declarations typecheck
+\item A type declaration always typechecks and adds the declared symbol to the current scope. An error is raised if the symbol is already present.
+\item A variable declaration typechecks if either:
+	\begin{itemize}
+	\item There is a type and no expressions
+	\item There are as may expressions as identifiers, and either:
+		\begin{itemize}
+		\item There is a type and every expression is assignment-compatible to it.
+		\item There is no type and every expression has a valued type (any type but nil, void, functions and builtins).
+		\end{itemize}
+	\end{itemize}
+	It adds a symbol to the current scope, raising an error if it is already present.
+\item A function declaration typechecks if all of its statements typecheck when adding the function and its parameters to the context. It adds a symbol to the current scope, raising an error if it is present.
+\item A declaration statement typechecks if its declaration typechecks. It adds a symbol to the current scope, raising an error if it is present.
+\item An expression statement typechecks if its inner expression typechecks and the type of the call is not one of the builtin types forbidden in expression statement context. (Checking that the expression is a call is done at weeding)
+\item A short variable declaration typechecks if:
+	\begin{itemize}
+	\item It declares at least one new non-blank variable
+	\item The expressions corresponding to the new variables typecheck, and have value types.
+	\item The expressions corresponding to the redeclared variables typecheck and have types that are assignment-compatible with the types of their respective variables.
+	\end{itemize}
+\item An assignment typechecks if either:
+	\begin{itemize}
+	\item It is a normal assignment, the expression lists on each side typecheck and are pairwise assignment-compatible
+	\item It is an assign-op, the expressions on each side typecheck, have types respecting the rules of the operator, and the right type is assignment-compatible to the left type
+	\end{itemize}
+lvalue checks are done in a weeding pass.
+\item A print statement typechecks if all of its inner expressions typecheck.
+\item A return statement typechecks if either:
+	\begin{itemize}
+	\item The enclosing function has a return type, the return statement has an expression, the expression typechecks, and its type is assignment compatible to the return type of the function.
+	\item The enclosing function has no return type and the return statement has no expression.
+	\end{itemize}
+Note that the checks to see whether a return statement agrees with its function in terms of presence of a type/expression are done in the weeder, as is the terminating statement analysis.
+\item An if statement typechecks if:
+	\begin{itemize}
+	\item Its initializer, if it has one, typechecks.
+	\item Its expression typechecks in the additional context given by the initializer and has type bool.
+	\item Its then part, which is a new scope, typechecks in the additional context given by the initializer.
+	\item Its else part, which is a new scope, typechecks in the additional context given by the initializer
+	\end{itemize}
+\item A switch statement typechecks if:
+	\begin{itemize}
+	\item Its initializer, if it has one, typechecks.
+	\item Its expression, if it has one, typechecks in the context of the initializer and has a valued type
+	\item For each case clause:
+		\begin{itemize}
+		\item The expression of the case clause, if it is present, typechecks, and agrees in type with the expression of the switch, or is of type bool if the switch has no expression, all in the context of the initializer
+		\item The body of the case clause, which is a new scope, typechecks in the context of the initializer.
+		\end{itemize}
+	\end{itemize}
+The check for one default case is done in the weeder.
+\item A for statement typechecks if:
+	\begin{itemize}
+	\item Its pre-statement, if it has one, typechecks.
+	\item Its condition, if it has one, typechecks in the context of the initializer and has type bool
+	\item Its post-statement, if it has one, typechecks in the context of the initializer and is not a short variable declaration (this last part is checked in the weeder).
+	\item Its body, which is a new scope, typechecks in the the context of the initializer
+	\end{itemize}
+\item An incdec statement typechecks if its expression typechecks and is of numeric type.
+\item A block, which is its own scope, typechecks if its body typechecks.
+\item Break, continue, fallthrough and empty statements typecheck.
+\item A binary operator expression typechecks if its left and right typecheck, agree in type up to untypedness and have a type allowed by the operator. The result type is given by the operator.
+\item A unary operator expression typechecks if its expression typechecks and has a type allowed by the operator. The result type is given by the operator
+\item A conversion typechecks if the expression typechecks, and it and the type are either a rune, float, int, bool type or alias of one of those. The result type is the type converted to
+\item A selector expression typechecks if the inner expression typechecks, and is a struct type that contains the given field. The resulting type is the type of the field.
+\item An index expression typechecks if both inner expressions typecheck, the ``indexed'' is of slice, array or string type and the ``indexer'' is of int type. The resulting type is the inner type of the array or slice type, or rune if the ``indexed'' is a string.
+\item A slice typechecks if the ``sliced'' is of slice type and any component expression present typechecks and has type int. The resulting type is the type of the ``sliced''
+\item A type assertion throws an error because it is unsupported.
+\item A call typechecks if:
+	\begin{itemize}
+	\item The call expression typechecks and has a built-in type, and the parameters follow the specific rules for that built-in type (please see the code for those).
+	\item The call expression typechecks, has a function type, there are as many parameters as function arguments, every argument expression typechecks and is assignment-compatible with the type of the parameter in its place. The resulting type is the return type of the function type of the call expression.
+	\end{itemize}
+\item A literal typechecks. The resulting type is the type of the literal.
+\item A variable typechecks if it is present in the current scope. The resulting type is the type of the variable as recorded in the symbol table.
+\end{itemize}
+
+Here are some rules governing our extra and artificial types:
+\begin{itemize}
+\item nil is not a value type, and so it cannot be used in variable declarations that do not specify a type (including short variable declarations), or switched on. The only thing one can do with nil is compare it with slices (and not even with itself).
+\item Builtins are not value types, and are subject to the same restrictions as nil above.
+\item We have an unknown type that is given to expressions when they fail to typecheck. In order to avoid generating more errors in these cases, anything can be assigned to and from unknown type, and it satisfies any predicate on types (e.g. it is ordered, comparable with anything, arithmetic, integral, and so on).
+\end{itemize}
+
+Our invalid programs are in the \texttt{programs/invalid-type} folder, and have a name beginning with \texttt{goto}. Please have a look at their contents for details and which rule they violate.
+
 \section{Resources used}
-Besides endlessly poring over the spec, we did not use any additional resources from those mentioned in milestone one.
+Besides endlessly poring over the spec, we did not use any additional print resources from those mentioned in milestone one. We did use the test cases from other class members, and acknowledge their hard work in making our compiler better.
 
 \end{document}
