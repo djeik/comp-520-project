@@ -160,6 +160,10 @@ data TypeError
         { offendingType :: Type
         , errorLocation :: SrcSpan
         }
+    | InvalidConversion
+        { errorReason :: Doc
+        , errorLocation :: SrcSpan
+        }
 
     deriving (Eq, Show)
 

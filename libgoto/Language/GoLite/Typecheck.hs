@@ -283,9 +283,109 @@ typecheckFun e = case e of
 
         FunDecl <$> pure ident <*> pure args <*> pure rettyAnn <*> pure stmts'
 
+fixConversions :: SrcAnnExpr -> Typecheck SrcAnnExpr
+fixConversions = annCata f where
+    f :: SrcSpan
+        -> SrcAnnExprF (Typecheck SrcAnnExpr)
+        -> Typecheck SrcAnnExpr
+    f a eff = case eff of
+        Call m mty args -> do
+            let fa = Fix . Ann a
+
+            e <- m
+            args' <- sequence args
+            case e of
+                Fix (Ann _ (Variable j)) -> do
+                    -- check whether the type is a NamedType and try to convert it to
+                    -- an expression, constructing a new argument list with the new
+                    -- expression added on
+                    mty' <- forM mty $ \ty -> do
+                        case unFix ty of
+                            Ann b (NamedType name) -> do
+                                sym <- lookupSymbol (unIdent (bare name))
+                                case sym of
+                                    -- not in scope error will be triggered by
+                                    -- canonicalize later
+                                    Nothing -> pure $ Left ty
+
+                                    -- if the lookup succeeds, need to verify whether
+                                    -- the named type is actually a *type*.
+                                    -- If it isn't then convert it to a Variable and
+                                    -- add it to the arguments list
+                                    Just (_, info) -> case info of
+                                        VariableInfo {} -> do
+                                            pure $ Right $
+                                                (Fix (Ann b (Variable name)))
+                                        TypeInfo {} -> pure $ Left $ ty
+                            _ -> pure $ Left ty
+
+                    let ok = fa $ case mty' of
+                            Nothing ->
+                                Call e Nothing args'
+                            Just (Left ty) ->
+                                Call e (Just ty) args'
+                            Just (Right ex) ->
+                                Call e Nothing (ex : args')
+
+                    sym <- lookupSymbol (unIdent (bare j))
+
+                    -- analyze the expression to call
+                    case sym of
+                        Nothing -> pure ok
+                        -- if the child did pass up an identifier, then we need to
+                        -- analyze the info to see whether it's a variable or a type
+                        Just (_, info) -> case info of
+                            -- if it's a variable, then business as usual; we're just
+                            -- calling a named function
+                            VariableInfo {} -> pure ok
+
+                            -- if it's a type, then we need to convert this call into a
+                            -- conversion
+                            TypeInfo {} -> do
+                                let convert argus = case argus of
+                                        [x] -> pure $ fa $ Conversion
+                                            (Fix $ Ann (ann j) $ NamedType j)
+                                            x
+
+                                        -- if we have a non-one number of arguments,
+                                        -- then the conversion is invalid
+                                        _ -> do
+                                            reportError InvalidConversion
+                                                { errorReason
+                                                    = text "conversions may only take \
+                                                    \one argument"
+                                                , errorLocation = a
+                                                }
+                                            pure ok
+
+                                case mty' of
+                                    -- if we have no type argument, then we need to
+                                    -- ensure that we have only one argument
+                                    Nothing -> convert args'
+
+                                    -- if we have a bona fide type argument, then
+                                    -- that's no good, because we can't convert a
+                                    -- *type*!
+                                    Just (Left _) -> do
+                                        reportError TypeArgumentError
+                                            { errorReason
+                                                = text "type arguments may not be \
+                                                \used in conversions"
+                                            , typeArgument = Nothing
+                                            , errorLocation = a
+                                            }
+                                        pure ok
+
+                                    Just (Right arg) -> convert (arg:args')
+                _ -> pure $ fa $ Call e mty args'
+        _ -> do
+            eff' <- sequence eff
+            pure (Fix $ Ann a eff')
+
+
 -- | Typechecks a source position-annotated fixed point of 'ExprF'.
 typecheckExpr :: SrcAnnExpr -> Typecheck TySrcAnnExpr
-typecheckExpr = cata f where
+typecheckExpr xkcd = fixConversions xkcd >>= cata f where
     -- the boilerplate for reconstructing the tree but in which the branches
     -- now contain type information along with source position information.
     wrap a = Fix . uncurry Ann . first (, a)
@@ -519,7 +619,15 @@ typecheckExpr = cata f where
         Variable x@(Ann _ (Ident name)) -> do
             minfo <- lookupSymbol name
             case minfo of
-                Just (_, info) -> pure (symType info, Variable x)
+                Just (_, info) -> case info of
+                    VariableInfo {} -> pure (symType info, Variable x)
+                    TypeInfo {} -> do
+                        reportError SymbolKindMismatch
+                            { mismatchExpectedKind = variableKind
+                            , mismatchActualInfo = info
+                            , mismatchIdent = x
+                            }
+                        pure (unknownType, Variable x)
                 Nothing -> do
                     reportError $ NotInScope { notInScopeIdent = x }
                     pure (unknownType, Variable x)

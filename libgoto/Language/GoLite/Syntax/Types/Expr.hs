@@ -7,7 +7,9 @@ Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
 -}
 
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -18,6 +20,7 @@ import Language.GoLite.Pretty
 
 import Data.Functor.Foldable
 import Data.String
+import Prelude as P
 import Text.PrettyPrint
 
 -- | Integers in GoLite.
@@ -112,7 +115,7 @@ data ExprF id bin un lit ty f
     | Call f (Maybe ty) [f]
     | Literal lit
     | Variable id
-    deriving (Eq, Ord, Read, Show, Functor)
+    deriving (Eq, Ord, Read, Show, Functor, P.Foldable, P.Traversable)
 
 -- | Prints a recursive expression structure bottom up by dispatching to the
 -- pretty-printers for any contained data. Internally, the pretty-printer

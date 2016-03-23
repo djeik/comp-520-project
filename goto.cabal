@@ -39,14 +39,23 @@ library
     Language.GoLite
     Language.GoLite.Annotation
     Language.GoLite.Lexer
+    Language.GoLite.Lexer.Core
+    Language.GoLite.Lexer.Keywords
     Language.GoLite.Lexer.Literal
-    Language.GoLite.Monad.Traverse
+    Language.GoLite.Lexer.Semi
+    Language.GoLite.Lexer.Symbols
     Language.GoLite.Misc
+    Language.GoLite.Monad.Traverse
     Language.GoLite.Parser
+    Language.GoLite.Parser.Core
+    Language.GoLite.Parser.Decl
     Language.GoLite.Parser.Expression
     Language.GoLite.Parser.SimpleStmts
+    Language.GoLite.Parser.Stmt
     Language.GoLite.Pretty
     Language.GoLite.Syntax
+    Language.GoLite.Syntax.Basic
+    Language.GoLite.Syntax.Precedence
     Language.GoLite.Syntax.SrcAnn
     Language.GoLite.Syntax.Sugar
     Language.GoLite.Syntax.Sugar.Declaration
@@ -55,9 +64,13 @@ library
     Language.GoLite.Syntax.Sugar.Ops
     Language.GoLite.Syntax.Sugar.Statement
     Language.GoLite.Syntax.Sugar.Type
-    Language.GoLite.Syntax.Types
-    Language.GoLite.Syntax.Precedence
     Language.GoLite.Syntax.Typecheck
+    Language.GoLite.Syntax.Types
+    Language.GoLite.Syntax.Types.Decl
+    Language.GoLite.Syntax.Types.Expr
+    Language.GoLite.Syntax.Types.Ops
+    Language.GoLite.Syntax.Types.Stmt
+    Language.GoLite.Syntax.Types.Type
     Language.GoLite.Typecheck
     Language.GoLite.Typecheck.Types
     Language.GoLite.Types
@@ -67,19 +80,6 @@ library
     Language.GoLite.Weeder.Stmt
     Language.GoLite.Weeder.TypeLit
     Language.GoLite.Weeder.Types
-  other-modules:
-    Language.GoLite.Lexer.Core
-    Language.GoLite.Lexer.Keywords
-    Language.GoLite.Lexer.Semi
-    Language.GoLite.Lexer.Symbols
-    Language.GoLite.Parser.Core
-    Language.GoLite.Parser.Decl
-    Language.GoLite.Parser.Stmt
-    Language.GoLite.Syntax.Types.Decl
-    Language.GoLite.Syntax.Types.Expr
-    Language.GoLite.Syntax.Types.Ops
-    Language.GoLite.Syntax.Types.Stmt
-    Language.GoLite.Syntax.Types.Type
 
 test-suite spec
   type:                exitcode-stdio-1.0
