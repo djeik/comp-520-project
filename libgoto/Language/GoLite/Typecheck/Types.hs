@@ -333,6 +333,11 @@ instance Pretty TypeError where
                 text "is not a value type"
             )
 
+        InvalidConversion {} ->
+            pretty loc <+> text "invalid conversion" $+$ nest indentLevel (
+                text "because" <+> errorReason err
+            )
+
         where
             loc = ErrorPosition (typeErrorLocation err)
 
@@ -354,6 +359,7 @@ typeErrorLocation e = case e of
     UntypedNil { errorLocation = a } -> SourcePosition a
     IllegalNonvalueType { errorLocation = a } -> SourcePosition a
     NoNewVariables { errorLocation = a } -> SourcePosition a
+    InvalidConversion { errorLocation = a } -> SourcePosition a
 
 -- | All errors that can actually be thrown.
 data TypecheckError
