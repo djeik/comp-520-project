@@ -24,6 +24,8 @@ func main() {
 	var array []int
 	size := 4
 
+	// golitec rejects this at parse, whereas goto rejects it at typechecking
+	// because we allow shadowing the append builtin.
 	append(array, 23)
 	append(array, 62)
 	append(array, 80)

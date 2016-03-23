@@ -10,7 +10,7 @@ func test(a, b point) point {
 	p.x = 1
 	p.y = 2
 	p.z = 3
-	return point
+	return p
 }
 
 func main () {

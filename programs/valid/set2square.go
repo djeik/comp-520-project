@@ -48,9 +48,11 @@ func len(set []string) int {
             a, b int
         }
         (((((((((x))))))))).a = 3
-        (((c))) -= 1. * (3. + float(x.a))
+        c += 1. * (3. + float(x.a))
     }
     {
+		// probably a bug in golitec: types may be surrounded by parens, yet
+		// with the parens around `bool`, this fails to parse
         if ((bool))((!!true)) {
             return result
         } else {

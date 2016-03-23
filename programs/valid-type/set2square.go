@@ -55,7 +55,7 @@ func square(set []string) ([3][3]string) {
         data = clear(data)
     }
 
-    println(data)
+    println("nah")
     return (data)
 }
 

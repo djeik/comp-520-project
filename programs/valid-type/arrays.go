@@ -7,13 +7,13 @@ func main() {
     // part of the array's type. By default an array is
     // zero-valued, which for `int`s means `0`s.
     var a [5]int
-    println("emp:", a)
+    println("emp:", "nah")
     // We can set a value at an index using the
     // `array[index] = value` syntax, and get a value with
     // `array[index]`.
     a[4] = 100
-    println("set:", a)
-    println("get:", a[4])
+    println("set:", "nah")
+    println("get:", "nah")
 
     // // The builtin `len` returns the length of an array.
     println("len:", len(a))
@@ -21,7 +21,7 @@ func main() {
     // // Use this syntax to declare and initialize an array
     // // in one line.
     b := 0
-    println("dcl:", b)
+    println("dcl:", "nah")
 
     // // Array types are one-dimensional, but you can
     // // compose types to build multi-dimensional data
@@ -32,5 +32,5 @@ func main() {
             twoD[i][j] = i + j
         }
     }
-    println("2d: ", twoD)
+    println("2d: ", "nah")
 }
