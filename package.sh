@@ -4,7 +4,7 @@
 
 set -e
 
-dst="milestone1"
+dst="milestone2"
 d="$(basename "$(pwd)")"
 
 cd ..
@@ -25,12 +25,17 @@ sed 's/dist/src\/dist/' \
 rm -v "$dst/src/run_milestone1.sh"
 chmod +x "$dst/run_milestone1.sh"
 
+sed 's/dist/src\/dist/' \
+    < "$dst/src/run_milestone2.sh" \
+    > "$dst/run_milestone2.sh"
+rm -v "$dst/src/run_milestone2.sh"
+chmod +x "$dst/run_milestone2.sh"
+
 # Make symlinks for the valid and invalid programs
 mkdir "$dst/programs"
-mkdir "$dst/programs/valid"
-ln -vs "../src/programs/valid/brainfuck.go" "$dst/programs/valid"
-ln -vs "../src/programs/valid/cmd.go" "$dst/programs/valid"
-ln -vs "../src/programs/invalid" "$dst/programs/invalid"
+ln -vs "../src/programs/valid" "$dst/programs"
+ln -vs "../src/programs/invalid-type" "$dst/programs"
+ln -vs "../src/programs/invalid" "$dst/programs"
 
 # Make a symlink for the README
 ln -vs "../src/README" "$dst"
@@ -39,6 +44,7 @@ ln -vs "../src/README" "$dst"
 mkdir "$dst/doc"
 cd "$dst/src/tex"
 pdflatex milestone1
+pdflatex milestone2
 cd -
 ln -vs ../src/tex/milestone1.pdf "$dst/doc"
 
