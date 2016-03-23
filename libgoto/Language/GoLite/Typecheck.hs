@@ -770,8 +770,8 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                     typedBoolType
                     (text "the guard of an if statement must be a boolean")
                     cond
-                <*> sequence thenBody
-                <*> traverse sequence melseBody
+                <*> (withScope $ sequence thenBody)
+                <*> (withScope $ traverse sequence melseBody)
 
             SwitchStmt minit mcond cases -> withScope $ do
                 minit' <- sequence minit

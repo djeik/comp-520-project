@@ -1,0 +1,63 @@
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage[margin=2.0cm]{geometry}
+\usepackage{hyperref}
+
+\title{Milestone \#1\\Compiler design -- COMP 520}
+\author{Jacob Errington \& Fr\'ed\'eric Lafrance}
+\date{26 February 2016}
+
+\begin{document}
+
+\maketitle
+
+\section{Overview}
+Since milestone one, we added the following command to our cabal file:
+\begin{itemize}
+\item\texttt{pretty-type}: Reads a program on \texttt{stdin}, weeds it, typechecks it and prints the typechecked program on \texttt{stdin}
+\end{itemize}
+
+We have also added the following flags:
+\begin{itemize}
+\item\texttt{--oneError}: Only prints out the first weeding/typechecking error.
+\item\texttt{--dumpSymtab}: Dumps the topmost stack frame at each scope exit to the file \texttt{foo.symtab}. The frames are indented according to their depth.
+\item\texttt{--pptype}: Pretty-prints the types of expressions as comments.
+\end{itemize}
+
+We have made the following changes to our directory structure:
+\begin{itemize}
+\item \texttt{libgoto/Language/GoLite/Monad/Traverse.hs}: Monadic definition of a tree traversal. Used by typechecking and weeding.
+\item \texttt{libgoto/Language/GoLite/Typecheck.hs}: Typecheck traversal definition
+\item \texttt{libgoto/Language/GoLite/Typecheck/Types.hs}: Type definitions for typechecking
+\item \texttt{libgoto/Language/GoLite/Syntax/Typecheck.hs}: Type and function definitions for GoLite types
+\item \texttt{test/Weeder.hs}: Unit tests for the weeder
+\end{itemize}
+
+\section{Design decisions}
+We decided to generalize tree traversals in order to reuse similar error-reporting machinery for weeding and typechecking. Briefly, a traversal is the combination of a state and error monads with operations to report and obtain errors. This allows us to collect errors in a traversal as we go along. This is a inherently more user-friendly experience as one doesn't need to fix one error at a time, recompile and so on. The traversal state is also used to keep track of anything we deem useful. In the case of the weeder, we record various flags indicating nesting levels and whether the enclosing function has a return type. In the case of the typechecker, we keep a cactus stack of scopes in our state.
+
+With this in mind, both weeding and typechecking are fairly predictable traversals of the syntax tree. The weeder traversal does not modify the tree, and is only ran for its internal state of errors. The typecheck traversal takes a source-annotated tree to a type-and-source-annotated tree using catamorphisms over functor fixed points in a way that is similar to our annotation-stripping strategy employed in milestone 1.
+
+
+\section{Extra features}
+We decided to implement some Go features not supported in GoLite, because we found that in certain cases, not special-casing our code to conform strictly to GoLite resulted in better code. Note that the extra features we support are still part of Go.
+\begin{itemize}
+\item Built-in functions: we support the built-in functions \texttt{append}, \texttt{cap}, \texttt{copy}, \texttt{len} and \texttt{make}. Note that we did not make a special case for append and just consider it a different pre-declared function. Nonetheless, as with other Go built-ins, it is not usable in a value context. Further, we check that the builtins which cannot appear in statement context do not. This is checked at typecheck time since a built-in could have been shadowed.
+\item Types as symbols: instead of having types as keywords, we declare them as identifiers. This decision was taken in the last milestone in order to have a more general parser.
+\item Nil: we predeclared the nil identifier, which has type nil. As in Go, nil types can be compared with slices even though slices cannot be compared with each other. The nil identifier doesn't have a value type, but can obviously be shadowed.
+\item String indexing: We allow indexing on string values. The resulting type is rune.
+\item Blank fields in structs: Like Go, we allow declaring blank fields in structs. We keep those around for sizing purposes but they are unaccessible (a weeder check prevents it, as it should).
+\end{itemize}
+
+\section{Team organization}
+
+\textbf{Jacob} implemented the scoping rules, typechecking of statements and many expressions, and type pretty-printing.
+\\
+\textbf{Fr\'ed\'eric} implemented the weeder and related checks in the typechecker, typechecking of binary operators, unary operators, built-ins, symbol table dumping and integration tests.
+\\
+Documentation and random bug-fixing all over the code was joint work.
+
+\section{Resources used}
+Besides endlessly poring over the spec, we did not use any additional resources from those mentioned in milestone one.
+
+\end{document}
