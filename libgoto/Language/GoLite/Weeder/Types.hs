@@ -24,7 +24,7 @@ import Data.Void ( Void )
 
 import Text.PrettyPrint
 
-import Language.GoLite.Monad.Traverse
+import Language.Common.Monad.Traverse
 import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
 

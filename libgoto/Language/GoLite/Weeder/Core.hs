@@ -16,7 +16,7 @@ module Language.GoLite.Weeder.Core
 , isJust
 , isNothing
   -- * Convenience re-exports
-, module Language.GoLite.Monad.Traverse
+, module Language.Common.Monad.Traverse
 , module Language.GoLite.Syntax
 , module Language.GoLite.Syntax.SrcAnn
 , module Language.GoLite.Weeder.Types
@@ -24,7 +24,7 @@ module Language.GoLite.Weeder.Core
 
 import Data.Maybe ( isJust, isNothing )
 
-import Language.GoLite.Monad.Traverse
+import Language.Common.Monad.Traverse
 import Language.GoLite.Syntax
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Weeder.Types

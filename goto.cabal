@@ -36,8 +36,9 @@ library
     recursion-schemes >=4.1 && <4.2,
     bifunctors >=5.2 && <5.3
   exposed-modules:
+    Language.Common.Annotation
+    Language.Common.Monad.Traverse
     Language.GoLite
-    Language.GoLite.Annotation
     Language.GoLite.Lexer
     Language.GoLite.Lexer.Core
     Language.GoLite.Lexer.Keywords
@@ -45,7 +46,6 @@ library
     Language.GoLite.Lexer.Semi
     Language.GoLite.Lexer.Symbols
     Language.GoLite.Misc
-    Language.GoLite.Monad.Traverse
     Language.GoLite.Parser
     Language.GoLite.Parser.Core
     Language.GoLite.Parser.Decl
@@ -80,6 +80,11 @@ library
     Language.GoLite.Weeder.Stmt
     Language.GoLite.Weeder.TypeLit
     Language.GoLite.Weeder.Types
+    Language.Vigil
+    Language.Vigil.SimplifyTraversal
+    Language.Vigil.Syntax
+    Language.Vigil.Syntax.Basic
+
 
 test-suite spec
   type:                exitcode-stdio-1.0

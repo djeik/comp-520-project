@@ -26,7 +26,7 @@ transformation is in "Language.GoLite.Typecheck".
 
 module Language.GoLite.Typecheck.Types where
 
-import Language.GoLite.Monad.Traverse
+import Language.Common.Monad.Traverse
 import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Typecheck

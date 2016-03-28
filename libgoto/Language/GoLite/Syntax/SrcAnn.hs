@@ -24,7 +24,7 @@ module Language.GoLite.Syntax.SrcAnn
   SrcSpan(..)
 , SrcAnn
 , SrcAnnFix
-, module Language.GoLite.Annotation
+, module Language.Common.Annotation
   -- * Parser combinators
 , withSrcAnn
   -- ** Useful specialized parser combinators
@@ -70,7 +70,7 @@ module Language.GoLite.Syntax.SrcAnn
 , sourceColumn
 ) where
 
-import Language.GoLite.Annotation
+import Language.Common.Annotation
 import Language.GoLite.Lexer.Core
 import Language.GoLite.Pretty
 import Language.GoLite.Syntax.Basic

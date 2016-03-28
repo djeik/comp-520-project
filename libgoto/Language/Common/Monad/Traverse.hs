@@ -14,7 +14,7 @@ trees.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Language.GoLite.Monad.Traverse (
+module Language.Common.Monad.Traverse (
   module Control.Monad.Except
 , module Control.Monad.Identity
 , module Control.Monad.State

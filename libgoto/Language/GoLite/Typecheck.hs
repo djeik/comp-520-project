@@ -26,7 +26,7 @@ module Language.GoLite.Typecheck
 ) where
 
 import Language.GoLite.Misc
-import Language.GoLite.Monad.Traverse
+import Language.Common.Monad.Traverse
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Typecheck
 import Language.GoLite.Syntax.Types as T

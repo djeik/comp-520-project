@@ -19,7 +19,7 @@ combinators for working with annotations.
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Language.GoLite.Annotation where
+module Language.Common.Annotation where
 
 import Data.Functor.Foldable
 import Prelude as P
