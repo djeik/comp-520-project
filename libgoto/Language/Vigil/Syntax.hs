@@ -38,7 +38,6 @@ module Language.Vigil.Syntax
 , CondExpr (..)
 , Ref (..)
 , Val (..)
-, BinaryOp (..)
 , TypeF (..)
 , Literal (..)
 , Ident (..)
@@ -48,9 +47,10 @@ module Language.Vigil.Syntax
 , VigilRune
 , VigilString
 -- * Operators
-, RelOp (..)
+, BinaryOp (..)
+, BinaryCondOp (..)
 , UnaryOp (..)
-, LogOp (..)
+, UnaryCondOp (..)
 -- * Convenience re-exports
 , Fix (..)
 , Identity (..)
@@ -117,10 +117,10 @@ data Expr ty ref ident val binop unop condexpr
 
 -- | Conditional expressions are separate from expressions to restrict their use
 -- and for codegen considerations
-data CondExpr val relop logop
+data CondExpr val bincondop uncondop
     = CondVal val
-    | RelOp val relop val
-    | LogOp logop val
+    | BinCond val bincondop val
+    | UnCond uncondop val
     deriving (Eq, Functor, Show)
 
 -- | A reference is either a naked value or a series of homogeneous array /
@@ -141,22 +141,21 @@ data Val ident lit
 
 -- | Arithmetic/integral binary operators.
 data BinaryOp a
-    = LogicalOr | LogicalAnd
-    | Plus | Minus | Times | Divide | Modulo
+    = Plus | Minus | Times | Divide | Modulo
     | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseAndNot | BitwiseOr | BitwiseXor
     deriving (Eq, Functor, Ord, Read, Show)
 
--- | Relation operators (equality and ordering).
-data RelOp a
-    = Equal | NotEqual
+-- | Binary conditional operators (equality, ordering, binary logicals).
+data BinaryCondOp a
+    = LogicalOr | LogicalAnd | Equal | NotEqual
     | LessThan | LessThanEqual | GreaterThan | GreaterThanEqual
 
 -- | Unary operators (unsupported GoLite unary operators are removed).
 data UnaryOp a
     = Positive | Negative | BitwiseNot
 
--- | Unary logical operators (i.e. not)
-data LogOp a =
+-- | Unary conditional operators (i.e. not)
+data UnaryCondOp a =
     LogicalNot
 
 -- The rest of these definitions are exactly the same as for GoLite.

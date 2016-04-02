@@ -44,7 +44,7 @@ type TyAnnExpr
 
 type TyAnnType = TyAnnFix BasicTypeF
 
-type TyAnnCondExpr = CondExpr TyAnnVal BasicRelOp BasicLogOp
+type TyAnnCondExpr = CondExpr TyAnnVal BasicBinCondOp BasicUnCondOp
 
 type TyAnnRef = Ref BasicIdent TyAnnVal
 

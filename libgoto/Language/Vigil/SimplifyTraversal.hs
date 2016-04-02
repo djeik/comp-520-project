@@ -60,7 +60,7 @@ simplifyExpr = annCata phi where
             -- Should this be a conditional or a binary expression?
             let o' = bare o in pure $
                 (if isComparisonOp o' || isOrderingOp o' then
-                    Result $ SimpleExpr $ Cond $ RelOp vl (gToVCondOp o') vr
+                    Result $ SimpleExpr $ Cond $ BinCond vl (gToVCondOp o') vr
                 else
                     Result $ SimpleExpr $ Binary vl (gToVBinOp o') vr):es
 
@@ -68,7 +68,7 @@ simplifyExpr = annCata phi where
             (v, e') <- exprAsVal e
 
             pure $ (case bare o of
-                G.LogicalNot -> Result $ SimpleExpr $ Cond $ LogOp V.LogicalNot v
+                G.LogicalNot -> Result $ SimpleExpr $ Cond $ UnCond V.LogicalNot v
                 _ -> Result $ SimpleExpr $ Unary (gToVUnOp $ bare o) v):e'
 
         G.Conversion ty e -> do
@@ -277,6 +277,8 @@ simplifyExpr = annCata phi where
         _ -> error "unimplemented unsupported unop error"
 
     gToVCondOp o = case o of
+        G.LogicalOr -> V.LogicalOr
+        G.LogicalAnd -> V.LogicalAnd
         G.Equal -> V.Equal
         G.NotEqual -> V.NotEqual
         G.LessThan -> V.LessThan
@@ -286,8 +288,6 @@ simplifyExpr = annCata phi where
         _ -> error "unimplemented unsupported condop error"
 
     gToVBinOp o = case o of
-        G.LogicalOr -> V.LogicalOr
-        G.LogicalAnd -> V.LogicalAnd
         G.Plus -> V.Plus
         G.Minus -> V.Minus
         G.Times -> V.Times
