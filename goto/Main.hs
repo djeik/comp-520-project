@@ -52,9 +52,6 @@ data GotoCmd
     | RoundTrip
         { filename :: InputFile
         }
-    | PrettyType
-        { filename :: InputFile
-        }
     deriving (Eq, Ord, Read, Show)
 
 main :: IO ()
