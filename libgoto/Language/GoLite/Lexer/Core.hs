@@ -22,6 +22,7 @@ module Language.GoLite.Lexer.Core
 , HasNewline
   -- * Reexports for convenience
 , module Text.Megaparsec
+, initialPos
 , module Text.Megaparsec.String
 ) where
 
@@ -29,6 +30,7 @@ import Language.GoLite.Misc ( ($>) )
 
 import Data.Maybe ( isJust )
 import Text.Megaparsec
+import Text.Megaparsec.Pos ( initialPos )
 import Text.Megaparsec.String
 
 -- | Track the presence of newlines with a boolean.

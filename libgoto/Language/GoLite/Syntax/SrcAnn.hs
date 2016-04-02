@@ -34,6 +34,8 @@ module Language.GoLite.Syntax.SrcAnn
 , withSrcAnnConst
 , withPushSrcAnnF
 , withPushSrcAnnFix
+  -- * Miscellaneous
+, builtinSpan
   -- * Source-annotated syntax definitions
 , SrcAnnPackage
 , SrcAnnTopLevelDecl
@@ -87,6 +89,13 @@ data SrcSpan
         , srcEnd :: !SourcePos
         }
     deriving (Eq, Ord, Show)
+
+-- | A trivial source span that can be given to builtins.
+builtinSpan :: SrcSpan
+builtinSpan = SrcSpan
+    { srcStart = initialPos "builtin"
+    , srcEnd = initialPos "builtin"
+    }
 
 -- | General source-annotated functor value.
 type SrcAnn f a = Ann SrcSpan f a
@@ -276,7 +285,7 @@ type SrcAnnDeclaration
 
 -- | 'ExprF' with source annotations.
 type SrcAnnExprF
-    = ExprF SrcAnnIdent SrcAnnBinaryOp SrcAnnUnaryOp SrcAnnLiteral SrcAnnType
+    = ExprF SrcAnnIdent SrcAnnIdent SrcAnnBinaryOp SrcAnnUnaryOp SrcAnnLiteral SrcAnnType
 
 -- | 'SrcAnnFix' with source annotations.
 type SrcAnnExpr

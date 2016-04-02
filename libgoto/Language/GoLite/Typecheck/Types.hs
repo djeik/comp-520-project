@@ -50,31 +50,13 @@ newtype Typecheck a
         , MonadState TypecheckState
         )
 
--- | Fully runs a computation in the 'Typecheck' monad using the default root
--- scope.
-runTypecheck :: Typecheck a -> (Either TypecheckError a, TypecheckState)
-runTypecheck t
-    = runIdentity (
-        runStateT (
-            runExceptT (
-                runTraversal (
-                    unTypecheck t
-                )
-            )
-        ) $
-        TypecheckState
-            { _errors = []
-            , _scopes = [defaultRootScope]
-            , dumpedScopes = []
-            }
-    )
-
 -- | The state of the typechecker is the stack of scopes being traversed and
 -- the list of accumulated non-fatal errors.
 data TypecheckState
     = TypecheckState
         { _errors :: [TraversalError Typecheck]
         , _scopes :: [Scope]
+        , _nextGid :: Int
         , dumpedScopes :: [(Scope, Int)]
         }
     deriving (Eq, Show)
