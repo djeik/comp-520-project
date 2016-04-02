@@ -62,11 +62,11 @@ r :: b -> Either a b
 r = Right
 
 -- | Keystroke-saving synonym for `(literal . IntLit)`.
-int :: GoInt -> Fix (ExprF id bin un (Literal a) ty)
+int :: GoInt -> Fix (ExprF selId id bin un (Literal a) ty)
 int = Language.GoLite.Syntax.Sugar.literal . IntLit
 
 -- | Keystroke-saving synonym for `(literal . StringLit)`.
-stringLit :: GoString -> Fix (ExprF id bin un (Literal a) ty)
+stringLit :: GoString -> Fix (ExprF selId id bin un (Literal a) ty)
 stringLit = Language.GoLite.Syntax.Sugar.literal . StringLit
 
 

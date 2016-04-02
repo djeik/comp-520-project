@@ -36,11 +36,11 @@ type GoRune = Char
 type GoString = String
 
 -- | Base functor for expressions, with holes for all the contained data.
-data ExprF id bin un lit ty f
+data ExprF selectorId id bin un lit ty f
     = BinaryOp bin f f
     | UnaryOp un f
     | Conversion ty f
-    | Selector f id
+    | Selector f selectorId
     {-|
     \"An expression of the form
 
@@ -125,12 +125,13 @@ data ExprF id bin un lit ty f
 instance
     ( Pretty id
     , Pretty bin
+    , Pretty selId
     , Pretty un
     , Pretty lit
     , Pretty ty
     , HasPrecedence bin
     , HasPrecedence un
-    ) => Pretty (Fix (ExprF id bin un lit ty)) where
+    ) => Pretty (Fix (ExprF selId id bin un lit ty)) where
     pretty = snd . cata f where
 
         -- the F-algebra that we use here keeps track of the precendence levels
@@ -140,11 +141,12 @@ instance
             ( Pretty id
             , Pretty bin
             , Pretty un
+            , Pretty selId
             , Pretty lit
             , Pretty ty
             , HasPrecedence bin
             , HasPrecedence un
-            ) => ExprF id bin un lit ty (Int, Doc) -> (Int, Doc)
+            ) => ExprF selId id bin un lit ty (Int, Doc) -> (Int, Doc)
         f e = case e of
             BinaryOp op (dl, l) (dr, r) -> (precedence op,) $
                 prettyParens (dl <= precedence op) l <+>

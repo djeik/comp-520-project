@@ -46,11 +46,11 @@ type TySrcAnnTopLevelDecl
 
 -- | 'VarDecl' with type and source position annotations.
 type TySrcAnnVarDecl
-    = VarDecl SrcAnnIdent TySrcAnnType TySrcAnnExpr
+    = VarDecl GlobalId TySrcAnnType TySrcAnnExpr
 
 -- | 'FunDecl' with type and source position annotations.
 type TySrcAnnFunDecl
-    = FunDecl SrcAnnIdent TySrcAnnType (Maybe TySrcAnnType) TySrcAnnStatement
+    = FunDecl GlobalId TySrcAnnType (Maybe TySrcAnnType) TySrcAnnStatement
 
 -- | A fixed point of 'SrcAnnTypeF' with type and source position annotations.
 type TySrcAnnType
@@ -61,7 +61,7 @@ type TySrcAnnStatementF
     = StatementF
         TySrcAnnDeclaration
         TySrcAnnExpr
-        SrcAnnIdent
+        GlobalId
         SrcAnnAssignOp
         TySrcAnnCaseHead
 
@@ -80,7 +80,7 @@ type TySrcAnnDeclaration
 
 -- | 'ExprF' with type and source position annotations.
 type TySrcAnnExprF
-    = ExprF SrcAnnIdent SrcAnnBinaryOp SrcAnnUnaryOp TySrcAnnLiteral TySrcAnnType
+    = ExprF SrcAnnIdent GlobalId SrcAnnBinaryOp SrcAnnUnaryOp TySrcAnnLiteral TySrcAnnType
 
 -- | The fixed point of 'TySrcAnnExprF' with type and source position
 -- annotations.
@@ -130,7 +130,8 @@ instance Pretty TySrcAnnLiteral where
 instance Pretty TySrcAnnExpr where
     pretty = snd . cata f where
         f ::
-            ( Pretty id
+            ( Pretty selId
+            , Pretty id
             , Pretty bin
             , Pretty un
             , Pretty lit
@@ -138,7 +139,7 @@ instance Pretty TySrcAnnExpr where
             , HasPrecedence bin
             , HasPrecedence un
             )
-            => TySrcAnn (ExprF id bin un lit ty) (Int, Doc)
+            => TySrcAnn (ExprF selId id bin un lit ty) (Int, Doc)
             -> (Int, Doc)
         f (Ann (ty, _) e) = case e of
             BinaryOp op (dl, l) (dr, r) -> (precedence op,) $

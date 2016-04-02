@@ -39,6 +39,167 @@ import qualified Data.Map as M
 import Data.Functor.Foldable ( cata )
 import Text.PrettyPrint
 
+-- | Fully runs a computation in the 'Typecheck' monad using the default root
+-- scope.
+runTypecheck :: Typecheck a -> (Either TypecheckError a, TypecheckState)
+runTypecheck t
+    = runIdentity (
+        runStateT (
+            runExceptT (
+                runTraversal (
+                    unTypecheck (genDefaultRootScope *> t)
+                )
+            )
+        ) $
+        TypecheckState
+            { _errors = []
+            , _scopes = []
+            , _nextGid = 0
+            , dumpedScopes = []
+            }
+    )
+
+-- | Build a globally unique identifier tied to a given type.
+nextGid :: SrcAnnIdent -> Type -> Typecheck GlobalId
+nextGid name ty = do
+    n <- gets _nextGid
+    modify $ \s -> s { _nextGid = n + 1 }
+    pure GlobalId { gidTy = ty, gidNum = n, gidOrigName = name }
+
+noGid :: GlobalId
+noGid = GlobalId
+    { gidTy = unknownType
+    , gidNum = -1
+    , gidOrigName = Ann builtinSpan (Ident "")
+    }
+
+blank :: SymbolInfo
+blank = VariableInfo
+    { symLocation = Builtin
+    , symType = unknownType
+    , symGid = noGid
+    }
+
+genDefaultRootScope :: Typecheck ()
+genDefaultRootScope = do
+    s <- forM defaultRootScope $ \(name, t, mkSymInfo) -> do
+        g <- nextGid (Ann builtinSpan (Ident name)) t
+        pure (name, mkSymInfo t g)
+    pushScope (Scope { scopeMap = M.fromList s })
+
+-- | The root scope containing builtin functions and types.
+defaultRootScope :: [(String, Type, Type -> GlobalId -> SymbolInfo)]
+defaultRootScope =
+        [ -- Predeclared types
+          ( "bool"
+          , typedBoolType
+          , \t -> const $ TypeInfo
+            { symLocation = Builtin
+            , symType = t
+            }
+          ),
+          ( "float64"
+          , typedFloatType
+          , \t -> const $ TypeInfo
+            { symLocation = Builtin
+            , symType = t
+            }
+          ),
+          ( "int"
+          , typedIntType
+          , \t -> const $ TypeInfo
+            { symLocation = Builtin
+            , symType = t
+            }
+          ),
+          ( "rune"
+          , typedRuneType
+          , \t -> const $ TypeInfo
+            { symLocation = Builtin
+            , symType = t
+            }
+          ),
+          ( "string"
+          , typedStringType
+          , \t -> const $ TypeInfo
+            { symLocation = Builtin
+            , symType = t
+            }
+          ),
+          ( "true"
+          , untypedBoolType
+          , \t gid -> VariableInfo
+            { symLocation = Builtin
+            , symType = t
+            , symGid = gid
+            }
+          ),
+          ( "false"
+          , untypedBoolType
+          , \t gid -> VariableInfo
+            { symLocation = Builtin
+            , symType = t
+            , symGid = gid
+            }
+          ),
+          ( "nil"
+          , nilType
+          , \t gid -> VariableInfo
+            { symLocation = Builtin
+            , symType = t
+            , symGid = gid
+            }
+          ),
+          ( "false"
+          , untypedBoolType
+          , \t gid -> VariableInfo
+            { symLocation = Builtin
+            , symType = t
+            , symGid = gid
+            }
+          ),
+          ( "append"
+          , builtinType AppendType
+          , \t gid -> VariableInfo
+            { symLocation = Builtin
+            , symType = t
+            , symGid = gid
+            }
+          ),
+          ( "cap"
+          , builtinType CapType
+          , \t gid -> VariableInfo
+            { symLocation = Builtin
+            , symType = t
+            , symGid = gid
+            }
+          ),
+          ( "copy"
+          , builtinType CopyType
+          , \t gid -> VariableInfo
+            { symLocation = Builtin
+            , symType = t
+            , symGid = gid
+            }
+          ),
+          ( "len"
+          , builtinType LenType
+          , \t gid -> VariableInfo
+            { symLocation = Builtin
+            , symType = t
+            , symGid = gid
+            }
+          ),
+          ( "make"
+          , builtinType MakeType
+          , \t gid -> VariableInfo
+            { symLocation = Builtin
+            , symType = t
+            , symGid = gid
+            }
+          )
+        ]
+
 -- | Pushes a given scope onto the stack.
 pushScope :: Scope -> Typecheck ()
 pushScope scope = modify $ \s -> s { _scopes = scope : _scopes s }
@@ -85,6 +246,7 @@ modifyTopScope f = do
 -- If the symbol already exists, then a non-fatal redeclaration error is
 -- raised and the insertion is not performed.
 declareSymbol :: SymbolName -> SymbolInfo -> Typecheck ()
+-- | Trying to declare the blank doesn't do anything.
 declareSymbol "_" _ = pure ()
 declareSymbol name info = modifyTopScope $ \(Scope m) -> do
     case M.lookup name m of
@@ -94,25 +256,14 @@ declareSymbol name info = modifyTopScope $ \(Scope m) -> do
                 , redeclNew = info
                 }
             pure (Scope m) -- return the scope unchanged
-        Nothing -> pure (Scope $ M.insert name info m)
-
--- | Adds a symbol to the top scope.
---
--- If the scope stack is empty, throws 'EmptyScopeStack'.
---
--- If the symbol already exists in the top scope, this function silently does
--- nothing.
-declareSymbol' :: SymbolName -> SymbolInfo -> Typecheck ()
-declareSymbol' name info = modifyTopScope $ \(Scope m) -> do
-    case M.lookup name m of
-        Just _ -> pure (Scope m)
-        Nothing -> pure (Scope $ M.insert name info m)
+        Nothing -> do
+            pure (Scope $ M.insert name info m)
 
 -- | Looks up a variable in the scope stack.
 --
 -- This function does not report any errors.
 lookupSymbol :: SymbolName -> Typecheck (Maybe (Integer, SymbolInfo))
-lookupSymbol "_" = pure $ Just $ (0, VariableInfo Builtin unknownType)
+lookupSymbol "_" = pure $ Just $ (0, blank)
 lookupSymbol name = foldr (<|>) Nothing . map (sequence . fmap (M.lookup name)) . zip [0..] . map scopeMap <$> gets _scopes
 
 -- | Computes the canonical type representation for a source-annotated type.
@@ -139,7 +290,7 @@ canonicalize = annCata f where
 
             info <- case minfo of
                 Just (_, info) -> case info of
-                    VariableInfo _ _ -> do
+                    VariableInfo {} -> do
                         reportError $ SymbolKindMismatch
                             { mismatchExpectedKind = typeKind
                             , mismatchActualInfo = info
@@ -201,13 +352,19 @@ typecheckVarDecl d = case d of
                 }
             Just ty -> canonicalize ty
 
-        forM_ idents $ \(Ann a (Ident i)) -> do
+        gs <- forM idents $ \ident@(Ann a (Ident i)) -> do
+            let ty = defaultType (fst (topAnn declTy))
+            g <- nextGid ident ty
+
             declareSymbol i $ VariableInfo
                 { symLocation = SourcePosition a
-                , symType = defaultType (fst (topAnn declTy))
+                , symType = ty
+                , symGid = g
                 }
 
-        pure $ VarDeclBody idents (pure declTy) []
+            pure g
+
+        pure $ VarDeclBody gs (pure declTy) []
 
     VarDeclBody idents mty exprs -> do
         let (ies, rest) = safeZip idents exprs
@@ -220,7 +377,7 @@ typecheckVarDecl d = case d of
 
         ty <- traverse canonicalize mty
 
-        ies' <- forM ies $ \(Ann a (Ident i), expr) -> do
+        ies' <- forM ies $ \(ident@(Ann a (Ident i)), expr) -> do
             (ty', expr') <- case ty of
                 Nothing -> do
                     expr' <- typecheckExpr expr
@@ -240,12 +397,14 @@ typecheckVarDecl d = case d of
                     expr' <- requireExprType t empty expr
                     pure (t, expr')
 
+            g <- nextGid ident (defaultType ty')
             declareSymbol i $ VariableInfo
                 { symLocation = SourcePosition a
                 , symType = defaultType ty'
+                , symGid = g
                 }
 
-            pure $ (Ann a (Ident i), expr')
+            pure $ (g, expr')
 
         let (idents', exprs') = unzip ies'
 
@@ -267,21 +426,28 @@ typecheckFun e = case e of
                 (map (\(i, t) -> (annNat symbolFromIdent i, fst (topAnn t))) args)
                 retty
 
+        g <- nextGid ident ty
         declareSymbol name $ VariableInfo
             { symLocation = SourcePosition a
             , symType = ty
+            , symGid = g
             }
 
-        stmts' <- withScope $ do
-            forM_ args $ \(Ann b (Ident argName), argTy) -> do
+        (args', stmts') <- withScope $ do
+            args' <- forM args $ \(ident'@(Ann b (Ident argName)), argTy) -> do
+                let t = fst (topAnn argTy)
+                g' <- nextGid ident' t
                 declareSymbol argName $ VariableInfo
                     { symLocation = SourcePosition b
-                    , symType = fst (topAnn argTy)
+                    , symType = t
+                    , symGid = g'
                     }
+                pure (g', argTy)
 
-            typecheckFunctionBody ty stmts
+            stmts' <- typecheckFunctionBody ty stmts
+            pure (args', stmts')
 
-        FunDecl <$> pure ident <*> pure args <*> pure rettyAnn <*> pure stmts'
+        FunDecl <$> pure g <*> pure args' <*> pure rettyAnn <*> pure stmts'
 
 fixConversions :: SrcAnnExpr -> Typecheck SrcAnnExpr
 fixConversions = annCata f where
@@ -526,7 +692,7 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
                     inf <- lookupSymbol name
                     case inf of
                         Just (_, info) -> case info of
-                            VariableInfo _ _ -> do
+                            VariableInfo {} -> do
                                 -- Obtain the args, synthesize a fake expression
                                 -- from the type, then repackage everything.
                                 args <- sequence margs
@@ -567,7 +733,7 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
                     pure (t, Call e' ty args)
 
             case bare (unFix e') of
-                Variable (Ann b (Ident name)) -> do
+                Variable (GlobalId { gidOrigName = Ann b (Ident name) }) -> do
                     minfo <- lookupSymbol name
                     case minfo of
                         Nothing -> normal
@@ -620,17 +786,20 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
             minfo <- lookupSymbol name
             case minfo of
                 Just (_, info) -> case info of
-                    VariableInfo {} -> pure (symType info, Variable x)
+                    VariableInfo {} -> pure
+                        ( symType info
+                        , Variable (symGid info)
+                        )
                     TypeInfo {} -> do
                         reportError SymbolKindMismatch
                             { mismatchExpectedKind = variableKind
                             , mismatchActualInfo = info
                             , mismatchIdent = x
                             }
-                        pure (unknownType, Variable x)
+                        pure (unknownType, Variable noGid)
                 Nothing -> do
                     reportError $ NotInScope { notInScopeIdent = x }
-                    pure (unknownType, Variable x)
+                    pure (unknownType, Variable noGid)
 
     -- | Computes the canonical type of a unary operator expression.
     typecheckUnaryOp
@@ -827,7 +996,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                         { errorLocation = a
                         }
 
-                ies <- forM (zip idents exprs) $ \(Ann b (Ident i), e) -> do
+                ies <- forM (zip idents exprs) $ \(ident@(Ann b (Ident i)), e) -> do
                     e' <- typecheckExpr e
                     let (ty, a') = topAnn e'
 
@@ -840,26 +1009,34 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                             else pure ty
 
                     sym <- lookupSymbol i
-                    case sym of
+                    g <- case sym of
                         Just (n, inf) -> case n of
                             0 -> do
-                                    (symType inf, ty') <== TypeMismatch
-                                        { mismatchExpectedType = symType inf
-                                        , mismatchActualType = ty'
-                                        , mismatchCause = Ann a' (Just e')
-                                        , errorReason = empty
-                                        }
-                                    pure ()
-                            _ -> declareSymbol i $ VariableInfo
+                                (symType inf, ty') <== TypeMismatch
+                                    { mismatchExpectedType = symType inf
+                                    , mismatchActualType = ty'
+                                    , mismatchCause = Ann a' (Just e')
+                                    , errorReason = empty
+                                    }
+                                pure noGid
+                            _ -> do
+                                g <- nextGid ident (defaultType ty')
+                                declareSymbol i $ VariableInfo
                                     { symLocation = SourcePosition b
                                     , symType = defaultType ty'
+                                    , symGid = g
                                     }
-                        Nothing -> declareSymbol i $ VariableInfo
-                                    { symLocation = SourcePosition b
-                                    , symType = defaultType ty'
-                                    }
+                                pure g
+                        Nothing -> do
+                            g <- nextGid ident (defaultType ty')
+                            declareSymbol i $ VariableInfo
+                                { symLocation = SourcePosition b
+                                , symType = defaultType ty'
+                                , symGid = g
+                                }
+                            pure g
 
-                    pure $ (Ann a (Ident i), e')
+                    pure $ (g, e')
 
                 pure $ uncurry ShortVarDecl $ unzip ies
 

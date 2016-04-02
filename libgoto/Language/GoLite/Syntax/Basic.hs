@@ -84,7 +84,7 @@ type BasicDeclaration
 
 -- | 'ExprF' without annotations.
 type BasicExprF
-    = ExprF BasicIdent BasicBinaryOp BasicUnaryOp BasicLiteral BasicType
+    = ExprF BasicIdent BasicIdent BasicBinaryOp BasicUnaryOp BasicLiteral BasicType
 
 -- | 'Expr' without annotations.
 type BasicExpr

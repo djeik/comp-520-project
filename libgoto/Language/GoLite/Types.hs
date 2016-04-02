@@ -24,14 +24,29 @@ import Data.Functor.Foldable
 import qualified Data.Map as M
 import Text.PrettyPrint
 
+data GlobalId
+    = GlobalId
+        { gidNum :: Int
+        , gidTy :: Type
+        , gidOrigName :: SrcAnnIdent
+        }
+    deriving (Eq, Ord, Show)
+
+instance Pretty GlobalId where
+    pretty (GlobalId
+        { gidOrigName = Ann _ (T.Ident name)
+        , gidNum = n
+        }) = text name <> text "_" <> int n
+
 -- | An entry in the symbol table.
-data SymbolInfo' loc ty
+data SymbolInfo' loc ty gid
     -- | A symbol in scope.
     = VariableInfo
         { symLocation :: !loc
         -- ^ The location of the symbol's definition.
         , symType :: !ty
         -- ^ The canonical type of the symbol.
+        , symGid :: !gid
         }
     | TypeInfo
         { symLocation :: !loc
@@ -41,7 +56,7 @@ data SymbolInfo' loc ty
         }
     deriving (Eq, Ord, Show)
 
-type SymbolInfo = SymbolInfo' SymbolLocation Type
+type SymbolInfo = SymbolInfo' SymbolLocation Type GlobalId
 
 instance Pretty SymbolInfo where
     pretty sym =
@@ -50,10 +65,10 @@ instance Pretty SymbolInfo where
 
 -- | 'SymbolInfo' but with no real data inside, leaving essentially only the
 -- constructors.
-type SymbolKind = SymbolInfo' () ()
+type SymbolKind = SymbolInfo' () () ()
 
 variableKind :: SymbolKind
-variableKind = VariableInfo () ()
+variableKind = VariableInfo () () ()
 
 typeKind :: SymbolKind
 typeKind = TypeInfo () ()
@@ -498,98 +513,6 @@ instance Pretty Scope where
         = vcat $ map
             (\(n, s') -> text (n ++ "->") <+> pretty s')
             (M.assocs $ scopeMap s)
-
--- | The root scope containing builtin functions and types.
-defaultRootScope :: Scope
-defaultRootScope = Scope
-    { scopeMap = M.fromList
-        [ -- Predeclared types
-          ( "bool"
-          , TypeInfo
-            { symLocation = Builtin
-            , symType = typedBoolType
-            }
-          ),
-          ( "float64"
-          , TypeInfo
-            { symLocation = Builtin
-            , symType = typedFloatType
-            }
-          ),
-          ( "int"
-          , TypeInfo
-            { symLocation = Builtin
-            , symType = typedIntType
-            }
-          ),
-          ( "rune"
-          , TypeInfo
-            { symLocation = Builtin
-            , symType = typedRuneType
-            }
-          ),
-          ( "string"
-          , TypeInfo
-            { symLocation = Builtin
-            , symType = typedStringType
-            }
-          ),
-          ( "true"
-          , VariableInfo
-            { symLocation = Builtin
-            , symType = untypedBoolType
-            }
-          ),
-          ( "false"
-          , VariableInfo
-            { symLocation = Builtin
-            , symType = untypedBoolType
-            }
-          ),
-          ( "nil"
-          , VariableInfo
-            { symLocation = Builtin
-            , symType = nilType
-            }
-          ),
-          ( "false"
-          , VariableInfo
-            { symLocation = Builtin
-            , symType = untypedBoolType
-            }
-          ),
-          ( "append"
-          , VariableInfo
-            { symLocation = Builtin
-            , symType = builtinType AppendType
-            }
-          ),
-          ( "cap"
-          , VariableInfo
-            { symLocation = Builtin
-            , symType = builtinType CapType
-            }
-          ),
-          ( "copy"
-          , VariableInfo
-            { symLocation = Builtin
-            , symType = builtinType CopyType
-            }
-          ),
-          ( "len"
-          , VariableInfo
-            { symLocation = Builtin
-            , symType = builtinType LenType
-            }
-          ),
-          ( "make"
-          , VariableInfo
-            { symLocation = Builtin
-            , symType = builtinType MakeType
-            }
-          )
-        ]
-    }
 
 data Symbol a
     = NamedSymbol SymbolName

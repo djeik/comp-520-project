@@ -16,6 +16,7 @@ module Language.Vigil.Simplify.Expr
 ) where
 
 import Language.GoLite.Syntax.Types as G
+import Language.GoLite.Types as T
 import Language.Vigil.Simplify.Core
 import Language.Vigil.Syntax as V
 import Language.Vigil.Syntax.Basic as V
@@ -202,7 +203,7 @@ simplifyExpr = annCata phi where
         G.Literal (Ann a' l) ->
             pure [Result $ SimpleVal $ V.Literal $ (Ann (fst a') $ gToVLit l)]
 
-        G.Variable (Ann _ i) ->
+        G.Variable (T.GlobalId { T.gidOrigName = Ann _ i }) ->
             pure [Result $ SimpleVal $ IdentVal $ gToVIdent i]
 
         G.TypeAssertion _ _ ->
