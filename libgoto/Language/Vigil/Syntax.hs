@@ -50,6 +50,7 @@ module Language.Vigil.Syntax
 -- * Operators
 , RelOp (..)
 , UnaryOp (..)
+, LogOp (..)
 -- * Convenience re-exports
 , Fix (..)
 , Identity (..)
@@ -111,21 +112,24 @@ data Expr ty ref ident val binop unop condexpr
     -- ^ A conversion of a ref can also be an expression.
     | Call ident [val]
     -- ^ A call is an identifier (the callee) and a list of values (the params).
-    | Cond condexpr -- TODO I'm not sure if this is required - SIMPLE doesn't have it.
+    | Cond condexpr
     deriving (Eq, Functor, Show)
 
--- | Conditional expressions are separate from expressions to restrict their use.
-data CondExpr val relop
+-- | Conditional expressions are separate from expressions to restrict their use
+-- and for codegen considerations
+data CondExpr val relop logop
     = CondVal val
     | RelOp val relop val
+    | LogOp logop val
     deriving (Eq, Functor, Show)
 
 -- | A reference is either a naked value or a series of homogeneous array /
--- selector / slice operations.
+-- selector / slice operations. The identifier represents the first part of the
+-- expression (@a@ in e.g. @a[2][3]@, @a.b.c@, etc.)
 data Ref ident val
     = ArrayRef ident [val]
     | SelectRef ident [ident]
-    | SliceRef ident [(val, val, val)]
+    | SliceRef ident [(Maybe val, Maybe val, Maybe val)]
     | ValRef val
     deriving (Eq, Functor, Show)
 
@@ -150,7 +154,10 @@ data RelOp a
 -- | Unary operators (unsupported GoLite unary operators are removed).
 data UnaryOp a
     = Positive | Negative | BitwiseNot
-    | LogicalNot
+
+-- | Unary logical operators (i.e. not)
+data LogOp a =
+    LogicalNot
 
 -- The rest of these definitions are exactly the same as for GoLite.
 

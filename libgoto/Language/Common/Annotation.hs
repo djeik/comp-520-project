@@ -75,7 +75,7 @@ dupAnn f@(Ann x _) = Ann x f
 topAnn :: AnnFix x f -> x
 topAnn (Fix (Ann x _)) = x
 
-
+-- | Replaces the top annotation in a tree by a different value of the same type.
 replaceTopAnn :: (x -> x) -> AnnFix x f -> AnnFix x f
 replaceTopAnn f (Fix (Ann a x)) = Fix (Ann (f a) x)
 

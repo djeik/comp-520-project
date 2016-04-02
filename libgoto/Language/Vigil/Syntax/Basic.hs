@@ -50,13 +50,13 @@ type BasicTypeF = TypeF BasicIdent (Identity VigilInt)
 type BasicType = Fix BasicTypeF
 
 -- | 'CondExpr' without annotations.
-type BasicCondExpr = CondExpr BasicVal BasicRelOp
+type BasicCondExpr = CondExpr BasicVal BasicRelOp BasicLogOp
 
 -- | 'Ref' without annotations.
 type BasicRef = Ref BasicIdent BasicVal
 
 -- | 'Val' without annotations.
-type BasicVal = Ref BasicIdent BasicLiteral
+type BasicVal = Val BasicIdent BasicLiteral
 
 -- | 'BinaryOp' without annotations.
 type BasicBinOp
@@ -65,6 +65,9 @@ type BasicBinOp
 -- | 'UnaryOp' without annotations.
 type BasicUnOp
     = UnaryOp ()
+
+type BasicLogOp
+    = LogOp ()
 
 -- | 'RelOp' without annotations.
 type BasicRelOp
