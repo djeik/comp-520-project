@@ -69,12 +69,18 @@ data Program varDecl funDecl
 -- | A variable declaration is a list of identifiers associated with a type.
 -- There are no initializations.
 data VarDecl ident ty
-    = VarDecl [ident] ty
+    = VarDecl ident ty
     deriving (Eq, Show)
 
 -- | A Vigil function declares all of its variables before any statements.
-data FunDecl ident argTy retTy varDecl stmt
-    = FunDecl ident [(ident, argTy)] retTy [varDecl] [stmt]
+data FunDecl ident argTy retTy varTy stmt
+    = FunDecl
+        { _funDeclName :: ident
+        , _funDeclArgs :: [VarDecl ident argTy]
+        , _funDeclReturn :: retTy
+        , _funDeclVars :: [VarDecl ident varTy]
+        , _funDeclBody :: stmt
+        }
 
 -- | Vigil statements.
 data StatementF expr cond ref f
@@ -112,7 +118,7 @@ data Expr ty ref ident val binop unop condexpr
     -- ^ A conversion of a ref can also be an expression.
     | Call ident [val]
     -- ^ A call is an identifier (the callee) and a list of values (the params).
-    | Cond condexpr
+    | Cond condexpr -- TODO I'm not sure if this is required - SIMPLE doesn't have it.
     deriving (Eq, Functor, Show)
 
 -- | Conditional expressions are separate from expressions to restrict their use
@@ -124,8 +130,7 @@ data CondExpr val bincondop uncondop
     deriving (Eq, Functor, Show)
 
 -- | A reference is either a naked value or a series of homogeneous array /
--- selector / slice operations. The identifier represents the first part of the
--- expression (@a@ in e.g. @a[2][3]@, @a.b.c@, etc.)
+-- selector / slice operations.
 data Ref ident val
     = ArrayRef ident [val]
     | SelectRef ident [ident]
@@ -155,8 +160,8 @@ data UnaryOp a
     = Positive | Negative | BitwiseNot
 
 -- | Unary conditional operators (i.e. not)
-data UnaryCondOp a =
-    LogicalNot
+data UnaryCondOp a
+    = LogicalNot
 
 -- The rest of these definitions are exactly the same as for GoLite.
 
@@ -187,4 +192,3 @@ type VigilInt = Int
 type VigilFloat = Double
 type VigilRune = Char
 type VigilString = String
-

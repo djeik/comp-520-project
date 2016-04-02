@@ -14,5 +14,3 @@ module Language.Vigil.SimplifyTraversal where
 
 import Language.Vigil.Simplify.Expr
 import Language.Vigil.Simplify.Stmt
-
--- Nothing here yet
