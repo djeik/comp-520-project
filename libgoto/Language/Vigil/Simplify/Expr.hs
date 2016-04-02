@@ -22,7 +22,6 @@ import Language.Vigil.Syntax.Basic as V
 import Language.Vigil.Syntax.TyAnn as V
 
 import Control.Applicative
-import Control.Monad ( forM )
 
 data SimpleExprResult
     = Result SimpleConstituent
@@ -92,7 +91,7 @@ simplifyExpr = annCata phi where
                             $ V.Conversion ty' $ ValRef $ IdentVal t)
                             :(Temp (t, e''))
                             :(tail e')
-                _ -> error "unimplemented non-result on top error"
+                _ -> throwError $ InvariantViolation "Unexpected non-result"
 
         G.Selector e id' -> do
             e' <- e
@@ -114,7 +113,7 @@ simplifyExpr = annCata phi where
                             t [gToVIdent $ bare id'])
                             :(Temp (t, e''))
                             :es
-                _ -> error "unimplemented: error in case nothing is in the sub-expression"
+                _ -> throwError $ InvariantViolation "Unexpected non-result"
 
         G.Index eIn eBy' -> do
             eIn' <- eIn
@@ -135,7 +134,7 @@ simplifyExpr = annCata phi where
                     pure $ (Result $ SimpleRef $ ArrayRef t [vBy])
                             :(Temp (t, eIn''))
                             :es
-                Temp _ -> error "Should not be a temporary."
+                _ -> throwError $ InvariantViolation "Unexpected non-result"
 
         G.Slice e l h b -> do
             e' <- e
@@ -166,7 +165,7 @@ simplifyExpr = annCata phi where
                     pure $ (Result $ SimpleRef $ SliceRef t [bounds])
                             :(Temp (t, e''))
                             :es
-                Temp _ -> error "Should not be a temporary."
+                _ -> throwError $ InvariantViolation "Unexpected non-result"
 
         G.Call e _ ps  -> do
             -- Convert top expressions of parameters to values when needed.
@@ -177,13 +176,13 @@ simplifyExpr = annCata phi where
                     (Result e'@_) -> do
                         t <- makeTemp ()
                         pure $ (Temp (t, e')):cur'
-                    _ -> error "unimplemented error if it's not a result")
+                    _ -> throwError $ InvariantViolation "Unexpected non-result")
 
             -- Make top values to be used as arguments to the call.
             let ps'' = map (\cur -> case head cur of
                     (Result (SimpleVal v)) -> v
                     (Temp (t, _)) -> IdentVal t
-                    _ -> error "unexpected") ps'
+                    _ -> error "Expected simple value or temp") ps'
 
             -- If the callee expression is an identifier, use it as is. Otherwise
             -- create a temporary.
@@ -200,14 +199,16 @@ simplifyExpr = annCata phi where
 
             pure $ (Result $ SimpleExpr $ V.Call i ps''):(es ++ es')
 
-
         G.Literal (Ann a' l) ->
             pure [Result $ SimpleVal $ V.Literal $ (Ann (fst a') $ gToVLit l)]
+
         G.Variable (Ann _ i) ->
             pure [Result $ SimpleVal $ IdentVal $ gToVIdent i]
 
-        G.TypeAssertion _ _ -> error "unsupported type assertion"
+        G.TypeAssertion _ _ ->
+            throwError $ InvariantViolation "Type assertions are not supported."
 
+    -- Extracts a value from a
     extractI :: Maybe (Simplify (TyAnnVal, a)) -> Simplify (Maybe TyAnnVal)
     extractI x = case x of
         Nothing -> pure Nothing

@@ -10,12 +10,16 @@ Convenience re-exports
 -}
 
 module Language.Vigil.Simplify.Core
-( module Data.Functor.Foldable
+( module Control.Monad
+, module Control.Monad.Except
+, module Data.Functor.Foldable
 , module Language.Common.Annotation
 , module Language.GoLite.Syntax.Typecheck
 , module Language.Vigil.Simplify
 ) where
 
+import Control.Monad ( forM )
+import Control.Monad.Except
 import Data.Functor.Foldable ( cata )
 import Language.Common.Annotation
 import Language.GoLite.Syntax.Typecheck

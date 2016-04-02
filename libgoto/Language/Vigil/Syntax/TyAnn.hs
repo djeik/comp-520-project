@@ -30,7 +30,7 @@ type TyAnnStatementF
     = StatementF TyAnnExpr TyAnnCondExpr TyAnnRef
 
 type TyAnnStatement
-    = TyAnnFix TyAnnStatementF
+    = Fix TyAnnStatementF
 
 type TyAnnExpr
     = Expr

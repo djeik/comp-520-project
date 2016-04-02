@@ -97,7 +97,7 @@ data StatementF expr cond ref f
         }
     | ForStmt (Maybe cond) [f]
     | BreakStmt
-    | Continue
+    | ContinueStmt
     deriving (Eq, Functor, Show)
 
 -- | A Vigil expression is in three-address form.
