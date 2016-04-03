@@ -82,8 +82,10 @@ library
     Language.GoLite.Weeder.Types
     Language.Vigil
     Language.Vigil.SimplifyTraversal
+    Language.Vigil.Simplify.Core
     Language.Vigil.Simplify.Expr
     Language.Vigil.Simplify.Stmt
+    Language.Vigil.Simplify.Top
     Language.Vigil.Syntax
     Language.Vigil.Syntax.Basic
 

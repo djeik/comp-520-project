@@ -10,7 +10,8 @@ Contains the transformation functions from a typechecked GoLite AST to a Vigil
 AST.
 -}
 
-module Language.Vigil.SimplifyTraversal where
+module Language.Vigil.SimplifyTraversal
+( module Language.Vigil.Simplify.Top
+) where
 
-import Language.Vigil.Simplify.Expr
-import Language.Vigil.Simplify.Stmt
+import Language.Vigil.Simplify.Top

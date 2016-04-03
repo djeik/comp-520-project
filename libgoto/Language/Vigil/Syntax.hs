@@ -61,9 +61,13 @@ import Data.Functor.Identity ( Identity(..) )
 import Data.String
 
 -- | A Vigil program is simply a list of global variable declarations and
--- function declarations.
+-- function declarations, and optionally a main function.
 data Program varDecl funDecl
-    = Program [varDecl] [funDecl]
+    = Program
+        { _globals :: [varDecl]
+        , _funcs :: [funDecl]
+        , _main :: (Maybe funDecl)
+        }
     deriving (Eq, Show)
 
 -- | A variable declaration is a list of identifiers associated with a type.
@@ -79,7 +83,7 @@ data FunDecl ident argTy retTy varTy stmt
         , _funDeclArgs :: [VarDecl ident argTy]
         , _funDeclReturn :: retTy
         , _funDeclVars :: [VarDecl ident varTy]
-        , _funDeclBody :: stmt
+        , _funDeclBody :: [stmt]
         }
 
 -- | Vigil statements.

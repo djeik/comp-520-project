@@ -15,7 +15,6 @@ module Language.GoLite.Weeder.Expr
 ( weedExpr
 ) where
 
-import Language.GoLite.Misc
 import Language.GoLite.Weeder.Core
 import Language.GoLite.Weeder.TypeLit
 
