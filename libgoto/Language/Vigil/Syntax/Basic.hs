@@ -50,7 +50,7 @@ type BasicTypeF = TypeF BasicIdent (Identity VigilInt)
 type BasicType = Fix BasicTypeF
 
 -- | 'CondExpr' without annotations.
-type BasicCondExpr = CondExpr BasicVal BasicBinCondOp BasicUnCondOp
+type BasicCondExpr = CondExpr BasicVal BasicRef BasicBinCondOp BasicUnCondOp
 
 -- | 'Ref' without annotations.
 type BasicRef = Ref BasicIdent BasicVal

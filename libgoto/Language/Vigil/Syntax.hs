@@ -89,7 +89,7 @@ data StatementF expr cond ref f
     | Assign ref expr
     -- ^ Simple assignments (i.e. not assign-ops) are allowed, but only from an
     -- expression to a ref.
-    | PrintStmt ref
+    | PrintStmt [ref]
     -- ^ Only refs can be printed
     | ReturnStmt (Maybe ref)
     -- ^ A return statement can potentially include a ref.
@@ -97,10 +97,18 @@ data StatementF expr cond ref f
     -- ^ Only conditional expressions are allowed in the guard of a conditional
     -- statement. There is no initializer statement.
     | SwitchStmt
-        { guard :: (Maybe cond)
-        , cases :: [([ref], [f])]
-        , defaultCase :: Maybe [f]
+        { guard :: (Maybe expr)
+        , cases :: [([[f]], [f])]
+        , defaultCase :: [f]
         }
+    -- ^ In switch statements, non-default case heads need several lists of
+    -- statements. Each original expression of the head is evaluated in turn,
+    -- which may require use of temporaries. The final statement in this list
+    -- is an expression statement, whose value needs to be compared to the
+    -- guard if present.
+    --
+    -- The defaultCase field is always present. A missing default case is
+    -- indicated by an empty statement list.
     | ForStmt (Maybe cond) [f]
     | BreakStmt
     | ContinueStmt
@@ -118,13 +126,14 @@ data Expr ty ref ident val binop unop condexpr
     -- ^ A conversion of a ref can also be an expression.
     | Call ident [val]
     -- ^ A call is an identifier (the callee) and a list of values (the params).
-    | Cond condexpr -- TODO I'm not sure if this is required - SIMPLE doesn't have it.
+    | Cond condexpr
+    -- ^ Conditional expressions are also expressions.
     deriving (Eq, Functor, Show)
 
 -- | Conditional expressions are separate from expressions to restrict their use
 -- and for codegen considerations
-data CondExpr val bincondop uncondop
-    = CondVal val
+data CondExpr val ref bincondop uncondop
+    = CondRef ref
     | BinCond val bincondop val
     | UnCond uncondop val
     deriving (Eq, Functor, Show)

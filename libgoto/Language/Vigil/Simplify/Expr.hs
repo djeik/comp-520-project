@@ -13,6 +13,7 @@ module Language.Vigil.Simplify.Expr
 ( SimpleExprResult(..)
 , SimpleConstituent(..)
 , simplifyExpr
+, gToVBinOp
 ) where
 
 import Language.GoLite.Syntax.Types as G
@@ -256,22 +257,6 @@ simplifyExpr = annCata phi where
 
     -- Extreme boilerplate follows.
 
-    gToVType :: TySrcAnnType -> V.TyAnnType
-    gToVType = cata psi where
-        psi (Ann (tyTy, _) ty) = Fix (Ann tyTy (case ty of
-            G.SliceType ty' -> V.SliceType ty'
-            G.ArrayType int ty' -> V.ArrayType (Identity $ getConst $ bare int) ty'
-            G.NamedType i -> V.NamedType (gToVIdent $ bare i)
-            G.StructType fs -> V.StructType $ map (\(i, ty'') -> (gToVIdent $ bare i, ty'')) fs))
-
-    gToVLit g = case g of
-        G.IntLit a -> V.IntLit a
-        G.FloatLit a -> V.FloatLit a
-        G.RuneLit a -> V.RuneLit a
-        G.StringLit a -> V.StringLit a
-
-    gToVIdent i = V.Ident $ G.unIdent i
-
     gToVUnOp o = case o of
         G.Positive -> V.Positive
         G.Negative -> V.Negative
@@ -289,16 +274,31 @@ simplifyExpr = annCata phi where
         G.GreaterThanEqual -> V.GreaterThanEqual
         _ -> error "unimplemented unsupported condop error"
 
-    gToVBinOp o = case o of
-        G.Plus -> V.Plus
-        G.Minus -> V.Minus
-        G.Times -> V.Times
-        G.Divide -> V.Divide
-        G.Modulo -> V.Modulo
-        G.ShiftLeft -> V.ShiftLeft
-        G.ShiftRight -> V.ShiftRight
-        G.BitwiseAnd -> V.BitwiseAnd
-        G.BitwiseAndNot -> V.BitwiseAndNot
-        G.BitwiseOr -> V.BitwiseOr
-        G.BitwiseXor -> V.BitwiseXor
-        _ -> error "unimplemented unsupported binop error"
+    gToVLit g = case g of
+        G.IntLit a -> V.IntLit a
+        G.FloatLit a -> V.FloatLit a
+        G.RuneLit a -> V.RuneLit a
+        G.StringLit a -> V.StringLit a
+
+gToVType :: TySrcAnnType -> V.TyAnnType
+gToVType = cata psi where
+    psi (Ann (tyTy, _) ty) = Fix (Ann tyTy (case ty of
+        G.SliceType ty' -> V.SliceType ty'
+        G.ArrayType int ty' -> V.ArrayType (Identity $ getConst $ bare int) ty'
+        G.NamedType i -> V.NamedType (gToVIdent $ bare i)
+        G.StructType fs -> V.StructType $ map (\(i, ty'') -> (gToVIdent $ bare i, ty'')) fs))
+
+gToVBinOp :: G.BinaryOp a -> V.BinaryOp a
+gToVBinOp o = case o of
+    G.Plus -> V.Plus
+    G.Minus -> V.Minus
+    G.Times -> V.Times
+    G.Divide -> V.Divide
+    G.Modulo -> V.Modulo
+    G.ShiftLeft -> V.ShiftLeft
+    G.ShiftRight -> V.ShiftRight
+    G.BitwiseAnd -> V.BitwiseAnd
+    G.BitwiseAndNot -> V.BitwiseAndNot
+    G.BitwiseOr -> V.BitwiseOr
+    G.BitwiseXor -> V.BitwiseXor
+    _ -> error "unimplemented unsupported binop error"
