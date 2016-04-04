@@ -211,7 +211,6 @@ simplifyExpr = annCata phi where
         G.TypeAssertion _ _ ->
             throwError $ InvariantViolation "Type assertions are not supported."
 
-    -- Extracts a value from a
     extractI :: Maybe (Simplify (BasicVal, a)) -> Simplify (Maybe BasicVal)
     extractI x = case x of
         Nothing -> pure Nothing
@@ -296,11 +295,7 @@ gToVBinOp o = case o of
     G.BitwiseXor -> V.BitwiseXor
     _ -> error "unimplemented unsupported binop error"
 
-
 gToVType :: TySrcAnnType -> V.BasicType
-gToVType = undefined {- cata psi where
-    psi (Ann (tyTy, _) ty) = Fix (Ann tyTy (case ty of
-        G.SliceType ty' -> V.SliceType ty'
-        G.ArrayType int ty' -> V.ArrayType (Identity $ getConst $ bare int) ty'
-        G.NamedType i -> V.NamedType (gToVIdent $ bare i)
-        G.StructType fs -> V.StructType $ map (\(i, ty'') -> (gToVIdent $ bare i, ty'')) fs)) -}
+gToVType (Fix (Ann a _)) = case reinterpretType $ fst a of
+    Nothing -> error "Unrepresentable type"
+    Just x -> x
