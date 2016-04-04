@@ -1,6 +1,6 @@
 {-|
-Module      : Language.Vigil.Simplifier
-Description :
+Module      : Language.Vigil.SimplifyTraversal
+Description : Convert a typechecked GoLite program to a Vigil program
 Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
 License     : MIT
 Maintainer  : goto@mail.jerrington.me
