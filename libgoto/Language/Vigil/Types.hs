@@ -28,6 +28,7 @@ module Language.Vigil.Types
 , builtinType
   -- ** Converting from GoLite
 , reinterpretType
+, selectorOffsetFor
   -- * Storage
 , StorageSize(..)
 , IStorage
@@ -183,3 +184,18 @@ reinterpretGlobalId g = do
         { G.gidTy = ty
         , G.gidOrigName = unIdent (bare (G.gidOrigName g))
         }
+
+-- | Computes the offset of a given identifier in a field list.
+selectorOffsetFor :: [(G.Symbol a, Type)] -> String -> Maybe Int
+selectorOffsetFor xs i = case splitWhen ((== sym) . fst) xs of
+    (_, []) -> Nothing
+    (ys, _) -> pure . sum . map (storageSize . snd) $ ys
+    where
+        sym :: G.Symbol a
+        sym = G.NamedSymbol i
+
+        splitWhen :: (a -> Bool) -> [a] -> ([a], [a])
+        splitWhen _ [] = ([], [])
+        splitWhen p (x:xs)
+            | p x = ([], x:xs)
+            | otherwise = let (ys, zs) = splitWhen p xs in (x:ys, zs)
