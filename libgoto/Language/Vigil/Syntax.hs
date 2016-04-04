@@ -87,6 +87,7 @@ data FunDecl ident vardecl stmt
 -- | Vigil statements.
 data StatementF expr cond ref f
     = ExprStmt expr
+    | CondExprStmt cond
     -- ^ Expressions are allowed as statements.
     | Assign ref expr
     -- ^ Simple assignments (i.e. not assign-ops) are allowed, but only from an
@@ -111,7 +112,7 @@ data StatementF expr cond ref f
     --
     -- The defaultCase field is always present. A missing default case is
     -- indicated by an empty statement list.
-    | ForStmt (Maybe cond) [f]
+    | ForStmt (Maybe [f]) [f]
     | BreakStmt
     | ContinueStmt
     deriving (Eq, Functor, Show)

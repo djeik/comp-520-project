@@ -151,7 +151,10 @@ simplifyStmt = annCata phi where
             let condS = maybeToList (snd <$> cond')
             post' <- maybeToListM post
             bod' <- flattenBlock bod
-            pure $ pre' ++ condS ++ [Fix $ V.ForStmt (fst <$> cond') (bod' ++ post')]
+
+            let condExprStmt = fmap (\(c, _) -> [Fix $ V.CondExprStmt c]) cond'
+
+            pure $ pre' ++ [Fix $ V.ForStmt (fmap (condS ++) condExprStmt) (bod' ++ post')]
 
         G.IncDecStmt dir e -> do
             -- This is very similar to the assign-op case of the Assignment
