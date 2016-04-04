@@ -38,7 +38,6 @@ module Language.Vigil.Syntax
 , CondExpr (..)
 , Ref (..)
 , Val (..)
-, TypeF (..)
 , Literal (..)
 , Ident (..)
 -- * Basic types
@@ -177,13 +176,6 @@ data UnaryCondOp a
     = LogicalNot
 
 -- The rest of these definitions are exactly the same as for GoLite.
-
-data TypeF ident int f
-    = SliceType f
-    | ArrayType int f
-    | NamedType ident
-    | StructType [(ident, f)]
-    deriving (Eq, Functor, Ord, Read, Show)
 
 data Literal a
     = IntLit VigilInt

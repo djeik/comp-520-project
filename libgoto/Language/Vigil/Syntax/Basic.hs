@@ -11,6 +11,7 @@ Stability   : experimental
 module Language.Vigil.Syntax.Basic where
 
 import Language.Vigil.Syntax
+import Language.Vigil.Types
 
 -- | 'Package' without annotations.
 type BasicProgram
@@ -43,12 +44,6 @@ type BasicExpr
         BasicUnOp
         BasicCondExpr
 
--- | 'TypeF' without annotations.
-type BasicTypeF = TypeF BasicIdent (Identity VigilInt)
-
--- | 'Type' without annotations.
-type BasicType = Fix BasicTypeF
-
 -- | 'CondExpr' without annotations.
 type BasicCondExpr = CondExpr BasicVal BasicRef BasicBinCondOp BasicUnCondOp
 
@@ -77,6 +72,8 @@ type BasicUnCondOp
 -- | 'Literal' without annotations.
 type BasicLiteral
     = Literal ()
+
+type BasicType = Type
 
 -- | 'Ident' without annotations.
 type BasicIdent

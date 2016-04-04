@@ -23,7 +23,7 @@ import Language.GoLite.Types as T
 import Language.Vigil.Simplify.Core
 import Language.Vigil.Syntax as V
 import Language.Vigil.Syntax.Basic as V
-import Language.Vigil.Syntax.TyAnn as V
+import Language.Vigil.Types
 
 import Control.Applicative
 
@@ -35,9 +35,9 @@ data SimpleExprResult
 -- Vigil expression. We always try to reduce to the simplest possible form, so
 -- for example, the GoLite expression @a@ would become a Vigil value.
 data SimpleConstituent
-    = SimpleExpr TyAnnExpr
-    | SimpleRef TyAnnRef
-    | SimpleVal TyAnnVal
+    = SimpleExpr BasicExpr
+    | SimpleRef BasicRef
+    | SimpleVal BasicVal
 
 -- | Simplifies a full-fledged GoLite expression into a (potentially some) Vigil
 -- expressions.
@@ -203,8 +203,7 @@ simplifyExpr = annCata phi where
 
             pure $ (Result $ SimpleExpr $ V.Call i ps''):(es ++ es')
 
-        G.Literal (Ann a' l) ->
-            pure [Result $ SimpleVal $ V.Literal $ (Ann (fst a') $ gToVLit l)]
+        G.Literal (Ann _ l) -> pure [Result $ SimpleVal $ V.Literal $ gToVLit l]
 
         G.Variable (T.gidOrigName -> Ann _ i) ->
             pure [Result $ SimpleVal $ IdentVal $ gToVIdent i]
@@ -213,7 +212,7 @@ simplifyExpr = annCata phi where
             throwError $ InvariantViolation "Type assertions are not supported."
 
     -- Extracts a value from a
-    extractI :: Maybe (Simplify (TyAnnVal, a)) -> Simplify (Maybe TyAnnVal)
+    extractI :: Maybe (Simplify (BasicVal, a)) -> Simplify (Maybe BasicVal)
     extractI x = case x of
         Nothing -> pure Nothing
         Just a -> do
@@ -234,7 +233,7 @@ simplifyExpr = annCata phi where
     -- is generated if required, and the resulting stack state after is also
     -- returned.
     exprAsVal :: Simplify [SimpleExprResult]
-                -> Simplify (TyAnnVal, [SimpleExprResult])
+                -> Simplify (BasicVal, [SimpleExprResult])
     exprAsVal e = do
         e' <- e
         case head e' of
@@ -282,14 +281,6 @@ simplifyExpr = annCata phi where
         G.RuneLit a -> V.RuneLit a
         G.StringLit a -> V.StringLit a
 
-gToVType :: TySrcAnnType -> V.TyAnnType
-gToVType = cata psi where
-    psi (Ann (tyTy, _) ty) = Fix (Ann tyTy (case ty of
-        G.SliceType ty' -> V.SliceType ty'
-        G.ArrayType int ty' -> V.ArrayType (Identity $ getConst $ bare int) ty'
-        G.NamedType i -> V.NamedType (gToVIdent $ bare i)
-        G.StructType fs -> V.StructType $ map (\(i, ty'') -> (gToVIdent $ bare i, ty'')) fs))
-
 gToVBinOp :: G.BinaryOp a -> V.BinaryOp a
 gToVBinOp o = case o of
     G.Plus -> V.Plus
@@ -304,3 +295,12 @@ gToVBinOp o = case o of
     G.BitwiseOr -> V.BitwiseOr
     G.BitwiseXor -> V.BitwiseXor
     _ -> error "unimplemented unsupported binop error"
+
+
+gToVType :: TySrcAnnType -> V.BasicType
+gToVType = undefined {- cata psi where
+    psi (Ann (tyTy, _) ty) = Fix (Ann tyTy (case ty of
+        G.SliceType ty' -> V.SliceType ty'
+        G.ArrayType int ty' -> V.ArrayType (Identity $ getConst $ bare int) ty'
+        G.NamedType i -> V.NamedType (gToVIdent $ bare i)
+        G.StructType fs -> V.StructType $ map (\(i, ty'') -> (gToVIdent $ bare i, ty'')) fs)) -}

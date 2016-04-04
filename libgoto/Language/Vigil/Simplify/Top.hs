@@ -20,13 +20,13 @@ import Language.Vigil.Simplify.Expr
 import Language.Vigil.Simplify.Stmt
 import Language.GoLite.Syntax.Types as G
 import Language.Vigil.Syntax as V
-import Language.Vigil.Syntax.TyAnn as V
+import Language.Vigil.Syntax.Basic
 
 -- | Simplifies a GoLite package into a Vigil program.
 --
 -- Global variables are separated from functions, and their initializations are
 -- moved to a specific function. Functions themselves have their body simplified.
-simplifyPackage :: TySrcAnnPackage -> Simplify TyAnnProgram
+simplifyPackage :: TySrcAnnPackage -> Simplify BasicProgram
 simplifyPackage (Package _ decls) = do
     let (globs, funs) = partition isGlob decls
     let globs' = filter isVar globs

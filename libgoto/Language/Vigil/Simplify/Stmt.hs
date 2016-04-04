@@ -25,7 +25,6 @@ import Language.Vigil.Simplify.Core
 import Language.Vigil.Simplify.Expr
 import Language.Vigil.Syntax as V
 import Language.Vigil.Syntax.Basic as V
-import Language.Vigil.Syntax.TyAnn as V
 
 {- | Simplifies a GoLite statement into a number (potentially some or none) of
    Vigil statements.
@@ -41,11 +40,11 @@ import Language.Vigil.Syntax.TyAnn as V
     * The post statement of for statements is appended to the end of its body.
     * Blocks are flattened.
 -}
-simplifyStmt :: TySrcAnnStatement -> Simplify [TyAnnStatement]
+simplifyStmt :: TySrcAnnStatement -> Simplify [BasicStatement]
 simplifyStmt = annCata phi where
     phi :: SrcSpan
-        -> TySrcAnnStatementF (Simplify [TyAnnStatement])
-        -> Simplify [TyAnnStatement]
+        -> TySrcAnnStatementF (Simplify [BasicStatement])
+        -> Simplify [BasicStatement]
     phi _ s = case s of
         G.DeclStmt d -> case d of
             G.TypeDecl _ -> pure [] -- Ignore type declarations
@@ -230,14 +229,14 @@ pushMaybe x = case x of
         pure $ Just a'
 
 -- | Flattens a simplified block into one monadic "Simplify" action.
-flattenBlock :: [Simplify [TyAnnStatement]] -> Simplify [TyAnnStatement]
+flattenBlock :: [Simplify [BasicStatement]] -> Simplify [BasicStatement]
 flattenBlock b = concat <$> sequence b
 
 -- | Declares the given identifier, and returns the statements required to
 -- initialize it.
 declareAndInit :: G.GlobalId
                 -> Simplify [SimpleExprResult]
-                -> Simplify [TyAnnStatement]
+                -> Simplify [BasicStatement]
 declareAndInit i e = do
     let i' = gIdToVIdent i
     modify (\s -> s {newDeclarations = i':(newDeclarations s) })
@@ -248,7 +247,7 @@ declareAndInit i e = do
 -- topmost result into a val. The way this is done is to create a temporary
 -- and assign to it whenever the result is not a val already.
 realizeToVal :: Simplify [SimpleExprResult]
-                -> Simplify (TyAnnVal, [TyAnnStatement])
+                -> Simplify (BasicVal, [BasicStatement])
 realizeToVal rs = do
     (re, stmts) <- realizeTemps rs
     case re of
@@ -266,7 +265,7 @@ realizeToVal rs = do
 -- | Realizes a simplified expression stack and all its temporaries, taking the
 -- topmost result into a ref (with an appropriate temporary as required).
 realizeToRef :: Simplify [SimpleExprResult]
-                -> Simplify (TyAnnRef, [TyAnnStatement])
+                -> Simplify (BasicRef, [BasicStatement])
 realizeToRef rs = do
     (r, stmts) <- realizeTemps rs
     case r of
@@ -283,7 +282,7 @@ realizeToRef rs = do
 -- valid, since something like @(a + b) = 3@ should have been caught earlier on
 -- as a non-addressable expression.
 realizeToRefEx :: Simplify [SimpleExprResult]
-                -> Simplify (TyAnnRef, [TyAnnStatement])
+                -> Simplify (BasicRef, [BasicStatement])
 realizeToRefEx rs =  do
     (r, stmts) <- realizeTemps rs
     case r of
@@ -297,7 +296,7 @@ realizeToRefEx rs =  do
 -- topmost result into a full expression if it was not already the case. No new
 -- temporaries are created by this function.
 realizeToExpr :: Simplify [SimpleExprResult]
-                -> Simplify (TyAnnExpr, [TyAnnStatement])
+                -> Simplify (BasicExpr, [BasicStatement])
 realizeToExpr rs = do
     (re, stmts) <- realizeTemps rs
     case re of
@@ -310,7 +309,7 @@ realizeToExpr rs = do
 -- result is in fact a normal expression, an error is thrown. No new temporaries
 -- are created by this function.
 realizeToCondExpr :: Simplify [SimpleExprResult]
-                    -> Simplify (TyAnnCondExpr, [TyAnnStatement])
+                    -> Simplify (BasicCondExpr, [BasicStatement])
 realizeToCondExpr rs = do
     (re, stmts) <- realizeTemps rs
     case re of
@@ -324,7 +323,7 @@ realizeToCondExpr rs = do
 -- assign statements, also returning the topmost result on its own. As a
 -- side-effect, records the fact that the temporaries should be declared.
 realizeTemps :: Simplify [SimpleExprResult]
-                -> Simplify (SimpleConstituent, [TyAnnStatement])
+                -> Simplify (SimpleConstituent, [BasicStatement])
 realizeTemps rs = do
     rs' <- rs
     stmts <- forM (reverse $ tail rs') (\ser -> case ser of
