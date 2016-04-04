@@ -9,12 +9,18 @@ Stability   : experimental
 
 module Language.Common.GlobalId where
 
+data DataOrigin
+    = Local
+    | Argument Int
+    deriving (Eq, Ord, Read, Show)
+
 -- | A global identifier is just a number, unique within a package, along with
 -- a type and information about its origin.
 data GlobalId ty orig
     = GlobalId
-        { gidNum :: Int
-        , gidTy :: ty
-        , gidOrigName :: orig
+        { gidNum :: !Int
+        , gidTy :: !ty
+        , gidOrigName :: !orig
+        , gidOrigin :: !DataOrigin
         }
     deriving (Eq, Ord, Read, Show)

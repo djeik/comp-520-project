@@ -61,17 +61,23 @@ runTypecheck t
     )
 
 -- | Build a globally unique identifier tied to a given type.
-nextGid :: SrcAnnIdent -> Type -> Typecheck GlobalId
-nextGid name ty = do
+nextGid :: SrcAnnIdent -> Type -> DataOrigin -> Typecheck GlobalId
+nextGid name ty orig = do
     n <- gets _nextGid
     modify $ \s -> s { _nextGid = n + 1 }
-    pure Gid.GlobalId { gidTy = ty, gidNum = n, gidOrigName = name }
+    pure Gid.GlobalId
+        { gidTy = ty
+        , gidNum = n
+        , gidOrigName = name
+        , gidOrigin = orig
+        }
 
 noGid :: GlobalId
 noGid = Gid.GlobalId
     { gidTy = unknownType
     , gidNum = -1
     , gidOrigName = Ann builtinSpan (Ident "")
+    , gidOrigin = Local
     }
 
 blank :: SymbolInfo
@@ -84,7 +90,7 @@ blank = VariableInfo
 genDefaultRootScope :: Typecheck ()
 genDefaultRootScope = do
     s <- forM defaultRootScope $ \(name, t, mkSymInfo) -> do
-        g <- nextGid (Ann builtinSpan (Ident name)) t
+        g <- nextGid (Ann builtinSpan (Ident name)) t Local
         pure (name, mkSymInfo t g)
     pushScope (Scope { scopeMap = M.fromList s })
 
@@ -355,7 +361,7 @@ typecheckVarDecl d = case d of
 
         gs <- forM idents $ \ident@(Ann a (Ident i)) -> do
             let ty = defaultType (fst (topAnn declTy))
-            g <- nextGid ident ty
+            g <- nextGid ident ty Local
 
             declareSymbol i $ VariableInfo
                 { symLocation = SourcePosition a
@@ -398,7 +404,7 @@ typecheckVarDecl d = case d of
                     expr' <- requireExprType t empty expr
                     pure (t, expr')
 
-            g <- nextGid ident (defaultType ty')
+            g <- nextGid ident (defaultType ty') Local
             declareSymbol i $ VariableInfo
                 { symLocation = SourcePosition a
                 , symType = defaultType ty'
@@ -427,7 +433,7 @@ typecheckFun e = case e of
                 (map (\(i, t) -> (annNat symbolFromIdent i, fst (topAnn t))) args)
                 retty
 
-        g <- nextGid ident ty
+        g <- nextGid ident ty Local
         declareSymbol name $ VariableInfo
             { symLocation = SourcePosition a
             , symType = ty
@@ -435,15 +441,17 @@ typecheckFun e = case e of
             }
 
         (args', stmts') <- withScope $ do
-            args' <- forM args $ \(ident'@(Ann b (Ident argName)), argTy) -> do
-                let t = fst (topAnn argTy)
-                g' <- nextGid ident' t
-                declareSymbol argName $ VariableInfo
-                    { symLocation = SourcePosition b
-                    , symType = t
-                    , symGid = g'
-                    }
-                pure (g', argTy)
+            args' <- forM
+                (zip [0..] args) $
+                \(i, (ident'@(Ann b (Ident argName)), argTy)) -> do
+                    let t = fst (topAnn argTy)
+                    g' <- nextGid ident' t (Argument i)
+                    declareSymbol argName $ VariableInfo
+                        { symLocation = SourcePosition b
+                        , symType = t
+                        , symGid = g'
+                        }
+                    pure (g', argTy)
 
             stmts' <- typecheckFunctionBody ty stmts
             pure (args', stmts')
@@ -1021,7 +1029,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                                     }
                                 pure noGid
                             _ -> do
-                                g <- nextGid ident (defaultType ty')
+                                g <- nextGid ident (defaultType ty') Local
                                 declareSymbol i $ VariableInfo
                                     { symLocation = SourcePosition b
                                     , symType = defaultType ty'
@@ -1029,7 +1037,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                                     }
                                 pure g
                         Nothing -> do
-                            g <- nextGid ident (defaultType ty')
+                            g <- nextGid ident (defaultType ty') Local
                             declareSymbol i $ VariableInfo
                                 { symLocation = SourcePosition b
                                 , symType = defaultType ty'

@@ -47,6 +47,7 @@ import Language.Common.Annotation ( bare )
 import qualified Language.Common.GlobalId as Gid
 import qualified Language.GoLite.Types as G
 import Language.GoLite.Syntax.Types ( unIdent )
+
 import Data.Functor.Foldable ( Fix(..), cata )
 
 -- | Types having an associated storage requirement as a number of bytes needed
@@ -95,6 +96,9 @@ data TypeF subTy
     | ArrayType subTy
     | SliceType subTy
     | FuncType
+        { funcArgs :: [subTy]
+        , funcRetTy :: subTy
+        }
     | StringType
     | BuiltinType G.BuiltinType
     deriving (Eq, Functor, Ord, Read, Show)
@@ -108,7 +112,7 @@ instance StorageSize (TypeF a) where
         StructType { structSize = n } -> n
         ArrayType _ -> storageSize ptrStorage
         SliceType _ -> storageSize ptrStorage
-        FuncType -> storageSize ptrStorage
+        FuncType {} -> storageSize ptrStorage
         StringType -> storageSize ptrStorage
         BuiltinType _ -> storageSize ptrStorage
 
@@ -132,8 +136,8 @@ arrayType = Fix . ArrayType
 sliceType :: Type -> Type
 sliceType = Fix . SliceType
 
-funcType :: Type
-funcType = Fix FuncType
+funcType :: [Type] -> Type -> Type
+funcType x y = Fix $ FuncType x y
 
 stringType :: Type
 stringType = Fix StringType
@@ -162,7 +166,10 @@ reinterpretType = cata f where
 
         -- more complicated types
         G.StringType _ -> pure stringType
-        G.FuncType {} -> pure funcType
+        G.FuncType { G.funcTypeArgs = args, G.funcTypeRet = ret } -> do
+            args' <- sequence (snd <$> args)
+            ret' <- ret
+            pure $ funcType args' ret'
         G.Array _ m -> arrayType <$> m
         G.Slice m -> sliceType <$> m
         G.Struct { G.structTypeFields = fields } ->
@@ -196,6 +203,6 @@ selectorOffsetFor xs i = case splitWhen ((== sym) . fst) xs of
 
         splitWhen :: (a -> Bool) -> [a] -> ([a], [a])
         splitWhen _ [] = ([], [])
-        splitWhen p (x:xs)
-            | p x = ([], x:xs)
-            | otherwise = let (ys, zs) = splitWhen p xs in (x:ys, zs)
+        splitWhen p (s:ss)
+            | p x = ([], s:ss)
+            | otherwise = let (ys, zs) = splitWhen p ss in (s:ys, zs)

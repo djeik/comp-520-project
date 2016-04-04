@@ -17,9 +17,11 @@ Defines the core types used in the internal representation of GoLite code.
 module Language.GoLite.Types
 ( -- * Global identifiers in GoLite
   GlobalId
+, Gid.DataOrigin(..)
 , Gid.gidNum
 , Gid.gidOrigName
 , Gid.gidTy
+, Gid.gidOrigin
   -- * Symbols
 , SymbolInfo'(..)
 , SymbolInfo
