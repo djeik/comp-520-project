@@ -532,7 +532,7 @@ fixConversions = annCata f where
 
                                     -- if we have a bona fide type argument, then
                                     -- that's no good, because we can't convert a
-                                    -- *type*!
+                                    -- type!
                                     Just (Left _) -> do
                                         reportError TypeArgumentError
                                             { errorReason
