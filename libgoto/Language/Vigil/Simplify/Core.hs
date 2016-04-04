@@ -36,8 +36,8 @@ import Language.Vigil.Syntax.Basic as V
 
 -- | Converts a GoLite global identifier to a Vigil identifier
 gIdToVIdent :: GlobalId -> V.BasicIdent
-gIdToVIdent GlobalId { gidOrigName = Ann _ i } = gToVIdent i
+gIdToVIdent = gToVIdent . bare . gidOrigName
 
 -- | Converts a GoLite identifier to a Vigil identifier
 gToVIdent :: G.BasicIdent -> V.BasicIdent
-gToVIdent i = V.Ident $ G.unIdent i
+gToVIdent = V.Ident . G.unIdent

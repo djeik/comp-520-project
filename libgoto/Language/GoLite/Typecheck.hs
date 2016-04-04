@@ -25,6 +25,7 @@ module Language.GoLite.Typecheck
 , typecheckPackage
 ) where
 
+import qualified Language.Common.GlobalId as Gid
 import Language.GoLite.Misc
 import Language.Common.Monad.Traverse
 import Language.GoLite.Syntax.SrcAnn
@@ -64,10 +65,10 @@ nextGid :: SrcAnnIdent -> Type -> Typecheck GlobalId
 nextGid name ty = do
     n <- gets _nextGid
     modify $ \s -> s { _nextGid = n + 1 }
-    pure GlobalId { gidTy = ty, gidNum = n, gidOrigName = name }
+    pure Gid.GlobalId { gidTy = ty, gidNum = n, gidOrigName = name }
 
 noGid :: GlobalId
-noGid = GlobalId
+noGid = Gid.GlobalId
     { gidTy = unknownType
     , gidNum = -1
     , gidOrigName = Ann builtinSpan (Ident "")
@@ -733,7 +734,7 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
                     pure (t, Call e' ty args)
 
             case bare (unFix e') of
-                Variable (GlobalId { gidOrigName = Ann b (Ident name) }) -> do
+                Variable (Gid.GlobalId { gidOrigName = Ann b (Ident name) }) -> do
                     minfo <- lookupSymbol name
                     case minfo of
                         Nothing -> normal

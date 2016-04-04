@@ -14,8 +14,81 @@ Defines the core types used in the internal representation of GoLite code.
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Language.GoLite.Types where
+module Language.GoLite.Types
+( -- * Global identifiers in GoLite
+  GlobalId
+, Gid.gidNum
+, Gid.gidOrigName
+, Gid.gidTy
+  -- * Symbols
+, SymbolInfo'(..)
+, SymbolInfo
+, SymbolKind
+, variableKind
+, typeKind
+, SymbolLocation(..)
+  -- * The GoLite type system
+, GoTypeF(..)
+, Type
+, BuiltinType(..)
+  -- ** Miscellaneous type functions
+, unalias
+, defaultType
+  -- ** Predicates on types
+, isAliasType
+, isSliceType
+, isReferenceType
+, isNilType
+, isFuncType
+, isBuiltinType
+, isAllowedInExprStmt
+, isUntyped
+, isOrdered
+, isIntegral
+, isString
+, isConvertible
+, isComparable
+, isArithmetic
+, isLogical
+, isValue
+, isPrintable
+  -- ** Constructors for types
+  -- *** Complex types
+, arrayType
+, sliceType
+, funcType
+, structType
+, aliasType
+  -- *** Basic types
+, nilType
+, builtinType
+, voidType
+, intType
+, untypedIntType
+, typedIntType
+, runeType
+, untypedRuneType
+, typedRuneType
+, stringType
+, untypedStringType
+, typedStringType
+, boolType
+, untypedBoolType
+, typedBoolType
+, floatType
+, untypedFloatType
+, typedFloatType
+  -- *** Special types
+, unknownType
+, typeSum
+  -- * Scoping
+, Scope(..)
+, SymbolName
+, Symbol(..)
+, symbolFromIdent
+) where
 
+import qualified Language.Common.GlobalId as Gid
 import Language.GoLite.Pretty
 import Language.GoLite.Syntax.SrcAnn
 import qualified Language.GoLite.Syntax.Types as T
@@ -24,18 +97,14 @@ import Data.Functor.Foldable
 import qualified Data.Map as M
 import Text.PrettyPrint
 
-data GlobalId
-    = GlobalId
-        { gidNum :: Int
-        , gidTy :: Type
-        , gidOrigName :: SrcAnnIdent
-        }
-    deriving (Eq, Ord, Show)
+-- | A GoLite global identifier tracks GoLite type information as well as the
+-- original name and location of the identifier that is replaced.
+type GlobalId = Gid.GlobalId Type SrcAnnIdent
 
 instance Pretty GlobalId where
-    pretty (GlobalId
-        { gidOrigName = Ann _ (T.Ident name)
-        , gidNum = n
+    pretty (Gid.GlobalId
+        { Gid.gidOrigName = Ann _ (T.Ident name)
+        , Gid.gidNum = n
         }) = text name <> text "_" <> int n
 
 -- | An entry in the symbol table.
@@ -186,6 +255,28 @@ instance Pretty Type where
                             <+> text "or"
                             <+> (pretty $ last xs)
 
+-- | The types of builtins.
+data BuiltinType
+    -- | The type of the @append@ builtin.
+    = AppendType
+    -- | The type of the @cap@ builtin.
+    | CapType
+    -- | The type of the @copy@ builtin.
+    | CopyType
+    -- | The type of the @len@ builtin.
+    | LenType
+    -- | The type of the @make@ builtin.
+    | MakeType
+    deriving (Eq, Ord, Read, Show)
+
+instance Pretty BuiltinType where
+    pretty b = case b of
+        AppendType -> text "_ty_append"
+        CapType -> text "_ty_cap"
+        CopyType -> text "_ty_copy"
+        LenType -> text "_ty_len"
+        MakeType -> text "_ty_make"
+
 -- | Tunnels down 'AliasType' constructors in a type to get the underlying type
 -- of a named type.
 --
@@ -199,6 +290,19 @@ unalias :: Type -> Type
 unalias (Fix t) = case t of
     AliasType _ t' -> unalias t'
     _ -> Fix t
+
+-- | Determines the default type of untyped types.
+--
+-- This function is idempotent.
+-- > defaultType . defaultType = defaultType
+defaultType :: Type -> Type
+defaultType (Fix t) = Fix $ case t of
+    IntType False -> IntType True
+    RuneType False -> RuneType True
+    StringType False -> StringType True
+    FloatType False -> FloatType True
+    BoolType False -> BoolType True
+    _ -> t
 
 -- | Decides whether a type is a named type.
 isAliasType :: Type -> Bool
@@ -293,6 +397,7 @@ isString (unalias -> Fix t) = case t of
     UnknownType -> True
     _ -> False
 
+-- | Types that can all be casted one to the other.
 isConvertible :: Type -> Bool
 isConvertible (unalias -> Fix t) = case t of
     IntType _ -> True
@@ -379,43 +484,6 @@ isPrintable (unalias -> Fix t) = case t of
     UnknownType -> True
     _ -> True
 
-
--- | Determines the default type of untyped types.
---
--- This function is idempotent.
--- > defaultType . defaultType = defaultType
-defaultType :: Type -> Type
-defaultType (Fix t) = Fix $ case t of
-    IntType False -> IntType True
-    RuneType False -> RuneType True
-    StringType False -> StringType True
-    FloatType False -> FloatType True
-    BoolType False -> BoolType True
-    _ -> t
-
-
--- | The types of builtins.
-data BuiltinType
-    -- | The type of the @append@ builtin.
-    = AppendType
-    -- | The type of the @cap@ builtin.
-    | CapType
-    -- | The type of the @copy@ builtin.
-    | CopyType
-    -- | The type of the @len@ builtin.
-    | LenType
-    -- | The type of the @make@ builtin.
-    | MakeType
-    deriving (Eq, Ord, Read, Show)
-
-instance Pretty BuiltinType where
-    pretty b = case b of
-        AppendType -> text "_ty_append"
-        CapType -> text "_ty_cap"
-        CopyType -> text "_ty_copy"
-        LenType -> text "_ty_len"
-        MakeType -> text "_ty_make"
-
 builtinType :: BuiltinType -> Type
 builtinType = Fix . BuiltinType
 
@@ -476,9 +544,6 @@ sliceType = Fix . Slice
 nilType :: Type
 nilType = Fix NilType
 
-builtin :: BuiltinType -> Type
-builtin = Fix . BuiltinType
-
 funcType :: [(SrcAnn Symbol (), Type)] -> Type -> Type
 funcType args ret = Fix $ FuncType
     { funcTypeArgs = args
@@ -514,12 +579,13 @@ instance Pretty Scope where
             (\(n, s') -> text (n ++ "->") <+> pretty s')
             (M.assocs $ scopeMap s)
 
+-- | A more structured version of 'Ident'.
 data Symbol a
     = NamedSymbol SymbolName
     -- ^ A named symbol.
     | Blank
     -- ^ The blank identifier.
-    deriving (Eq, Ord, Read, Show)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 instance Pretty (Symbol a) where
     pretty s = case s of

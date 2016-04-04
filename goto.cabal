@@ -37,6 +37,7 @@ library
     bifunctors >=5.2 && <5.3
   exposed-modules:
     Language.Common.Annotation
+    Language.Common.GlobalId
     Language.Common.Monad.Traverse
     Language.GoLite
     Language.GoLite.Lexer

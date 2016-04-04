@@ -9,6 +9,8 @@ Stability   : experimental
 Simplifications for expressions.
 -}
 
+{-# LANGUAGE ViewPatterns #-}
+
 module Language.Vigil.Simplify.Expr
 ( SimpleExprResult(..)
 , SimpleConstituent(..)
@@ -204,7 +206,7 @@ simplifyExpr = annCata phi where
         G.Literal (Ann a' l) ->
             pure [Result $ SimpleVal $ V.Literal $ (Ann (fst a') $ gToVLit l)]
 
-        G.Variable (T.GlobalId { T.gidOrigName = Ann _ i }) ->
+        G.Variable (T.gidOrigName -> Ann _ i) ->
             pure [Result $ SimpleVal $ IdentVal $ gToVIdent i]
 
         G.TypeAssertion _ _ ->
