@@ -204,5 +204,5 @@ selectorOffsetFor xs i = case splitWhen ((== sym) . fst) xs of
         splitWhen :: (a -> Bool) -> [a] -> ([a], [a])
         splitWhen _ [] = ([], [])
         splitWhen p (s:ss)
-            | p x = ([], s:ss)
+            | p s = ([], s:ss)
             | otherwise = let (ys, zs) = splitWhen p ss in (s:ys, zs)
