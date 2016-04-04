@@ -89,6 +89,7 @@ library
     Language.Vigil.Simplify.Top
     Language.Vigil.Syntax
     Language.Vigil.Syntax.Basic
+    Language.Vigil.Types
 
 
 test-suite spec
