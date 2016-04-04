@@ -16,28 +16,27 @@ module Language.Vigil.Simplify.Core
 , module Language.Common.Annotation
 , module Language.GoLite.Syntax.Typecheck
 , module Language.Vigil.Simplify
-, gToVIdent
-, gIdToVIdent
+, reinterpretGlobalIdEx
 ) where
+
+-- Reexported modules
 
 import Control.Monad ( forM )
 import Control.Monad.Except
 import Data.Functor.Foldable ( cata )
 
-
 import Language.Common.Annotation
 import Language.GoLite.Syntax.Typecheck
-import Language.GoLite.Types
-import Language.GoLite.Syntax.Basic as G
-import Language.GoLite.Syntax.Types as G
 import Language.Vigil.Simplify
-import Language.Vigil.Syntax as V
-import Language.Vigil.Syntax.Basic as V
 
--- | Converts a GoLite global identifier to a Vigil identifier
-gIdToVIdent :: GlobalId -> V.BasicIdent
-gIdToVIdent = gToVIdent . bare . gidOrigName
+-- Modules needed here
 
--- | Converts a GoLite identifier to a Vigil identifier
-gToVIdent :: G.BasicIdent -> V.BasicIdent
-gToVIdent = V.Ident . G.unIdent
+import Language.GoLite.Types as G
+import Language.Vigil.Types as V
+
+-- | Reinterprets a GoLite global ID into a Vigil global ID, throwing an error
+-- when the inner type is unrepresentable
+reinterpretGlobalIdEx :: G.GlobalId -> Simplify V.GlobalId
+reinterpretGlobalIdEx x = case reinterpretGlobalId x of
+    Nothing -> throwError UnrepresentableType
+    Just x' -> pure x'

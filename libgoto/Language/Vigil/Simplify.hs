@@ -19,8 +19,9 @@ module Language.Vigil.Simplify where
 import Data.Void ( Void )
 
 import Language.Common.Monad.Traverse
-import Language.Vigil.Syntax
+import Language.Common.GlobalId
 import Language.Vigil.Syntax.Basic
+import Language.Vigil.Types
 
 -- | The @Simplify@ monad is a traversal that cannot throw errors, and uses an
 -- internal state to keep track of the simplification process.
@@ -44,13 +45,17 @@ instance MonadTraversal Simplify where
 
     getErrors = error "unimplemented"
 
--- | Generate a fresh temporary name.
-makeTemp :: a -> Simplify BasicIdent
-makeTemp _ = do
+-- | Generate a fresh temporary with the appropriate type.
+makeTemp :: Type -> Simplify BasicIdent
+makeTemp ty = do
     num <- gets currentTemp
-    let i = "%tmp" ++ (show num)
     modify (\s -> s { currentTemp = currentTemp s + 1 })
-    return $ Ident i
+    return $ GlobalId
+                { gidNum = num
+                , gidTy = ty
+                , gidOrigName = "%tmp"
+                , gidOrigin = Local
+                }
 
 
 data SimplifyState
@@ -63,3 +68,4 @@ data SimplifyState
 
 data SimplificationError
     = InvariantViolation String
+    | UnrepresentableType

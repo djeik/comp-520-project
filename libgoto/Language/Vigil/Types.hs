@@ -25,6 +25,7 @@ module Language.Vigil.Types
 , sliceType
 , funcType
 , stringType
+, voidType
 , builtinType
   -- ** Converting from GoLite
 , reinterpretType
@@ -39,6 +40,7 @@ module Language.Vigil.Types
 , G.gidNum
 , G.gidTy
 , G.gidOrigName
+, artificialGlobalId
   -- ** Converting from GoLite
 , reinterpretGlobalId
 ) where
@@ -100,6 +102,7 @@ data TypeF subTy
         , funcRetTy :: subTy
         }
     | StringType
+    | VoidType
     | BuiltinType G.BuiltinType
     deriving (Eq, Functor, Ord, Read, Show)
 
@@ -115,6 +118,7 @@ instance StorageSize (TypeF a) where
         FuncType {} -> storageSize ptrStorage
         StringType -> storageSize ptrStorage
         BuiltinType _ -> storageSize ptrStorage
+        VoidType -> 0
 
 instance StorageSize Type where
     storageSize = cata storageSize
@@ -142,6 +146,9 @@ funcType x y = Fix $ FuncType x y
 stringType :: Type
 stringType = Fix StringType
 
+voidType :: Type
+voidType = Fix VoidType
+
 builtinType :: G.BuiltinType -> Type
 builtinType = Fix . BuiltinType
 
@@ -150,7 +157,6 @@ reinterpretType = cata f where
     f :: G.GoTypeF (Maybe Type) -> Maybe Type
     f goliteType = case goliteType of
         -- unrepresentable types in Vigil
-        G.VoidType -> Nothing
         G.NilType -> Nothing
         G.UnknownType -> Nothing
         G.TypeSum _ -> Nothing
@@ -165,6 +171,7 @@ reinterpretType = cata f where
         G.BoolType _ -> pure $ intType I1
 
         -- more complicated types
+        G.VoidType -> pure voidType
         G.StringType _ -> pure stringType
         G.FuncType { G.funcTypeArgs = args, G.funcTypeRet = ret } -> do
             args' <- sequence (snd <$> args)
@@ -191,6 +198,19 @@ reinterpretGlobalId g = do
         { G.gidTy = ty
         , G.gidOrigName = unIdent (bare (G.gidOrigName g))
         }
+
+-- | Creates an artificial global ID with the given number, name and type.
+-- Warning! Calling this runs the risk of creating a collision in the numbers of
+-- global IDs. If that happens, you have no one to blame but yourself.
+artificialGlobalId :: Int -> String -> Type -> GlobalId
+artificialGlobalId nu on ty =
+    Gid.GlobalId
+        { Gid.gidNum = nu
+        , Gid.gidOrigName = on
+        , Gid.gidTy = ty
+        , Gid.gidOrigin = Gid.Local
+        }
+
 
 -- | Computes the offset of a given identifier in a field list.
 selectorOffsetFor :: [(G.Symbol a, Type)] -> String -> Maybe Int

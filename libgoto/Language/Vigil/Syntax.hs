@@ -71,17 +71,16 @@ data Program varDecl funDecl
 
 -- | A variable declaration is a list of identifiers associated with a type.
 -- There are no initializations.
-data VarDecl ident ty
-    = VarDecl ident ty
+data VarDecl ident
+    = VarDecl ident
     deriving (Eq, Show)
 
 -- | A Vigil function declares all of its variables before any statements.
-data FunDecl ident argTy retTy varTy stmt
+data FunDecl ident vardecl stmt
     = FunDecl
         { _funDeclName :: ident
-        , _funDeclArgs :: [VarDecl ident argTy]
-        , _funDeclReturn :: retTy
-        , _funDeclVars :: [VarDecl ident varTy]
+        , _funDeclArgs :: [vardecl]
+        , _funDeclVars :: [vardecl]
         , _funDeclBody :: [stmt]
         }
 
@@ -118,7 +117,7 @@ data StatementF expr cond ref f
     deriving (Eq, Functor, Show)
 
 -- | A Vigil expression is in three-address form.
-data Expr ty ref ident val binop unop condexpr
+data Expr ty ref ident val binop unop condexpr a
     = Binary val binop val
     -- ^ A binary expression takes two values and joins them with a binary op.
     | Unary unop val
@@ -143,9 +142,9 @@ data CondExpr val ref bincondop uncondop
 
 -- | A reference is either a naked value or a series of homogeneous array /
 -- selector / slice operations.
-data Ref ident val
+data Ref ident selIdent val a
     = ArrayRef ident [val]
-    | SelectRef ident [ident]
+    | SelectRef ident [selIdent]
     | SliceRef ident [(Maybe val, Maybe val, Maybe val)]
     | ValRef val
     deriving (Eq, Functor, Show)

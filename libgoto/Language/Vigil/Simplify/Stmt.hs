@@ -25,6 +25,8 @@ import Language.Vigil.Simplify.Core
 import Language.Vigil.Simplify.Expr
 import Language.Vigil.Syntax as V
 import Language.Vigil.Syntax.Basic as V
+import Language.Vigil.Syntax.TyAnn as V
+import Language.Vigil.Types as V
 
 {- | Simplifies a GoLite statement into a number (potentially some or none) of
    Vigil statements.
@@ -40,11 +42,11 @@ import Language.Vigil.Syntax.Basic as V
     * The post statement of for statements is appended to the end of its body.
     * Blocks are flattened.
 -}
-simplifyStmt :: TySrcAnnStatement -> Simplify [BasicStatement]
+simplifyStmt :: TySrcAnnStatement -> Simplify [TyAnnStatement]
 simplifyStmt = annCata phi where
     phi :: SrcSpan
-        -> TySrcAnnStatementF (Simplify [BasicStatement])
-        -> Simplify [BasicStatement]
+        -> TySrcAnnStatementF (Simplify [TyAnnStatement])
+        -> Simplify [TyAnnStatement]
     phi _ s = case s of
         G.DeclStmt d -> case d of
             G.TypeDecl _ -> pure [] -- Ignore type declarations
@@ -63,10 +65,11 @@ simplifyStmt = annCata phi where
                 -- otherwise something like a, b = b, a wouldn't work.
                 lrs <- forM l (realizeToRefEx . simplifyExpr)
                 rts <- forM r (\r' -> do
-                    (r'', s') <- realizeToExpr $ simplifyExpr r'
-                    t <- makeTempAndDeclare ()
-                    pure (Ref $ ValRef $ IdentVal t,
-                            s' ++ [Fix $ V.Assign (ValRef $ IdentVal t) r'']))
+                    (r''@(Ann a' _), s') <- realizeToExpr $ simplifyExpr r'
+                    t <- makeTempAndDeclare a'
+                    let annTRef = Ann a' $ ValRef $ IdentVal t
+                    pure (Ann a' $ Ref $ annTRef,
+                        s' ++ [Fix $ V.Assign annTRef r'']))
 
                 let pre = (concat $ map snd lrs) ++ (concat $ map snd rts)
 
@@ -81,8 +84,8 @@ simplifyStmt = annCata phi where
                 -- expressions require values, not refs. At the same time, we
                 -- avoid using realizeToVal since we want to assign to this ref
                 -- directly.
-                (lr, ls) <- realizeToRefEx $ simplifyExpr $ head l
-                t <- makeTempAndDeclare ()
+                (lr@(Ann a' _), ls) <- realizeToRefEx $ simplifyExpr $ head l
+                t <- makeTempAndDeclare a'
                 let lv = IdentVal t
 
                 let op' = case assignOpToBinOp $ bare op of
@@ -92,12 +95,8 @@ simplifyStmt = annCata phi where
                 (rv, rs) <- realizeToVal $ simplifyExpr $ head r
                 pure $ ls
                     ++ rs
-                    ++ [Fix $ V.Assign (ValRef lv) (Ref lr)]
-                    ++ [Fix $ V.Assign lr (Binary lv op' rv)]
-            -- Regular assignment: as you'd expect
-            -- Also note: the top of the l stack shouldn't be an expr. If it's
-            -- an expr then it's not a ref, and that means it wasn't addressable
-            -- in the first place.
+                    ++ [Fix $ V.Assign (Ann a' $ ValRef lv) (Ann a' $ Ref lr)]
+                    ++ [Fix $ V.Assign lr (Ann a' $ Binary lv op' rv)]
 
 
         G.PrintStmt es -> do
@@ -158,19 +157,25 @@ simplifyStmt = annCata phi where
             -- This is very similar to the assign-op case of the Assignment
             -- statement, except that we create a synthetic right value and
             -- an operator based on the inc/dec direction.
-            (r, s') <- realizeToRefEx $ simplifyExpr e
-            t <- makeTempAndDeclare ()
+            (r@(Ann a _), s') <- realizeToRefEx $ simplifyExpr e
+            t <- makeTempAndDeclare a
             let lv = IdentVal t
 
             let op = case dir of
                         Increment -> V.Plus
                         Decrement -> V.Minus
 
-            pure $ s'
-                ++ [Fix $ V.Assign (ValRef lv) (Ref r)]
-                ++ [Fix $ V.Assign r (Binary lv op (V.Literal undefined))]
-            -- TODO We need an actual value here...
+            -- We need a synthetic literal with a type that agrees with the type
+            -- of the expression.
+            lit <- case a of
+                    Fix (V.IntType _) -> pure $ Ann a $ V.IntLit 1
+                    Fix (V.FloatType _) -> pure $ Ann a $ V.FloatLit 1.0
+                    _ -> throwError $ InvariantViolation "IncDec expressions \
+                            \should only have type int or float"
 
+            pure $ s'
+                ++ [Fix $ V.Assign (Ann a $ ValRef lv) (Ann a $ Ref r)]
+                ++ [Fix $ V.Assign r (Ann a $ Binary lv op (V.Literal lit))]
 
         G.BreakStmt -> pure [Fix V.BreakStmt]
 
@@ -186,9 +191,10 @@ simplifyStmt = annCata phi where
     declareMany is es = case es of
         -- If there are no expressions, we just record the declarations, and
         -- don't generate anything.
-        [] -> forM is (\i ->
+        [] -> forM is (\i -> do
+                i' <- reinterpretGlobalIdEx i
                 modify (\s ->
-                    s {newDeclarations = (gIdToVIdent i):(newDeclarations s) }))
+                    s {newDeclarations = i':(newDeclarations s) }))
                 >> pure []
         -- If there are expressions, we perform some initialization as well.
         _ -> do
@@ -201,9 +207,9 @@ simplifyStmt = annCata phi where
         _ -> False
 
 -- | Create and declare a temporary variable.
-makeTempAndDeclare :: a -> Simplify V.BasicIdent
-makeTempAndDeclare _ = do
-    t <- makeTemp ()
+makeTempAndDeclare :: V.Type -> Simplify V.BasicIdent
+makeTempAndDeclare ty = do
+    t <- makeTemp ty
     modify (\s -> s {newDeclarations = t:(newDeclarations s) })
     pure t
 
@@ -229,51 +235,51 @@ pushMaybe x = case x of
         pure $ Just a'
 
 -- | Flattens a simplified block into one monadic "Simplify" action.
-flattenBlock :: [Simplify [BasicStatement]] -> Simplify [BasicStatement]
+flattenBlock :: [Simplify [TyAnnStatement]] -> Simplify [TyAnnStatement]
 flattenBlock b = concat <$> sequence b
 
 -- | Declares the given identifier, and returns the statements required to
 -- initialize it.
 declareAndInit :: G.GlobalId
                 -> Simplify [SimpleExprResult]
-                -> Simplify [BasicStatement]
+                -> Simplify [TyAnnStatement]
 declareAndInit i e = do
-    let i' = gIdToVIdent i
+    i' <- reinterpretGlobalIdEx i
     modify (\s -> s {newDeclarations = i':(newDeclarations s) })
     (e', s') <- realizeToExpr e
-    pure $ s' ++ [Fix $ V.Assign (ValRef $ IdentVal i') e']
+    pure $ s' ++ [Fix $ V.Assign (Ann (gidTy i') $ ValRef $ IdentVal i') e']
 
 -- | Realizes a simplified expression stack and all its temporaries, taking the
 -- topmost result into a val. The way this is done is to create a temporary
 -- and assign to it whenever the result is not a val already.
 realizeToVal :: Simplify [SimpleExprResult]
-                -> Simplify (BasicVal, [BasicStatement])
+                -> Simplify (TyAnnVal, [TyAnnStatement])
 realizeToVal rs = do
     (re, stmts) <- realizeTemps rs
     case re of
         SimpleVal v -> pure (v , stmts)
         _ -> do
-            t <- makeTempAndDeclare ()
+            t <- makeTempAndDeclare (typeFromSimple re)
             let i = IdentVal t
-            pure (i, stmts ++ [Fix $ V.Assign (ValRef i) (wrapExpr re)])
+            pure (i, stmts ++ [Fix $ V.Assign (Ann (gidTy t) $ ValRef i) (wrapExpr re)])
     where
         wrapExpr e = case e of
             SimpleExpr e' -> e'
-            SimpleRef r -> Ref r
+            SimpleRef r -> Ann (typeFromSimple e) $ Ref r
             _ -> error "Entirely unexpected"
 
 -- | Realizes a simplified expression stack and all its temporaries, taking the
 -- topmost result into a ref (with an appropriate temporary as required).
 realizeToRef :: Simplify [SimpleExprResult]
-                -> Simplify (BasicRef, [BasicStatement])
+                -> Simplify (TyAnnRef, [TyAnnStatement])
 realizeToRef rs = do
     (r, stmts) <- realizeTemps rs
     case r of
-        SimpleVal v -> pure (ValRef v, stmts)
+        SimpleVal v -> pure (Ann (typeFromVal v) $ ValRef v, stmts)
         SimpleRef rf -> pure (rf, stmts)
-        SimpleExpr e -> do
-            t <- makeTempAndDeclare ()
-            let vt = ValRef $ IdentVal t in
+        SimpleExpr e@(Ann a _) -> do
+            t <- makeTempAndDeclare a
+            let vt = Ann (gidTy t) $ ValRef $ IdentVal t in
                 pure (vt, (Fix $ V.Assign vt e):stmts)
 
 -- | Same as "realizeToRef", but throws an error when the topmost result is an
@@ -282,11 +288,11 @@ realizeToRef rs = do
 -- valid, since something like @(a + b) = 3@ should have been caught earlier on
 -- as a non-addressable expression.
 realizeToRefEx :: Simplify [SimpleExprResult]
-                -> Simplify (BasicRef, [BasicStatement])
+                -> Simplify (TyAnnRef, [TyAnnStatement])
 realizeToRefEx rs =  do
     (r, stmts) <- realizeTemps rs
     case r of
-        SimpleVal v -> pure (ValRef v, stmts)
+        SimpleVal v -> pure (Ann (typeFromVal v) $ ValRef v, stmts)
         SimpleRef rf -> pure (rf, stmts)
         SimpleExpr _ ->
             throwError $ InvariantViolation "Cannot realize expression as ref \
@@ -296,12 +302,13 @@ realizeToRefEx rs =  do
 -- topmost result into a full expression if it was not already the case. No new
 -- temporaries are created by this function.
 realizeToExpr :: Simplify [SimpleExprResult]
-                -> Simplify (BasicExpr, [BasicStatement])
+                -> Simplify (TyAnnExpr, [TyAnnStatement])
 realizeToExpr rs = do
     (re, stmts) <- realizeTemps rs
     case re of
-        SimpleVal v -> pure (Ref $ ValRef v, stmts)
-        SimpleRef r -> pure (Ref r, stmts)
+        SimpleVal v -> pure (Ann (typeFromVal v) $ Ref
+                           $ Ann (typeFromVal v) $ ValRef v, stmts)
+        SimpleRef r -> pure (Ann (typeFromSimple re) $ Ref r, stmts)
         SimpleExpr e -> pure (e, stmts)
 
 
@@ -309,13 +316,13 @@ realizeToExpr rs = do
 -- result is in fact a normal expression, an error is thrown. No new temporaries
 -- are created by this function.
 realizeToCondExpr :: Simplify [SimpleExprResult]
-                    -> Simplify (BasicCondExpr, [BasicStatement])
+                    -> Simplify (TyAnnCondExpr, [TyAnnStatement])
 realizeToCondExpr rs = do
     (re, stmts) <- realizeTemps rs
     case re of
-        SimpleVal v -> pure (CondRef $ ValRef v, stmts)
+        SimpleVal v -> pure (CondRef $ Ann (typeFromVal v) $ ValRef v, stmts)
         SimpleRef r -> pure (CondRef r, stmts)
-        SimpleExpr (Cond c) -> pure (c, stmts)
+        SimpleExpr (Ann _ (Cond c)) -> pure (c, stmts)
         _ -> throwError $ InvariantViolation "Cannot realize a non-conditional \
                                         \expression as a conditional expression"
 
@@ -323,7 +330,7 @@ realizeToCondExpr rs = do
 -- assign statements, also returning the topmost result on its own. As a
 -- side-effect, records the fact that the temporaries should be declared.
 realizeTemps :: Simplify [SimpleExprResult]
-                -> Simplify (SimpleConstituent, [BasicStatement])
+                -> Simplify (SimpleConstituent, [TyAnnStatement])
 realizeTemps rs = do
     rs' <- rs
     stmts <- forM (reverse $ tail rs') (\ser -> case ser of
@@ -331,11 +338,12 @@ realizeTemps rs = do
         Temp (i, c) -> do
             modify (\s -> s {newDeclarations = i:(newDeclarations s) })
             -- Build the expression to assign
+            let cTy = typeFromSimple c
             let tex = case c of
                         SimpleExpr e -> e
-                        SimpleRef r -> Ref r
-                        SimpleVal v -> Ref $ ValRef v
-            pure $ Fix $ V.Assign (ValRef $ IdentVal i) tex)
+                        SimpleRef r -> (Ann cTy $ Ref r)
+                        SimpleVal v -> (Ann cTy $ Ref $ Ann cTy $ ValRef v)
+            pure $ Fix $ V.Assign (Ann (gidTy i) $ ValRef $ IdentVal i) tex)
 
     let eRes = head rs'
     case eRes of

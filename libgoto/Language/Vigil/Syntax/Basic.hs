@@ -19,11 +19,11 @@ type BasicProgram
 
 -- | 'TopLevelDecl' without annotations.
 type BasicVarDecl
-    = VarDecl BasicIdent BasicType
+    = VarDecl BasicIdent
 
 -- | 'FunDecl' without annotations.
 type BasicFunDecl
-    = FunDecl BasicIdent BasicType (Maybe BasicType) BasicVarDecl BasicStatement
+    = FunDecl BasicIdent BasicVarDecl BasicStatement
 
 -- | 'StatementF' without annotations.
 type BasicStatementF
@@ -43,12 +43,18 @@ type BasicExpr
         BasicBinOp
         BasicUnOp
         BasicCondExpr
+        ()
 
 -- | 'CondExpr' without annotations.
 type BasicCondExpr = CondExpr BasicVal BasicRef BasicBinCondOp BasicUnCondOp
 
 -- | 'Ref' without annotations.
-type BasicRef = Ref BasicIdent BasicVal
+type BasicRef
+    = Ref
+        BasicIdent -- Usual identifiers
+        (Ident ()) -- Selector identifiers
+        BasicVal
+        ()
 
 -- | 'Val' without annotations.
 type BasicVal = Val BasicIdent BasicLiteral
@@ -77,4 +83,4 @@ type BasicType = Type
 
 -- | 'Ident' without annotations.
 type BasicIdent
-    = Ident ()
+    = GlobalId
