@@ -9,6 +9,8 @@ Stability   : experimental
 Simplifications for the top-level (globals and function declarations).
 -}
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Language.Vigil.Simplify.Top where
 
 import Data.List ( partition )

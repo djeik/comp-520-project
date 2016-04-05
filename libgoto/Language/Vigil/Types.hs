@@ -49,7 +49,6 @@ import Language.Common.Annotation ( bare )
 import Language.Common.Pretty
 import qualified Language.Common.GlobalId as Gid
 import qualified Language.GoLite.Types as G
-import Language.GoLite.Syntax.Types ( unIdent )
 
 import Data.Functor.Foldable ( Fix(..), cata )
 
@@ -145,11 +144,11 @@ instance StorageSize (TypeF a) where
 instance StorageSize Type where
     storageSize = cata storageSize
 
-type GlobalId = Gid.GlobalId Type String
+type GlobalId = Gid.GlobalId Type (G.Symbol ())
 
 instance Pretty GlobalId where
     pretty i =
-        text (Gid.gidOrigName i)
+        pretty (Gid.gidOrigName i)
         <> text "_"
         <> pretty (Gid.gidNum i)
 
@@ -224,7 +223,7 @@ reinterpretGlobalId g = do
     ty <- reinterpretType (G.gidTy g)
     pure g
         { G.gidTy = ty
-        , G.gidOrigName = unIdent (bare (G.gidOrigName g))
+        , G.gidOrigName = bare (G.gidOrigName g)
         }
 
 -- | Creates an artificial global ID with the given number, name and type.
@@ -234,7 +233,7 @@ artificialGlobalId :: Int -> String -> Type -> GlobalId
 artificialGlobalId nu on ty =
     Gid.GlobalId
         { Gid.gidNum = nu
-        , Gid.gidOrigName = on
+        , Gid.gidOrigName = G.symbolFromString on
         , Gid.gidTy = ty
         , Gid.gidOrigin = Gid.Local
         }
@@ -247,7 +246,7 @@ selectorOffsetFor xs i = case splitWhen ((== sym) . fst) xs of
     (ys, _) -> pure . sum . map (storageSize . snd) $ ys
     where
         sym :: G.Symbol a
-        sym = G.NamedSymbol i
+        sym = G.symbolFromString i
 
         splitWhen :: (a -> Bool) -> [a] -> ([a], [a])
         splitWhen _ [] = ([], [])

@@ -13,6 +13,7 @@ Vigil syntax tree from a type-and-source annotated GoLite syntax tree.
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Language.Vigil.Simplify where
 

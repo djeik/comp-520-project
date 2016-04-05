@@ -62,13 +62,13 @@ runTypecheck t
 
 -- | Build a globally unique identifier tied to a given type.
 nextGid :: SrcAnnIdent -> Type -> DataOrigin -> Typecheck GlobalId
-nextGid name ty orig = do
+nextGid (Ann a (Ident name)) ty orig = do
     n <- gets _nextGid
     modify $ \s -> s { _nextGid = n + 1 }
     pure Gid.GlobalId
         { gidTy = ty
         , gidNum = n
-        , gidOrigName = name
+        , gidOrigName = Ann a (symbolFromString name)
         , gidOrigin = orig
         }
 
@@ -76,7 +76,7 @@ noGid :: GlobalId
 noGid = Gid.GlobalId
     { gidTy = unknownType
     , gidNum = -1
-    , gidOrigName = Ann builtinSpan (Ident "")
+    , gidOrigName = Ann builtinSpan blankSymbol
     , gidOrigin = Local
     }
 
@@ -288,8 +288,9 @@ canonicalize = annCata f where
             h' <- forM h $ \(i, t') ->
                 (,) <$> pure i <*> t'
 
-            t' <- forM h $ \(i, m) ->
-                (,) <$> pure (annNat symbolFromIdent i) <*> (fst . topAnn <$> m)
+            t' <- forM h $ \(i, m) -> (,)
+                <$> pure (annNat (symbolFromString . unIdent) i)
+                <*> (fst . topAnn <$> m)
 
             pure $ Fix $ Ann (Fix $ Struct t', a) (StructType h')
         NamedType i@(Ann b (Ident name)) -> do
@@ -430,8 +431,12 @@ typecheckFun e = case e of
             <*> canonicalize t
 
         let ty = funcType
-                (map (\(i, t) -> (annNat symbolFromIdent i, fst (topAnn t))) args)
-                retty
+                (map
+                    (\(i, t) -> (,)
+                        (annNat (symbolFromString . unIdent) i)
+                        (fst (topAnn t))
+                    ) args
+                ) retty
 
         g <- nextGid ident ty Local
         declareSymbol name $ VariableInfo
@@ -588,7 +593,7 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
         Selector me i -> do
             e' <- me
             let (ty, b) = topAnn e'
-            let sym = annNat symbolFromIdent i
+            let sym = annNat (symbolFromString . unIdent) i
 
             -- check that ty is a struct type or an alias thereof, perform the
             -- lookup of the identifier in the struct to get the component's
@@ -729,7 +734,7 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
                                     { funcTypeArgs = map
                                         (\a' ->
                                             let (t, c) = topAnn a'
-                                            in (Ann c Blank, t))
+                                            in (Ann c blankSymbol, t))
                                         args
                                     , funcTypeRet = unknownType
                                     }
@@ -742,8 +747,8 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
                     pure (t, Call e' ty args)
 
             case bare (unFix e') of
-                Variable (Gid.GlobalId { gidOrigName = Ann b (Ident name) }) -> do
-                    minfo <- lookupSymbol name
+                Variable (Gid.GlobalId { gidOrigName = Ann b s }) -> do
+                    minfo <- lookupSymbol (stringFromSymbol s)
                     case minfo of
                         Nothing -> normal
                         Just (_, info) -> case info of
@@ -776,7 +781,9 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
                                         typecheckConversion symTy x
                                         let at = Ann
                                                 (symTy, b)
-                                                (NamedType (Ann b $ Ident name))
+                                                (NamedType
+                                                    (Ann b $ Ident $ stringFromSymbol s)
+                                                )
                                         pure $
                                             ( symTy
                                             , Conversion (Fix at) x

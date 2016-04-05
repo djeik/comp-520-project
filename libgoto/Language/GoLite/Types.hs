@@ -83,11 +83,14 @@ module Language.GoLite.Types
   -- *** Special types
 , unknownType
 , typeSum
-  -- * Scoping
+  -- * Scoping and symbol manipulation
 , Scope(..)
 , SymbolName
-, Symbol(..)
-, symbolFromIdent
+, Symbol -- abstract so people can't build (NamedSymbol "_")
+, symbolFromString
+, stringFromSymbol
+, maybeSymbol
+, blankSymbol
 ) where
 
 import qualified Language.Common.GlobalId as Gid
@@ -97,16 +100,17 @@ import qualified Language.GoLite.Syntax.Types as T
 
 import Data.Functor.Foldable
 import qualified Data.Map as M
+import Data.String
 
 -- | A GoLite global identifier tracks GoLite type information as well as the
 -- original name and location of the identifier that is replaced.
-type GlobalId = Gid.GlobalId Type SrcAnnIdent
+type GlobalId = Gid.GlobalId Type (SrcAnn Symbol ())
 
 instance Pretty GlobalId where
     pretty (Gid.GlobalId
-        { Gid.gidOrigName = Ann _ (T.Ident name)
+        { Gid.gidOrigName = Ann _ s
         , Gid.gidNum = n
-        }) = text name <> text "_" <> int n
+        }) = pretty s <> text "_" <> int n
 
 -- | An entry in the symbol table.
 data SymbolInfo' loc ty gid
@@ -593,9 +597,27 @@ instance Pretty (Symbol a) where
         NamedSymbol name -> text name
         Blank -> text "_"
 
+-- | Creates 'NamedSymbol's.
+instance IsString (Symbol a) where
+    fromString = NamedSymbol
+
 -- | Converts a raw identifier into a symbol.
-symbolFromIdent :: T.Ident a -> Symbol a
-symbolFromIdent i = case i of
-    T.Ident s -> if s == "_"
-        then Blank
-        else NamedSymbol s
+symbolFromString :: String -> Symbol a
+symbolFromString s
+    | s == "_" = Blank
+    | otherwise = NamedSymbol s
+
+stringFromSymbol :: Symbol a -> String
+stringFromSymbol s = case s of
+    Blank -> "_"
+    NamedSymbol name -> name
+
+-- | 'Symbol' @a@ is isomorphic to 'Maybe' @String@; this function performs
+-- that conversion.
+maybeSymbol :: Symbol a -> Maybe String
+maybeSymbol s = case s of
+    Blank -> Nothing
+    NamedSymbol name -> Just name
+
+blankSymbol :: Symbol a
+blankSymbol = Blank
