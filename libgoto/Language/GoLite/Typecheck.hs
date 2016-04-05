@@ -625,7 +625,7 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
 
             -- check that the expression to index in is indexable (is an array,
             -- a slice, or a string) and get the element type
-            t <- case unFix iety of
+            t <- case unFix (unalias iety) of
                 Ty.Slice t -> pure t
                 Array _ t -> pure t
                 StringType _ -> pure typedRuneType
