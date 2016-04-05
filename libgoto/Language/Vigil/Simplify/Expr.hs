@@ -226,9 +226,12 @@ simplifyExpr = annCata phi where
             a'' <- reinterpretTypeEx $ fst a'
             pure [Result $ SimpleVal $ V.Literal (Ann a'' $ gToVLit l)]
 
-        G.Variable i -> case reinterpretGlobalId i of
-            Nothing -> throwError $ InvariantViolation "Unrepresentable type"
-            Just x -> pure [Result $ SimpleVal $ IdentVal x]
+        G.Variable i -> do
+            case maybeSymbol $ bare $ gidOrigName i of
+                Nothing -> pure []
+                _ -> case reinterpretGlobalId i of
+                    Nothing -> throwError $ InvariantViolation "Unrepresentable type"
+                    Just x -> pure [Result $ SimpleVal $ IdentVal x]
 
         G.TypeAssertion _ _ ->
             throwError $ InvariantViolation "Type assertions are not supported."

@@ -14,7 +14,9 @@ module Language.Vigil.Simplify.Stmt
 , realizeToExpr
 ) where
 
+import Data.Maybe ( catMaybes )
 import Data.List ( partition )
+import Data.Tuple ( swap )
 
 import Language.Common.Monad.Traverse
 import Language.GoLite.Types as G
@@ -65,19 +67,26 @@ simplifyStmt = annCata phi where
                 -- First phase: evaluate to refs on the left, then to temps on
                 -- the right. We can't just do vals on the right, because
                 -- otherwise something like a, b = b, a wouldn't work.
-                lrs <- forM l (\e -> realizeToRefEx =<< simplifyExpr e)
+                lrs <- forM l (\l' -> do
+                    es <- simplifyExpr l'
+                    case es of
+                        [] -> pure Nothing
+                        es' -> Just <$> realizeToRefEx es')
+
                 rts <- forM r (\r' -> do
                     (r''@(Ann a' _), s') <- realizeToExpr =<< simplifyExpr r'
                     t <- makeTempAndDeclare a'
                     let annTRef = Ann a' $ ValRef $ IdentVal t
                     pure (Ann a' $ Ref $ annTRef,
-                        s' ++ [Fix $ V.Assign annTRef r'']))
+                        s' ++ [Fix $ V.Assign annTRef r''])) :: Simplify [(TyAnnExpr, [TyAnnStatement])]
 
-                let pre = (concat $ map snd lrs) ++ (concat $ map snd rts)
+                let pre = (concat $ map snd $ catMaybes lrs) ++ (concat $ map snd rts)
 
                 -- Second phase: carry out the assignments from left to right
-                let asss = map (\(r', e) -> Fix $ V.Assign r' e)
-                            (zip (map fst lrs) (map fst rts))
+                let p = catMaybes $ map (fmap swap . sequence) (zip rts lrs)
+                let asss = map (\(r', e) -> Fix $ V.Assign r' e) $
+                        catMaybes $
+                            map (fmap swap . sequence) (zip (map fst rts) (map (fmap fst) lrs))
 
                 pure $ pre ++ asss
 
