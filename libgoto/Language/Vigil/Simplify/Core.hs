@@ -36,7 +36,10 @@ import Language.Vigil.Types as V
 
 -- | Reinterprets a GoLite global ID into a Vigil global ID, throwing an error
 -- when the inner type is unrepresentable
-reinterpretGlobalIdEx :: G.GlobalId -> Simplify V.GlobalId
-reinterpretGlobalIdEx x = case reinterpretGlobalId x of
-    Nothing -> throwError UnrepresentableType
-    Just x' -> pure x'
+reinterpretGlobalIdEx :: G.GlobalId -> Simplify (Maybe V.GlobalId)
+reinterpretGlobalIdEx x = do
+    case maybeSymbol $ bare $ gidOrigName x of
+        Nothing -> pure Nothing
+        Just _ -> case reinterpretGlobalId x of
+            Nothing -> throwError $ UnrepresentableType ("reinterpretGlobalIdEx: " ++ show x)
+            Just gid -> pure $ Just gid

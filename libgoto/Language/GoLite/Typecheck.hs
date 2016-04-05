@@ -72,11 +72,14 @@ nextGid (Ann a (Ident name)) ty orig = do
         , gidOrigin = orig
         }
 
-noGid :: GlobalId
-noGid = Gid.GlobalId
+-- | Construct a dummy global identifier for an arbitrary variable.
+noGid
+    :: String
+    -> GlobalId
+noGid name = Gid.GlobalId
     { gidTy = unknownType
     , gidNum = -1
-    , gidOrigName = Ann builtinSpan blankSymbol
+    , gidOrigName = Ann builtinSpan $ symbolFromString name
     , gidOrigin = Local
     }
 
@@ -84,7 +87,7 @@ blank :: SymbolInfo
 blank = VariableInfo
     { symLocation = Builtin
     , symType = unknownType
-    , symGid = noGid
+    , symGid = noGid "_"
     }
 
 genDefaultRootScope :: Typecheck ()
@@ -270,7 +273,7 @@ declareSymbol name info = modifyTopScope $ \(Scope m) -> do
 --
 -- This function does not report any errors.
 lookupSymbol :: SymbolName -> Typecheck (Maybe (Integer, SymbolInfo))
-lookupSymbol "_" = pure $ Just $ (0, blank)
+lookupSymbol "_" = pure $ Just (0, blank)
 lookupSymbol name = foldr (<|>) Nothing . map (sequence . fmap (M.lookup name)) . zip [0..] . map scopeMap <$> gets _scopes
 
 -- | Computes the canonical type representation for a source-annotated type.
@@ -812,10 +815,10 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
                             , mismatchActualInfo = info
                             , mismatchIdent = x
                             }
-                        pure (unknownType, Variable noGid)
+                        pure (unknownType, Variable $ noGid name)
                 Nothing -> do
                     reportError $ NotInScope { notInScopeIdent = x }
-                    pure (unknownType, Variable noGid)
+                    pure (unknownType, Variable $ noGid name)
 
     -- | Computes the canonical type of a unary operator expression.
     typecheckUnaryOp
@@ -1034,7 +1037,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                                     , mismatchCause = Ann a' (Just e')
                                     , errorReason = empty
                                     }
-                                pure noGid
+                                pure $ noGid i
                             _ -> do
                                 g <- nextGid ident (defaultType ty') Local
                                 declareSymbol i $ VariableInfo
@@ -1053,6 +1056,8 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                             pure g
 
                     pure $ (g, e')
+
+                -- throwError $ GenericError (text $ show $ unzip ies)
 
                 pure $ uncurry ShortVarDecl $ unzip ies
 

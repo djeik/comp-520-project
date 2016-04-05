@@ -182,8 +182,11 @@ instance Pretty ErrorSymbolKind where
         VariableInfo {} -> text "variable"
         TypeInfo {} -> text "type"
 
+-- | Newtype for 'Pretty'fying integers followed by their appropriate ordinal
+-- suffix in English.
 newtype Ordinal = Ordinal Int
 
+-- | Worth it.
 instance Pretty Ordinal where
     pretty (Ordinal i) = int i <> case last (show i) of
         '1' -> text "st"
@@ -362,6 +365,10 @@ data TypecheckError
     | UncategorizedOperator
     -- ^ An operator could not be categorized as either arithmetic, comparison,
     -- logical, or ordering.
+    | GenericError
+        { errorDescription :: Doc
+        }
+    -- ^ Used for testing.
     deriving (Eq, Show)
 
 -- | Decides whether a declaration is allowed in isolation.

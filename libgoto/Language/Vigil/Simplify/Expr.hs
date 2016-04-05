@@ -235,7 +235,7 @@ simplifyExpr = annCata phi where
 
     reinterpretTypeEx :: T.Type ->  Simplify V.Type
     reinterpretTypeEx t = case reinterpretType t of
-        Nothing -> throwError UnrepresentableType
+        Nothing -> throwError $ UnrepresentableType ("reinterpretTypeEx: " ++ show t)
         Just x -> pure x
 
     extractI :: Maybe (Simplify (TyAnnVal, a)) -> Simplify (Maybe TyAnnVal)

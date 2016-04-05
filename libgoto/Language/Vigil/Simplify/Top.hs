@@ -25,6 +25,8 @@ import Language.Vigil.Syntax as V
 import Language.Vigil.Syntax.TyAnn
 import Language.Vigil.Types
 
+import Data.Maybe ( catMaybes )
+
 -- | Simplifies a GoLite package into a Vigil program.
 --
 -- Global variables are separated from functions, and their initializations are
@@ -34,22 +36,37 @@ simplifyPackage (Package _ decls) = do
     let (globs, funs) = partition isGlob decls
     let globs' = filter isVar globs
 
-    vs <- forM globs' (\(G.TopLevelDecl (G.VarDecl (G.VarDeclBody is _ es))) ->
-        case es of
-            -- TODO: in the case of no initialization, perhaps provide a default one now?
-            [] -> forM is (\i -> do
-                i' <- reinterpretGlobalIdEx i
-                pure (V.VarDecl i', []))
-            _ -> forM (zip is es) (\(i, e) -> do
-                i' <- reinterpretGlobalIdEx i
-                (e', s) <- realizeToExpr $ simplifyExpr e
-                pure (V.VarDecl i',
-                    s ++ [Fix $ V.Assign (Ann (gidTy i') $ ValRef $ IdentVal i') e'])))
+    vs <-
+        forM globs' $ \(G.TopLevelDecl (G.VarDecl (G.VarDeclBody is _ es))) -> do
+            case es of
+                -- TODO: in the case of no initialization, perhaps provide a
+                -- default one now?
+                [] -> forM is $ \i -> do
+                    m <- reinterpretGlobalIdEx i
+                    case m of
+                        Nothing -> pure (Nothing, [])
+                        Just i' -> pure (Just $ V.VarDecl i', [])
+
+                _ -> forM (zip is es) $ \(i, e) -> do
+                    m <- reinterpretGlobalIdEx i
+                    (e', s) <- realizeToExpr =<< simplifyExpr e
+
+                    pure $ case m of
+                        Nothing ->
+                            ( Nothing
+                            , s ++ [Fix $ V.ExprStmt e']
+                            )
+                        Just i' ->
+                            ( Just $ V.VarDecl i'
+                            , s ++ [
+                                Fix $ V.Assign (Ann (gidTy i') $ ValRef $ IdentVal i') e'
+                            ]
+                            )
 
     -- vs: pairs of declarations and their initializing statements
     let vs' = concat vs
-    nis <- gets (\s -> newDeclarations s)
-    let nvs = map (\d -> V.VarDecl d) nis
+    nis <- gets newDeclarations
+    let nvs = map V.VarDecl nis
     let fInit = V.FunDecl
                 { _funDeclName = artificialGlobalId (-1) "%init" (funcType [] voidType)
                 , _funDeclArgs = []
@@ -57,24 +74,28 @@ simplifyPackage (Package _ decls) = do
                 , _funDeclBody = concat $ map snd vs'
                 }
 
-    fs <- forM funs (\(G.TopLevelFun (G.FunDecl i ps _ bod)) -> do
+    fs <- fmap catMaybes $ forM funs $ \(G.TopLevelFun (G.FunDecl i ps _ bod)) -> do
         modify (\s ->  s { newDeclarations = [] }) -- Reset state of declarations.
         bod' <- forM bod simplifyStmt -- Simplify body
 
-        ps' <- forM ps (\(pid, _) -> do
-            i' <- reinterpretGlobalIdEx pid
-            pure $ V.VarDecl i')
+        ps' <- fmap catMaybes $ forM ps $ \(pid, _) -> do
+            m <- reinterpretGlobalIdEx pid
+            pure $ case m of
+                Nothing -> Nothing
+                Just i' -> Just $ V.VarDecl i'
 
-        nis' <- gets (\s -> newDeclarations s)
-        let nvs' = map (\d -> V.VarDecl d) nis'
+        nis' <- gets newDeclarations
+        let nvs' = map V.VarDecl nis'
 
-        i' <- reinterpretGlobalIdEx i
-        pure $ V.FunDecl
+        m <- reinterpretGlobalIdEx i
+        case m of
+            Nothing -> pure Nothing
+            Just i' -> pure $ Just $ V.FunDecl
                 { _funDeclName = i'
                 , _funDeclArgs = ps'
                 , _funDeclVars = nvs'
                 , _funDeclBody = concat bod'
-                })
+                }
 
     let (main, notMain) = partition
                     (\(V.FunDecl i _ _ _) -> gidOrigName i == "main") (fInit:fs)
@@ -82,7 +103,7 @@ simplifyPackage (Package _ decls) = do
     when (length main > 1) (throwError $ InvariantViolation "More than one main")
 
     pure V.Program
-            { _globals = map fst vs'
+            { _globals = catMaybes $ map fst vs'
             , _funcs = notMain
             , _main = case main of
                 [x] -> Just x

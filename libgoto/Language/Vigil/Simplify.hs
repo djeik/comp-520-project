@@ -12,8 +12,8 @@ Vigil syntax tree from a type-and-source annotated GoLite syntax tree.
 -}
 
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Language.Vigil.Simplify where
 
@@ -86,5 +86,5 @@ data SimplifyState
 
 data SimplificationError
     = InvariantViolation String
-    | UnrepresentableType
+    | UnrepresentableType String
     deriving ( Show )
