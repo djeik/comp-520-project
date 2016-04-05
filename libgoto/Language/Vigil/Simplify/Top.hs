@@ -55,7 +55,6 @@ simplifyPackage (Package _ decls) = do
                 , _funDeclBody = concat $ map snd vs'
                 }
 
-    -- TODO single out main.
     fs <- forM funs (\(G.TopLevelFun (G.FunDecl i ps _ bod)) -> do
         modify (\s ->  s { newDeclarations = [] }) -- Reset state of declarations.
         bod' <- forM bod simplifyStmt -- Simplify body
@@ -75,10 +74,18 @@ simplifyPackage (Package _ decls) = do
                 , _funDeclBody = concat bod'
                 })
 
+    let (main, notMain) = partition
+                    (\(V.FunDecl i _ _ _) -> gidOrigName i == "main") (fInit:fs)
+
+    when (length main > 1) (throwError $ InvariantViolation "More than one main")
+
     pure V.Program
             { _globals = map fst vs'
-            , _funcs = fInit:fs
-            , _main = undefined -- TODO single out main
+            , _funcs = notMain
+            , _main = case main of
+                [x] -> Just x
+                [] -> Nothing
+                _ -> error "Laws of physics broken"
             }
 
     where

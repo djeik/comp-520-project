@@ -13,6 +13,8 @@ import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Typecheck
 import Language.GoLite.Typecheck.Types
 
+import Language.Vigil
+
 import Control.Monad ( forM_ )
 import System.Directory
 import System.FilePath
@@ -78,6 +80,14 @@ main = do
                     name
                     contents
 
+        forM_ validTypeSources $ \(name, contents) ->
+            it ("simplifies the valid program " ++ name) $
+                checkSimplify
+                    (expectationFailure . show)
+                    (const (pure ()))
+                    name
+                    contents
+
         forM_ invalidTypeSources $ \(name, contents) ->
             it ("fails to parse the invalid program " ++ name) $
                 checkTypecheck
@@ -85,6 +95,24 @@ main = do
                     (const (expectationFailure "should not typecheck"))
                     name
                     contents
+
+
+checkSimplify
+    :: (SimplificationError -> Expectation)
+    -> (TyAnnProgram -> Expectation)
+    -> String -> String -> Expectation
+checkSimplify bad good name contents = case parseOnly packageP name contents of
+    Left pe -> expectationFailure (show pe)
+    Right pr -> case weedGoLiteProgram pr of
+        Just wes -> expectationFailure (show wes)
+        Nothing -> case runTypecheck (typecheckPackage pr) of
+            (Left fatal, _) -> expectationFailure (show fatal)
+            (Right p, tst) -> case _errors tst of
+                [] -> case runSimplify (_nextGid tst + 1) (simplifyPackage p) of
+                    Left critical -> bad critical
+                    Right s -> good s
+                tes -> expectationFailure "Should have typechecked"
+
 
 checkTypecheck
     :: (SemanticError -> Expectation)

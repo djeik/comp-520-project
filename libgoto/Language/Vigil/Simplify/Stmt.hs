@@ -28,6 +28,8 @@ import Language.Vigil.Syntax.Basic as V
 import Language.Vigil.Syntax.TyAnn as V
 import Language.Vigil.Types as V
 
+import Language.Common.Pretty
+
 {- | Simplifies a GoLite statement into a number (potentially some or none) of
    Vigil statements.
 
@@ -337,7 +339,7 @@ realizeTemps :: Simplify [SimpleExprResult]
 realizeTemps rs = do
     rs' <- rs
     stmts <- forM (reverse $ tail rs') (\ser -> case ser of
-        Result _ -> throwError $ InvariantViolation "Unexpected result as intermediary"
+        Result x -> throwError $ InvariantViolation ("Unexpected result as intermediary " ++ render (pretty x))
         Temp (i, c) -> do
             modify (\s -> s {newDeclarations = i:(newDeclarations s) })
             -- Build the expression to assign

@@ -28,6 +28,8 @@ import Language.Vigil.Syntax.Basic as V
 import Language.Vigil.Syntax.TyAnn as V
 import Language.Vigil.Types as V
 
+import Language.Common.Pretty
+
 data SimpleExprResult
     = Result SimpleConstituent
     | Temp (V.BasicIdent, SimpleConstituent)
@@ -39,6 +41,12 @@ data SimpleConstituent
     = SimpleExpr TyAnnExpr
     | SimpleRef TyAnnRef
     | SimpleVal TyAnnVal
+
+instance Pretty SimpleConstituent where
+    pretty a = case a of
+        SimpleExpr x -> pretty x
+        SimpleRef x -> pretty x
+        SimpleVal x -> pretty x
 
 -- | Simplifies a full-fledged GoLite expression into a (potentially some) Vigil
 -- expressions.
@@ -101,7 +109,7 @@ simplifyExpr = annCata phi where
                             $ V.Conversion ty' $ Ann aIn $ ValRef $ IdentVal t)
                             :(Temp (t, e''))
                             :(tail e')
-                _ -> throwError $ InvariantViolation "Unexpected non-result"
+                _ -> throwError $ InvariantViolation "Conversion: unexpected non-result"
 
         G.Selector e id' -> do
             a' <- reinterpretTypeEx $ fst a
@@ -124,7 +132,7 @@ simplifyExpr = annCata phi where
                             t [id''])
                             :(Temp (t, e''))
                             :es
-                _ -> throwError $ InvariantViolation "Unexpected non-result"
+                _ -> throwError $ InvariantViolation "Selector: unexpected non-result"
 
         G.Index eIn eBy' -> do
             a' <- reinterpretTypeEx $ fst a
@@ -141,12 +149,12 @@ simplifyExpr = annCata phi where
                 (Result (SimpleVal (IdentVal i))) ->
                     pure $ (Result $ SimpleRef $ Ann a' $ ArrayRef i [vBy]):es
                 -- Otherwise, create a temp and index into it.
-                (Result eIn''@(SimpleExpr (Ann aIn _))) -> do
-                    t <- makeTemp aIn
+                (Result eIn'') -> do
+                    t <- makeTemp (typeFromSimple eIn'')
                     pure $ (Result $ SimpleRef $ Ann a' $ ArrayRef t [vBy])
                             :(Temp (t, eIn''))
                             :es
-                _ -> throwError $ InvariantViolation "Unexpected non-result"
+                _ -> throwError $ InvariantViolation "Index: unexpected non-result"
 
         G.Slice e l h b -> do
             a' <- reinterpretTypeEx $ fst a
@@ -179,7 +187,7 @@ simplifyExpr = annCata phi where
                     pure $ (Result $ SimpleRef $ Ann a' $ SliceRef t [bounds])
                             :(Temp (t, e''))
                             :es
-                _ -> throwError $ InvariantViolation "Unexpected non-result"
+                _ -> throwError $ InvariantViolation "Slice: unexpected non-result"
 
         G.Call e _ ps  -> do
             a' <- reinterpretTypeEx $ fst a
@@ -190,8 +198,8 @@ simplifyExpr = annCata phi where
                     (Result (SimpleVal _)) -> pure $ cur'
                     (Result e') -> do
                         t <- makeTemp (typeFromSimple e')
-                        pure $ (Temp (t, e')):cur'
-                    _ -> throwError $ InvariantViolation "Unexpected non-result")
+                        pure $ (Temp (t, e')):(tail cur')
+                    _ -> throwError $ InvariantViolation "Call: unexpected non-result")
 
             -- Make top values to be used as arguments to the call.
             let ps'' = map (\cur -> case head cur of
