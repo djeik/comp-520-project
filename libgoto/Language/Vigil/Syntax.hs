@@ -112,7 +112,8 @@ instance
             <> text "]]"
             $+$ vcat (map pretty v)
             $+$ vcat (map pretty b)
-        )
+        ) $+$
+        text "}"
 
 -- | Vigil statements.
 data StatementF expr cond ref f
