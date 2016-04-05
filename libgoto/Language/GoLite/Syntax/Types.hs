@@ -54,7 +54,6 @@ import Language.GoLite.Syntax.Types.Ops
 
 import Data.Functor.Foldable ( Fix(..) )
 import Data.Functor.Identity ( Identity(..) )
-import Text.PrettyPrint
 
 newtype Comment a
     = Comment { unComment :: a }

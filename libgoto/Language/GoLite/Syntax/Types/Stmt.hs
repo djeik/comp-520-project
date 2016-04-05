@@ -15,7 +15,6 @@ module Language.GoLite.Syntax.Types.Stmt where
 import Language.GoLite.Pretty
 
 import Data.Functor.Foldable
-import Text.PrettyPrint
 
 -- | GoLite statements. These make up the bodies of functions.
 data StatementF decl expr ident assignOp caseHead f

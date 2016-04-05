@@ -35,8 +35,25 @@ newtype Simplify a
         , MonadState SimplifyState
         )
 
+-- | Runs a computation in the Simplify monad, starting the temporary identifier
+-- numbers at the supplied value. The state of the simplification is thrown away.
+runSimplify :: Int -> Simplify a -> Either SimplificationError a
+runSimplify n t
+    = fst $ runIdentity (
+        runStateT (
+            runExceptT (
+                runTraversal (
+                    unSimplify t
+                )
+            )
+        ) $
+        SimplifyState
+            { currentTemp = n
+            , newDeclarations = []
+            }
+    )
+
 instance MonadTraversal Simplify where
-    -- Fred: right now I can't think of any errors that would occur during simplification
     type TraversalError Simplify = Void
     type TraversalState Simplify = SimplifyState
     type TraversalException Simplify = SimplificationError
@@ -69,3 +86,4 @@ data SimplifyState
 data SimplificationError
     = InvariantViolation String
     | UnrepresentableType
+    deriving ( Show )

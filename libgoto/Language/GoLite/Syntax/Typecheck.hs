@@ -25,7 +25,6 @@ import Language.GoLite.Types
 
 import Control.Applicative ( Const(..) )
 import Data.Functor.Foldable
-import Text.PrettyPrint
 
 -- | An annotation that consists of both type and source position information.
 type TySrcSpan = (Type, SrcSpan)

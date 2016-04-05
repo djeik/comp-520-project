@@ -97,7 +97,6 @@ import qualified Language.GoLite.Syntax.Types as T
 
 import Data.Functor.Foldable
 import qualified Data.Map as M
-import Text.PrettyPrint
 
 -- | A GoLite global identifier tracks GoLite type information as well as the
 -- original name and location of the identifier that is replaced.

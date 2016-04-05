@@ -32,8 +32,6 @@ import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Typecheck
 import Language.GoLite.Types
 
-import Text.PrettyPrint
-
 -- | The typecheck monad tracks errors in its state. Fatal errors cause a true
 -- exception to the thrown (in the 'ExceptT' sense) whereas non-fatal errors
 -- merely causes new errors to be accumulated in the state. Hence, when

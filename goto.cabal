@@ -39,6 +39,7 @@ library
     Language.Common.Annotation
     Language.Common.GlobalId
     Language.Common.Monad.Traverse
+    Language.Common.Pretty
     Language.GoLite
     Language.GoLite.Lexer
     Language.GoLite.Lexer.Core
@@ -82,6 +83,7 @@ library
     Language.GoLite.Weeder.TypeLit
     Language.GoLite.Weeder.Types
     Language.Vigil
+    Language.Vigil.Simplify
     Language.Vigil.SimplifyTraversal
     Language.Vigil.Simplify.Core
     Language.Vigil.Simplify.Expr
@@ -89,6 +91,7 @@ library
     Language.Vigil.Simplify.Top
     Language.Vigil.Syntax
     Language.Vigil.Syntax.Basic
+    Language.Vigil.Syntax.TyAnn
     Language.Vigil.Types
 
 

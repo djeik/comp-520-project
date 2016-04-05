@@ -16,7 +16,6 @@ import Language.GoLite.Typecheck.Types
 import Control.Monad ( forM_ )
 import System.Directory
 import System.FilePath
-import Text.PrettyPrint
 
 validSourcesDir :: FilePath
 validSourcesDir = "programs/valid"

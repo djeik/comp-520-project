@@ -21,7 +21,6 @@ import Language.GoLite.Pretty
 import Data.Functor.Foldable
 import Data.String
 import Prelude as P
-import Text.PrettyPrint
 
 -- | Integers in GoLite.
 type GoInt = Int

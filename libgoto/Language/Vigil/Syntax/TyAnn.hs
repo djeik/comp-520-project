@@ -7,9 +7,14 @@ Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Language.Vigil.Syntax.TyAnn where
 
 import Language.Common.Annotation
+import Language.Common.Pretty
 import Language.Vigil.Types
 import Language.Vigil.Syntax
 import Language.Vigil.Syntax.Basic
@@ -61,3 +66,6 @@ type TyAnnVigilInt = TyAnn (Const VigilInt) ()
 type TyAnnVigilFloat = TyAnn (Const VigilFloat) ()
 type TyAnnVigilRune = TyAnn (Const VigilRune) ()
 type TyAnnVigilString = TyAnn (Const VigilString) ()
+
+instance Pretty (f a) => Pretty (TyAnn f a) where
+    pretty = pretty . bare

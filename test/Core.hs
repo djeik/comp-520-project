@@ -18,7 +18,6 @@ module Core
 , module Language.GoLite
 , module Language.GoLite.Syntax.Sugar
 , module Language.GoLite.Syntax.SrcAnn
-, module Language.GoLite.Pretty
 ) where
 
 import Control.Monad
@@ -35,7 +34,6 @@ import Gen.Expr
 import Language.GoLite
 import Language.GoLite.Syntax.Sugar
 import Language.GoLite.Syntax.SrcAnn
-import Language.GoLite.Pretty
 import Language.GoLite.Weeder.Core
 
 data TestError =

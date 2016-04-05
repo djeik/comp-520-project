@@ -46,6 +46,7 @@ module Language.Vigil.Types
 ) where
 
 import Language.Common.Annotation ( bare )
+import Language.Common.Pretty
 import qualified Language.Common.GlobalId as Gid
 import qualified Language.GoLite.Types as G
 import Language.GoLite.Syntax.Types ( unIdent )
@@ -73,6 +74,9 @@ instance StorageSize IStorage where
         I4 -> 4
         I8 -> 8
 
+instance Pretty IStorage where
+    pretty = text . show . storageSize
+
 -- | The possible storage requirements for a float.
 data FStorage
     = F4
@@ -87,6 +91,9 @@ instance StorageSize FStorage where
     storageSize s = case s of
         F4 -> 4
         F8 -> 8
+
+instance Pretty FStorage where
+    pretty = text . show . storageSize
 
 -- | The Vigil type base functor.
 data TypeF subTy
@@ -108,6 +115,21 @@ data TypeF subTy
 
 type Type = Fix TypeF
 
+instance Pretty Type where
+    pretty (Fix t') = case t' of
+        IntType n -> text "int" <> pretty n
+        FloatType n -> text "float" <> pretty n
+        StructType fs -> text "struct_" <> pretty fs
+        ArrayType t -> text "[0]" <> pretty t
+        SliceType t -> text "[]" <> pretty t
+        FuncType ps r -> text "func"
+            <+> prettyParens True (hcat $ punctuate comma (map pretty ps))
+            <+> pretty r
+        StringType -> text "string"
+        VoidType -> text "void"
+        BuiltinType _ -> text "builtin"
+
+
 instance StorageSize (TypeF a) where
     storageSize t = case t of
         IntType s -> storageSize s
@@ -124,6 +146,12 @@ instance StorageSize Type where
     storageSize = cata storageSize
 
 type GlobalId = Gid.GlobalId Type String
+
+instance Pretty GlobalId where
+    pretty i =
+        text (Gid.gidOrigName i)
+        <> text "_"
+        <> pretty (Gid.gidNum i)
 
 intType :: IStorage -> Type
 intType = Fix . IntType

@@ -5,6 +5,7 @@ module Lexer.Type (
 ) where
 
 import Core
+import Language.GoLite.Pretty ( pretty, renderGoLite )
 
 testType :: SpecWith ()
 testType = describe "type_" $ do

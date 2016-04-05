@@ -15,7 +15,6 @@ module Language.GoLite.Syntax.Types.Type where
 import Language.GoLite.Pretty
 
 import Data.Functor.Foldable
-import Text.PrettyPrint
 
 -- | A type.
 data TypeF ident int f

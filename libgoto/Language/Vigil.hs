@@ -15,7 +15,9 @@ Vigil code.
 module Language.Vigil
 ( module Language.Vigil.Syntax
 , module Language.Vigil.SimplifyTraversal
+, module Language.Vigil.Simplify
 ) where
 
 import Language.Vigil.Syntax
 import Language.Vigil.SimplifyTraversal
+import Language.Vigil.Simplify

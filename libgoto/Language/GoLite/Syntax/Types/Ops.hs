@@ -14,7 +14,6 @@ module Language.GoLite.Syntax.Types.Ops where
 import Language.GoLite.Pretty
 import Language.GoLite.Syntax.Precedence
 
-import Text.PrettyPrint
 
 -- | A binary operator.
 --

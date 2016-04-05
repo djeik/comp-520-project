@@ -16,8 +16,6 @@ module Language.GoLite.Syntax.Types.Decl where
 
 import Language.GoLite.Pretty
 
-import Text.PrettyPrint
-
 -- | A package declaration.
 data Package ident topLevelDecl
     = Package ident [topLevelDecl]

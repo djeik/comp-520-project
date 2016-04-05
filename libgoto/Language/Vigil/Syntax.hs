@@ -27,6 +27,7 @@ the differences with the GoLite syntax are:
 -}
 
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Language.Vigil.Syntax
 ( -- * Syntax definitions
@@ -59,6 +60,9 @@ import Data.Functor.Foldable ( Fix(..) )
 import Data.Functor.Identity ( Identity(..) )
 import Data.String
 
+import Language.Common.Pretty
+import Data.Functor.Foldable ( cata )
+
 -- | A Vigil program is simply a list of global variable declarations and
 -- function declarations, and optionally a main function.
 data Program varDecl funDecl
@@ -69,11 +73,20 @@ data Program varDecl funDecl
         }
     deriving (Eq, Show)
 
+instance (Pretty v, Pretty f) => Pretty (Program v f) where
+    pretty (Program gs fs m) =
+        vcat (map pretty gs) $+$
+        vcat (map pretty fs) $+$
+        pretty m
+
 -- | A variable declaration is a list of identifiers associated with a type.
 -- There are no initializations.
 data VarDecl ident
     = VarDecl ident
     deriving (Eq, Show)
+
+instance (Pretty ident) => Pretty (VarDecl ident) where
+    pretty (VarDecl i) = text "var" <+> pretty i
 
 -- | A Vigil function declares all of its variables before any statements.
 data FunDecl ident vardecl stmt
@@ -83,6 +96,23 @@ data FunDecl ident vardecl stmt
         , _funDeclVars :: [vardecl]
         , _funDeclBody :: [stmt]
         }
+
+instance
+    ( Pretty ident
+    , Pretty vardecl
+    , Pretty stmt
+    ) => Pretty (FunDecl ident vardecl stmt) where
+    pretty (FunDecl n a v b) =
+        text "func"
+        <+> pretty n
+        <+> text "{" $+$
+        nest indentLevel (
+            text "[["
+            <> (hcat $ punctuate comma (map pretty a))
+            <> text "]]"
+            $+$ vcat (map pretty v)
+            $+$ vcat (map pretty b)
+        )
 
 -- | Vigil statements.
 data StatementF expr cond ref f
@@ -117,6 +147,72 @@ data StatementF expr cond ref f
     | ContinueStmt
     deriving (Eq, Functor, Show)
 
+instance
+    ( Pretty expr
+    , Pretty cond
+    , Pretty ref
+    ) => Pretty (Fix (StatementF expr cond ref)) where
+    pretty = cata f where
+        f ::
+            ( Pretty expr
+            , Pretty cond
+            , Pretty ref
+            ) => StatementF expr cond ref Doc -> Doc
+        f e' = case e' of
+            ExprStmt e -> pretty e
+            CondExprStmt c -> pretty c
+            Assign r e -> pretty r <+> text "=" <+> pretty e
+            PrintStmt rs -> text "print"
+                <+> prettyParens True (sep $ punctuate comma (map pretty rs))
+            ReturnStmt r -> text "return" <+> pretty r
+            IfStmt c thens elses ->
+                text "if" <+> pretty c <+> text "{" $+$
+                nest indentLevel (
+                    vcat (map pretty thens)
+                ) $+$
+                text "}" $+$
+                case elses of
+                    Just elses' ->
+                        text "else {" $+$
+                        nest indentLevel (
+                            vcat (map pretty elses')
+                        ) $+$
+                        text "}"
+                    Nothing -> empty
+            ForStmt c bod ->
+                text "for" <+>
+                case c of
+                    -- The list of statements as a condition of the for loop
+                    -- is artificial.
+                    Just c' -> text "[[" $+$ vcat (map pretty c') $+$ text "]]"
+                    Nothing -> empty
+                <+> text "{" $+$
+                nest indentLevel (
+                    vcat (map pretty bod)
+                ) $+$
+                text "}"
+            SwitchStmt gu cs def ->
+                text "switch" <+> pretty gu <+> text "{" $+$
+                nest indentLevel (
+                    vcat (map (\(hs, es) ->
+                        text "case" $+$
+                        nest indentLevel (
+                            vcat (map (\h ->
+                                text "[["
+                                <> hsep (punctuate semi (map pretty h))
+                                <> text "]]") hs)
+                            <+> text ":"
+                            $+$ vcat (map pretty es)
+                        )
+                    ) cs) $+$
+                    text "default:" $+$
+                    nest indentLevel (
+                        vcat (map pretty def)
+                    )
+                )
+            BreakStmt -> text "break"
+            ContinueStmt -> text "continue"
+
 -- | A Vigil expression is in three-address form.
 data Expr ty ref ident val binop unop condexpr a
     = Binary val binop val
@@ -133,6 +229,27 @@ data Expr ty ref ident val binop unop condexpr a
     -- ^ Conditional expressions are also expressions.
     deriving (Eq, Functor, Show)
 
+instance
+    ( Pretty ty
+    , Pretty ref
+    , Pretty ident
+    , Pretty val
+    , Pretty binop
+    , Pretty unop
+    , Pretty condexpr
+    ) => Pretty (Expr ty ref ident val binop unop condexpr a) where
+    pretty e' = case e' of
+        Binary l o r -> pretty l <+> pretty o <+> pretty r
+        Unary o v -> pretty o <> pretty v
+        Ref r -> pretty r
+        -- The fact that the type has no "external" representation is underscored
+        -- by this double bracketing
+        Conversion ty r -> text "[[" <> pretty ty <> text "]]"
+                        <> prettyParens True (pretty r)
+        Call i vs -> pretty i
+                  <> prettyParens True (sep $ punctuate comma (map pretty vs))
+        Cond e -> pretty e
+
 -- | Conditional expressions are separate from expressions to restrict their use
 -- and for codegen considerations
 data CondExpr val ref bincondop uncondop
@@ -140,6 +257,17 @@ data CondExpr val ref bincondop uncondop
     | BinCond val bincondop val
     | UnCond uncondop val
     deriving (Eq, Functor, Show)
+
+instance
+    ( Pretty val
+    , Pretty ref
+    , Pretty bincondop
+    , Pretty uncondop
+    ) => Pretty (CondExpr val ref bincondop uncondop) where
+    pretty e = case e of
+        CondRef r -> pretty r
+        BinCond l o r -> pretty l <+> pretty o <+> pretty r
+        UnCond o v -> pretty o <> pretty v
 
 -- | A reference is either a naked value or a series of homogeneous array /
 -- selector / slice operations.
@@ -150,11 +278,35 @@ data Ref ident selIdent val a
     | ValRef val
     deriving (Eq, Functor, Show)
 
+instance
+    ( Pretty ident
+    , Pretty selIdent
+    , Pretty val
+    ) => Pretty (Ref ident selIdent val a) where
+    pretty r = case r of
+        ArrayRef i vs -> pretty i <> sep (map (prettyBrackets True . pretty) vs)
+        SelectRef i is -> pretty i <> sep (punctuate (text ",") (map pretty is))
+        SliceRef i bds -> pretty i <> sep (map
+            (prettyBrackets True . (\(lo, hi, bn) ->
+                pretty lo <>
+                colon <>
+                pretty hi <>
+                colon <>
+                pretty bn)) bds)
+        ValRef v -> pretty v
+
+
+
 -- | A Vigil value is either an identifier or a literal.
 data Val ident lit
     = IdentVal ident
     | Literal lit
     deriving (Eq, Functor, Show)
+
+instance (Pretty ident, Pretty lit) => Pretty (Val ident lit) where
+    pretty v = case v of
+        IdentVal i -> pretty i
+        Literal l -> pretty l
 
 -- | Arithmetic/integral binary operators.
 data BinaryOp a
@@ -162,18 +314,53 @@ data BinaryOp a
     | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseAndNot | BitwiseOr | BitwiseXor
     deriving (Eq, Functor, Ord, Read, Show)
 
+instance Pretty (BinaryOp a) where
+    pretty o = case o of
+        Plus -> text "+"
+        Minus -> text "-"
+        Times -> text "*"
+        Divide -> text "/"
+        Modulo -> text "%"
+        ShiftLeft -> text "<<"
+        ShiftRight -> text ">>"
+        BitwiseAnd -> text "&"
+        BitwiseAndNot -> text "&^"
+        BitwiseOr -> text "|"
+        BitwiseXor -> text "^"
+
 -- | Binary conditional operators (equality, ordering, binary logicals).
 data BinaryCondOp a
     = LogicalOr | LogicalAnd | Equal | NotEqual
     | LessThan | LessThanEqual | GreaterThan | GreaterThanEqual
 
+instance Pretty (BinaryCondOp a) where
+    pretty o = case o of
+        LogicalOr -> text "||"
+        LogicalAnd -> text "&&"
+        Equal -> text "=="
+        NotEqual -> text "!="
+        LessThan -> text "<"
+        LessThanEqual -> text "<="
+        GreaterThan -> text ">"
+        GreaterThanEqual -> text ">="
+
 -- | Unary operators (unsupported GoLite unary operators are removed).
 data UnaryOp a
     = Positive | Negative | BitwiseNot
 
+instance Pretty (UnaryOp a) where
+    pretty o = case o of
+        Positive -> text "+"
+        Negative -> text "+"
+        BitwiseNot -> text "^"
+
 -- | Unary conditional operators (i.e. not)
 data UnaryCondOp a
     = LogicalNot
+
+instance Pretty (UnaryCondOp a) where
+    pretty o = case o of
+        LogicalNot -> text "!"
 
 -- The rest of these definitions are exactly the same as for GoLite.
 
@@ -184,11 +371,21 @@ data Literal a
     | StringLit VigilString
     deriving (Eq, Functor, Show)
 
+instance Pretty (Literal a) where
+    pretty l = case l of
+        IntLit x -> pretty x
+        FloatLit x -> pretty x
+        StringLit x -> text $ show x
+        RuneLit x -> text $ show x
+
 data Ident a
     = Ident
         { unIdent :: String
         }
     deriving (Eq, Functor, Show)
+
+instance Pretty (Ident a) where
+    pretty (Ident s) = text s
 
 instance IsString (Ident a) where
     fromString = Ident

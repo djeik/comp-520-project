@@ -3,7 +3,8 @@
 module Main where
 
 import qualified Language.GoLite as G
-import Language.GoLite.Pretty
+import qualified Language.Vigil as V
+import Language.GoLite.Pretty hiding ( (<>) )
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Typecheck
 import Language.GoLite.Typecheck.Types
@@ -16,8 +17,6 @@ import System.Exit ( exitFailure )
 
 import System.IO
 import System.FilePath ( (-<.>) )
-
-import Text.PrettyPrint ( nest )
 
 data InputFile
     = Stdin
@@ -127,11 +126,12 @@ goto g =
                                 (Left fatal, _) -> print fatal
                                 (Right p, s) -> do
                                     case reverse $ sortBy (comparing typeErrorLocation) (_errors s) of
-                                        [] -> do
-                                            if ppty then
-                                                putStrLn (renderGoLite (pretty p))
-                                            else
-                                                putStrLn (renderGoLite (pretty r))
+                                        [] -> case V.runSimplify
+                                                (_nextGid s + 1)
+                                                (V.simplifyPackage p) of
+                                            Left critical -> print critical
+                                            Right v ->
+                                                putStrLn $ render $ pretty v
                                         xs -> forM_ (if oneErr then [head xs] else xs) $ \er -> do
                                                 putStrLn (renderGoLite (pretty er))
 
