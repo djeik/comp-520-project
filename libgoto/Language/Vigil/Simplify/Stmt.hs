@@ -83,7 +83,6 @@ simplifyStmt = annCata phi where
                 let pre = (concat $ map snd $ catMaybes lrs) ++ (concat $ map snd rts)
 
                 -- Second phase: carry out the assignments from left to right
-                let p = catMaybes $ map (fmap swap . sequence) (zip rts lrs)
                 let asss = map (\(r', e) -> Fix $ V.Assign r' e) $
                         catMaybes $
                             map (fmap swap . sequence) (zip (map fst rts) (map (fmap fst) lrs))
@@ -344,8 +343,12 @@ realizeToCondExpr rs = do
         SimpleVal v -> pure (CondRef $ Ann (typeFromVal v) $ ValRef v, stmts)
         SimpleRef r -> pure (CondRef r, stmts)
         SimpleExpr (Ann _ (Cond c)) -> pure (c, stmts)
-        _ -> throwError $ InvariantViolation "Cannot realize a non-conditional \
-                                        \expression as a conditional expression"
+        -- Assuming that the typechecker did a proper job, it should be fine to
+        -- assign this to a temp and check the temp as a condref.
+        SimpleExpr e@(Ann a _) -> do
+            t <- makeTempAndDeclare a
+            pure (CondRef $ Ann a $ ValRef $ IdentVal t ,
+                    (Fix $ V.Assign (Ann a $ ValRef $ IdentVal t) e):stmts)
 
 -- | Takes a simplified expression stack and realizes all the temporaries as
 -- assign statements, also returning the topmost result on its own. As a
