@@ -74,10 +74,13 @@ simplifyStmt = annCata phi where
 
                 rts <- forM r (\r' -> do
                     (r''@(Ann a' _), s') <- realizeToExpr =<< simplifyExpr r'
-                    t <- makeTempAndDeclare a'
-                    let annTRef = Ann a' $ ValRef $ IdentVal t
-                    pure (Ann a' $ Ref $ annTRef,
-                        s' ++ [Fix $ V.Assign annTRef r''])) :: Simplify [(TyAnnExpr, [TyAnnStatement])]
+                    case maybeGetTemp r'' of
+                        Just i -> pure (Ann a' $ Ref $ Ann a' $ ValRef $ IdentVal i, s')
+                        Nothing -> do
+                            t <- makeTempAndDeclare a'
+                            let annTRef = Ann a' $ ValRef $ IdentVal t
+                            pure (Ann a' $ Ref $ annTRef,
+                                s' ++ [Fix $ V.Assign annTRef r'']))
 
                 let pre = (concat $ map snd $ catMaybes lrs) ++ (concat $ map snd rts)
 
@@ -94,6 +97,9 @@ simplifyStmt = annCata phi where
                 -- avoid using realizeToVal since we want to assign to this ref
                 -- directly.
                 (lr@(Ann a' _), ls) <- realizeToRefEx =<< simplifyExpr (head l)
+
+                -- Note that here, we have an assign-op, so what's on the left
+                -- can never be a temporary; we don't generate assign-ops ourselves.
                 t <- makeTempAndDeclare a'
                 let lv = IdentVal t
 
@@ -170,6 +176,8 @@ simplifyStmt = annCata phi where
             -- statement, except that we create a synthetic right value and
             -- an operator based on the inc/dec direction.
             (r@(Ann a _), s') <- realizeToRefEx =<< simplifyExpr e
+
+            -- As with the assign-op, the expression can never be a temporary.
             t <- makeTempAndDeclare a
             let lv = IdentVal t
 
@@ -330,6 +338,16 @@ realizeToExpr rs = do
         SimpleRef r -> pure (Ann (typeFromSimple re) $ Ref r, stmts)
         SimpleExpr e -> pure (e, stmts)
 
+-- | If the given expression is a temporary, returns Just its identifier.
+-- Otherwise return Nothing.
+maybeGetTemp :: TyAnnExpr -> Maybe BasicIdent
+maybeGetTemp (Ann a' e) =
+    let isTemp = (== "%tmp") . take 4 . stringFromSymbol . gidOrigName in
+    let maybeTemp i = if isTemp i then Just i else Nothing in
+    case e of
+        Ref (Ann _ (ValRef (IdentVal i))) -> maybeTemp i
+        Cond (CondRef (Ann _ (ValRef (IdentVal i)))) -> maybeTemp i
+        _ -> Nothing
 
 -- | Same as "realizeToExpr", but produces a conditional expression. If the
 -- result is in fact a normal expression, an error is thrown. No new temporaries
