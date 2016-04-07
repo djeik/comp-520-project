@@ -30,7 +30,6 @@ import Language.Vigil.Syntax.Basic as V
 import Language.Vigil.Syntax.TyAnn as V
 import Language.Vigil.Types as V
 
-import Language.Common.Pretty
 
 {- | Simplifies a GoLite statement into a number (potentially some or none) of
    Vigil statements.
@@ -343,8 +342,8 @@ realizeToCondExpr rs = do
         SimpleVal v -> pure (CondRef $ Ann (typeFromVal v) $ ValRef v, stmts)
         SimpleRef r -> pure (CondRef r, stmts)
         SimpleExpr (Ann _ (Cond c)) -> pure (c, stmts)
-        -- Assuming that the typechecker did a proper job, it should be fine to
-        -- assign this to a temp and check the temp as a condref.
+        -- Assuming that the typechecker did a proper job, it should be
+        -- fine to assign this to a temp and check the temp as a condref.
         SimpleExpr e@(Ann a _) -> do
             t <- makeTempAndDeclare a
             pure (CondRef $ Ann a $ ValRef $ IdentVal t ,
@@ -356,19 +355,47 @@ realizeToCondExpr rs = do
 realizeTemps :: [SimpleExprResult]
                 -> Simplify (SimpleConstituent, [TyAnnStatement])
 realizeTemps rs' = do
-    stmts <- forM (reverse $ tail rs') (\ser -> case ser of
-        Result x -> throwError $ InvariantViolation ("Unexpected result as intermediary " ++ render (pretty x))
-        Temp (i, c) -> do
-            modify (\s -> s {newDeclarations = i:(newDeclarations s) })
-            -- Build the expression to assign
-            let cTy = typeFromSimple c
-            let tex = case c of
-                        SimpleExpr e -> e
-                        SimpleRef r -> (Ann cTy $ Ref r)
-                        SimpleVal v -> (Ann cTy $ Ref $ Ann cTy $ ValRef v)
-            pure $ Fix $ V.Assign (Ann (gidTy i) $ ValRef $ IdentVal i) tex)
-
     let eRes = head rs'
     case eRes of
         Temp _ -> throwError $ InvariantViolation "Unexpected temporary as final result."
-        Result r -> pure (r, stmts)
+        ShortCircuit _ _ _ _ -> realizeShortCircuit eRes
+        Result r -> do
+            stmts <- forM (reverse $ tail rs') (\ser -> case ser of
+                Temp (i, c) -> do
+                    modify (\s -> s {newDeclarations = i:(newDeclarations s) })
+                    -- Build the expression to assign
+                    let cTy = typeFromSimple c
+                    let tex = case c of
+                                SimpleExpr e -> e
+                                SimpleRef ref -> (Ann cTy $ Ref ref)
+                                SimpleVal v -> (Ann cTy $ Ref $ Ann cTy $ ValRef v)
+                    pure [Fix $ V.Assign (Ann (gidTy i) $ ValRef $ IdentVal i) tex]
+
+                -- realizeShortCircuit already declares the temporary for us.
+                ShortCircuit _ _ _ _ -> realizeShortCircuit ser >>= pure . snd
+
+                _ -> throwError $ InvariantViolation "Unexpected value as \
+                                                    \intermediary ")
+            pure (r, concat stmts)
+
+-- | Realizes a short-circuit expression into a full-fledged control-flow
+-- structure that provides the short-circuiting behavior.
+realizeShortCircuit :: SimpleExprResult -> Simplify (SimpleConstituent, [TyAnnStatement])
+realizeShortCircuit (ShortCircuit t op ls rs) = do
+    modify (\s -> s {newDeclarations = t:(newDeclarations s) })
+
+    (le, ls') <- realizeToCondExpr ls
+    (re, rs') <- realizeToCondExpr rs
+    let tRef = Ann V.boolType $ ValRef $ IdentVal t
+    let assl = Fix $ V.Assign tRef (Ann V.boolType $ Cond le)
+
+    -- The type of check differs whether we have a conjunction or disjunction.
+    let cond = (case op of
+            And -> CondRef tRef
+            Or -> UnCond V.LogicalNot (IdentVal t)) :: TyAnnCondExpr
+    let bodIf = rs' ++ [Fix $ V.Assign tRef (Ann V.boolType $ Cond re)]
+
+    pure $ (SimpleVal $ IdentVal t, ls' ++ [assl, Fix $ V.IfStmt cond bodIf Nothing])
+
+realizeShortCircuit _ = throwError $ InvariantViolation $ "realizeShortCircuit \
+    \called with something that is not a short-circuit"

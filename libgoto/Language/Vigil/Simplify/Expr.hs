@@ -14,6 +14,7 @@ Simplifications for expressions.
 module Language.Vigil.Simplify.Expr
 ( SimpleExprResult(..)
 , SimpleConstituent(..)
+, CircuitOp(..)
 , simplifyExpr
 , gToVBinOp
 , typeFromSimple
@@ -30,9 +31,24 @@ import Language.Vigil.Types as V
 
 import Language.Common.Pretty
 
+-- | The final result of a simplified expression
 data SimpleExprResult
     = Result SimpleConstituent
+    -- ^ A normal result.
     | Temp (V.BasicIdent, SimpleConstituent)
+    -- ^ A temporary, which will need to receive the value from the given
+    -- constituent.
+    | ShortCircuit V.BasicIdent CircuitOp [SimpleExprResult] [SimpleExprResult]
+    -- ^ A short-circuit. Indicates that special statements need to be generated
+    -- for this expression. The provided identifier will be used as a temporary,
+    -- the provided operation will determine the conditions of short-circuiting,
+    -- and the two lists of results indicate the left and the right expressions,
+    -- the right being the one that can be short-circuited.
+
+-- | In a short-circuit, indicates the type of expression that is split.
+data CircuitOp
+    = And
+    | Or
 
 -- | Simplifying an expression could result either in a value, a reference, or a
 -- Vigil expression. We always try to reduce to the simplest possible form, so
@@ -66,20 +82,40 @@ simplifyExpr = annCata phi where
     phi a ex =
         case ex of
         G.BinaryOp o l r -> do
-            (vl, esl) <- exprAsVal l
-            (vr, esr) <- exprAsVal r
+            (vl, esl) <- exprAsVal =<< l
+            (vr, esr) <- exprAsVal =<< r
             a' <- reinterpretTypeEx $ fst a
 
             let es = esl ++ esr
-            -- Should this be a conditional or a binary expression?
-            let o' = bare o in pure $
-                (if isComparisonOp o' || isOrderingOp o' || isLogicalOp o' then
-                    Result $ SimpleExpr $ Ann a' $ Cond $ BinCond vl (gToVCondOp o') vr
+            -- Should this be a conditional, short-circuit or binary expression?
+            let o' = bare o in
+                if isComparisonOp o' || isOrderingOp o' then
+                    pure $
+                        ( Result
+                        $ SimpleExpr
+                        $ Ann a' $ Cond
+                        $ BinCond vl (gToVCondOp o') vr
+                        ):es
+                else if isLogicalOp o' then do
+                    circOp <- case o' of
+                        G.LogicalAnd -> pure And
+                        G.LogicalOr -> pure Or
+                        _ -> throwError $ InvariantViolation "Unknown logical \
+                                                            \operator"
+
+                    t <- makeTemp V.boolType
+                    pure [ShortCircuit t circOp
+                        ((Result $ SimpleVal vl):esl)
+                        ((Result $ SimpleVal vr):esr)]
                 else
-                    Result $ SimpleExpr $ Ann a' $ Binary vl (gToVBinOp o') vr):es
+                    pure $
+                        ( Result
+                        $ SimpleExpr
+                        $ Ann a' $ Binary vl (gToVBinOp o') vr
+                        ):es
 
         G.UnaryOp o e -> do
-            (v, e') <- exprAsVal e
+            (v, e') <- exprAsVal =<< e
             a' <- reinterpretTypeEx $ fst a
 
             pure $ (case bare o of
@@ -138,7 +174,7 @@ simplifyExpr = annCata phi where
             a' <- reinterpretTypeEx $ fst a
             eIn' <- eIn
 
-            (vBy, esBy) <- exprAsVal eBy'
+            (vBy, esBy) <- exprAsVal =<< eBy'
 
             let es = esBy ++ (tail eIn')
             case head eIn' of
@@ -158,11 +194,11 @@ simplifyExpr = annCata phi where
 
         G.Slice e l h b -> do
             a' <- reinterpretTypeEx $ fst a
-
             e' <- e
-            let ml = exprAsVal <$> l
-            let mh = exprAsVal <$> h
-            let mb = exprAsVal <$> b
+
+            let ml = fmap (>>= exprAsVal) l
+            let mh = fmap (>>= exprAsVal) h
+            let mb = fmap (>>= exprAsVal) b
 
             il <- extractI ml
             ih <- extractI mh
@@ -209,7 +245,7 @@ simplifyExpr = annCata phi where
 
             -- If the callee expression is an identifier, use it as is. Otherwise
             -- create a temporary.
-            (i, es) <- exprAsId e
+            (i, es) <- exprAsId =<< e
 
             -- At this point ps' has either simple values or temps at the top.
             -- We keep the temps, and throw away the simple values since they
@@ -261,29 +297,29 @@ simplifyExpr = annCata phi where
     -- Takes the topmost expression of a simple stack to a value. A temporary
     -- is generated if required, and the resulting stack state after is also
     -- returned.
-    exprAsVal :: Simplify [SimpleExprResult]
+    exprAsVal :: [SimpleExprResult]
                 -> Simplify (TyAnnVal, [SimpleExprResult])
-    exprAsVal e = do
-        e' <- e
+    exprAsVal e' = do
         case head e' of
             Result (SimpleVal v) -> pure (v, tail e')
             Result c -> do
                 t <- makeTemp (typeFromSimple c)
                 pure (IdentVal t, (Temp (t, c)):(tail e'))
-            Temp _ -> error "Should not be a temporary."
+            ShortCircuit i _ _ _ -> pure (IdentVal i, e')
+            Temp _ -> throwError $ InvariantViolation "Should not be a temporary."
 
     -- Takes the topmost expression of a simple stack to an identifier. A temporary
     -- is generated if required, and the resulting stack state after is also returned.
-    exprAsId :: Simplify [SimpleExprResult]
+    exprAsId :: [SimpleExprResult]
                 -> Simplify (V.BasicIdent, [SimpleExprResult])
-    exprAsId e = do
-        e' <- e
+    exprAsId e' = do
         case head e' of
             Result (SimpleVal (IdentVal i)) -> pure (i, tail e')
             Result c -> do
                 t <- makeTemp (typeFromSimple c)
                 pure (t, (Temp (t, c)):(tail e'))
-            Temp _ -> error "Should not be a temporary."
+            ShortCircuit i _ _ _ -> pure (i, e')
+            Temp _ -> throwError $ InvariantViolation "Should not be a temporary."
 
     -- Extreme boilerplate follows.
 

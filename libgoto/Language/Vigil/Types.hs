@@ -19,6 +19,7 @@ module Language.Vigil.Types
   Type
 , TypeF(..)
   -- ** Smart constructors
+, boolType
 , intType
 , floatType
 , structType
@@ -151,6 +152,9 @@ instance Pretty GlobalId where
         pretty (Gid.gidOrigName i)
         <> text "_"
         <> pretty (Gid.gidNum i)
+
+boolType :: Type
+boolType = Fix $ IntType I1
 
 intType :: IStorage -> Type
 intType = Fix . IntType
