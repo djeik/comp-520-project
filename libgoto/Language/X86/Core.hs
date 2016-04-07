@@ -36,16 +36,31 @@ module Language.X86.Core
 , nop
 , syscall
 , int
+, test
+, sal
+, sar
 , cmp
 , jump
   -- * x86 instructions
 , Instruction(..)
+  -- ** Jumps
 , JumpVariant(..)
 , JumpDistance(..)
+  -- ** Operands
+, Operand(..)
+, Offset(..)
+, Scale(..)
+, Displacement
+, Immediate
+, HardwareRegister(..)
+, registerIndex
+  -- * Misc
 , Signedness(..)
 ) where
 
 import Control.Monad.Free
+import Data.Int
+import Data.Word
 
 -- | The base functor for 'Asm'.
 --
@@ -69,7 +84,7 @@ data AsmF addr label val next
     deriving (Functor)
 
 -- | The free monad on 'AsmF'.
-type Asm addr label val = Free (AsmF addr label val)
+type Asm reg addr label = Free (AsmF addr label (Operand reg addr label))
 
 -- | An x86 instruction
 data Instruction val
@@ -103,6 +118,12 @@ data Instruction val
     -- ^ Send an interrupt; 'int'.
     | Cmp val val
     -- ^ Perform a comparison; 'cmp'.
+    | Test val val
+    -- ^ Logical AND; 'test'.
+    | Sal val val
+    -- ^ Arithmetic left shift; 'sal'.
+    | Sar val val
+    -- ^ Arithmetic right shift; 'sar'.
     | Jump JumpVariant val
     -- ^ Perform a jump; 'jump'.
 
@@ -190,75 +211,158 @@ data JumpDistance
     | JumpNear
     -- ^ Relative jump by a two-byte signed integer.
 
+-- | A concrete register.
+data HardwareRegister
+    = Rax
+    | Rbx
+    | Rcx
+    | Rdx
+    | Rbp
+    | Rsi
+    | Rdi
+    | Rsp
+    deriving (Eq, Ord, Read, Show)
+
+-- | Gets the index of a register.
+registerIndex :: Num a => HardwareRegister -> a
+registerIndex r = case r of
+    Rax -> 0
+    Rcx -> 1
+    Rdx -> 2
+    Rbx -> 3
+    Rsp -> 4
+    Rbp -> 5
+    Rsi -> 6
+    Rdi -> 7
+
+-- | An operand to an instruction.
+data Operand reg addr label
+    = Immediate Immediate
+    -- ^ A constant value.
+    | DirectRegister reg
+    -- ^ The value contained in a register.
+    | IndirectRegister (Offset reg)
+    -- ^ The value contained in a memory address indicated by the value of a
+    -- register together with a signed offset.
+    | Address addr
+    -- ^ An address
+    | Label label
+    -- ^ A internal label to a location within the current function.
+    | Internal String
+    -- ^ An internal reference, e.g. to another compiled Go function.
+    | External String
+    -- ^ An external reference, e.g. to a C function.
+
+data Offset reg
+    = Offset Displacement reg
+    -- ^ A register indirection with a displacement.
+    --
+    -- More space-efficient code can be generated if the displacement is small.
+    | ScaledIndexBase Scale Displacement reg reg
+    -- ^ Scaled index base addressing can be used to concisely express array
+    -- indexing.
+
+-- | A multiplier on on an index.
+data Scale
+    = ScaleByte
+    | ScaleShort
+    | ScaleWord
+    | ScaleDword
+
+type Displacement = Int64
+type Immediate = Word64
+
+-- | Nullary instruction.
+type Instr0 reg addr label a = Asm reg addr label a
+
+-- | Unary instruction.
+type Instr1 reg addr label a = Operand reg addr label -> Instr0 reg addr label a
+
+-- | Binary instruction.
+type Instr2 reg addr label a = Operand reg addr label -> Instr1 reg addr label a
+
 -- | 'NewLabel'
-newLabel :: Asm addr label val label
+newLabel :: Asm reg addr label label
 newLabel = liftF . NewLabel $ id
 
 -- | 'SetLabel'
-setLabel :: label -> addr -> Asm addr label val ()
+setLabel :: label -> addr -> Asm reg addr label ()
 setLabel l a = liftF . SetLabel l a $ ()
 
 -- | 'Here'
-here :: Asm addr label val addr
+here :: Asm reg addr label addr
 here = liftF . Here $ id
 
 -- | Defines a new label and immediately sets it to the value obtained from
 -- 'here'.
-newLabelHere :: Asm addr label val label
+newLabelHere :: Asm reg addr label label
 newLabelHere = do
     l <- newLabel
     setLabel <$> pure l <*> here
     pure l
 
 -- | 'Emit' 'Ret'
-ret :: Asm addr label val ()
+ret :: Instr0 reg addr label ()
 ret = liftF . Emit Ret $ ()
 
-call :: val -> Asm addr label val ()
+call :: Instr1 reg addr label ()
 call f = liftF . Emit (Call f) $ ()
 
 -- | 'Emit' 'Mov'
-mov :: val -> val -> Asm addr label val ()
+mov :: Instr2 reg addr label ()
 mov x y = liftF . Emit (Mov x y) $ ()
 
 -- | 'Emit' 'Add'
-add :: val -> val -> Asm addr label val ()
+add :: Instr2 reg addr label ()
 add x y = liftF . Emit (Add x y) $ ()
 
 -- | 'Emit' 'Sub'
-sub :: val -> val -> Asm addr label val ()
+sub :: Instr2 reg addr label ()
 sub x y = liftF . Emit (Sub x y) $ ()
 
 -- | 'Emit' 'Mul'
-mul :: Signedness -> val -> val -> Maybe val -> Asm addr label val ()
+mul :: Signedness
+    -> Operand reg addr label
+    -> Operand reg addr label
+    -> Maybe (Operand reg addr label)
+    -> Asm reg addr label ()
 mul s x y z = liftF . Emit (Mul s x y z) $ ()
 
-xor :: val -> val -> Asm addr label val ()
+xor :: Instr2 reg addr label ()
 xor x y = liftF . Emit (Xor x y) $ ()
 
-inc :: val -> Asm addr label val ()
+inc :: Instr1 reg addr label ()
 inc v = liftF . Emit (Inc v) $ ()
 
-dec :: val -> Asm addr label val ()
+dec :: Instr1 reg addr label ()
 dec v = liftF . Emit (Dec v) $ ()
 
-push :: val -> Asm addr label val ()
+push :: Instr1 reg addr label ()
 push v = liftF . Emit (Push v) $ ()
 
-pop :: val -> Asm addr label val ()
+pop :: Instr1 reg addr label ()
 pop v = liftF . Emit (Pop v) $ ()
 
-nop :: Asm addr label val ()
+nop :: Instr0 reg addr label ()
 nop = liftF . Emit Nop $ ()
 
-syscall :: Asm addr label val ()
+syscall :: Instr0 reg addr label ()
 syscall = liftF . Emit Syscall $ ()
 
-int :: val -> Asm addr label val ()
+int :: Instr1 reg addr label ()
 int v = liftF . Emit (Int v) $ ()
 
-cmp :: val -> val -> Asm addr label val ()
+cmp :: Instr2 reg addr label ()
 cmp x y = liftF . Emit (Cmp x y) $ ()
 
-jump :: JumpVariant -> val -> Asm addr label val ()
+test :: Instr2 reg addr label ()
+test x y = liftF . Emit (Test x y) $ ()
+
+sal :: Instr2 reg addr label ()
+sal x y = liftF . Emit (Sal x y) $ ()
+
+sar :: Instr2 reg addr label ()
+sar x y = liftF . Emit (Sar x y) $ ()
+
+jump :: JumpVariant -> Instr1 reg addr label ()
 jump v x = liftF . Emit (Jump v x) $ ()
