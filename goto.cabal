@@ -94,6 +94,7 @@ library
     Language.Vigil.Syntax.TyAnn
     Language.Vigil.Types
     Language.X86
+    Language.X86.Core
 
 
 test-suite spec
