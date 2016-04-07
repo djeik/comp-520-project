@@ -579,7 +579,7 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
         BinaryOp o me1 me2 ->
             let subs = (,) <$> me1 <*> me2
                 in (,)
-                    <$> (uncurry (typecheckBinaryOp o a) =<< subs)
+                    <$> (uncurry (typecheckBinaryOp o) =<< subs)
                     <*> (uncurry (BinaryOp o) <$> subs)
 
         UnaryOp o me -> (,)
@@ -886,11 +886,10 @@ typecheckConversion ty e = do
 -- | Computes the canonical type of a binary operator expression.
 typecheckBinaryOp
     :: SrcAnnBinaryOp
-    -> SrcSpan -- ^ The span of the entire expression
     -> TySrcAnnExpr
     -> TySrcAnnExpr
     -> Typecheck Type
-typecheckBinaryOp o a l r
+typecheckBinaryOp o l r
     -- In general:
     -- Types must be indentical modulo typedness
     -- Expression is untyped iff both operands are untyped.
@@ -915,7 +914,8 @@ typecheckBinaryOp o a l r
                 reportError $ BinaryTypeMismatch
                     { mismatchTypeL = tyl
                     , mismatchTypeR = tyr
-                    , errorLocation = a }
+                    , errorLocation = snd (topAnn l)
+                    }
                 pure unknownType
 
     | isLogicalOp $ bare o =
@@ -963,7 +963,8 @@ typecheckBinaryOp o a l r
                     reportError $ BinaryTypeMismatch
                         { mismatchTypeL = tyl
                         , mismatchTypeR = tyr
-                        , errorLocation = a }
+                        , errorLocation = snd (topAnn l)
+                        }
                     pure unknownType
                 else
                     -- If they are both untyped, the expression is untyped.
@@ -1031,13 +1032,11 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                     g <- case sym of
                         Just (n, inf) -> case n of
                             0 -> do
-                                (symType inf, ty') <== TypeMismatch
-                                    { mismatchExpectedType = symType inf
-                                    , mismatchActualType = ty'
-                                    , mismatchCause = Ann a' (Just e')
-                                    , errorReason = empty
-                                    }
-                                pure $ noGid i
+                                _ <- typecheckAssignment
+                                    (Fix (Ann builtinSpan $ Variable ident))
+                                    e
+                                    (Ann builtinSpan Assign)
+                                pure $ symGid inf
                             _ -> do
                                 g <- nextGid ident (defaultType ty') Local
                                 declareSymbol i $ VariableInfo
@@ -1063,7 +1062,7 @@ typecheckFunctionBody fty = mapM typecheckStmt where
 
             Assignment exprs1 assignOp exprs2 -> do
                 es <- forM (zip exprs1 exprs2) $ \(e1, e2) -> do
-                    typecheckAssignment a e1 e2 assignOp
+                    typecheckAssignment e1 e2 assignOp
 
                 let (exprs1', exprs2') = unzip es
                 pure $ Assignment exprs1' assignOp exprs2'
@@ -1175,12 +1174,11 @@ typecheckFunctionBody fty = mapM typecheckStmt where
                     Just e -> mapM (requireExprType (fst (topAnn e)) empty) exprs
 
 typecheckAssignment
-    :: SrcSpan -- ^ The source span of the assignment
-    -> SrcAnnExpr
+    :: SrcAnnExpr
     -> SrcAnnExpr
     -> SrcAnnAssignOp
     -> Typecheck (TySrcAnnExpr, TySrcAnnExpr)
-typecheckAssignment a e1 e2 (Ann aop op) = do
+typecheckAssignment e1 e2 (Ann aop op) = do
     e1' <- typecheckExpr e1
     let (ty, _) = topAnn e1'
     e2' <- requireExprType ty empty e2
@@ -1196,7 +1194,7 @@ typecheckAssignment a e1 e2 (Ann aop op) = do
         -- between a = a `op` b and a `op=` b is that a is evaluated once in the
         -- second case - the same typing rules should apply.
         Just bop' -> do
-            typecheckBinaryOp (Ann aop bop') a e1' e2'
+            typecheckBinaryOp (Ann aop bop') e1' e2'
             pure (e1', e2')
 
 {- | Typechecks a built-in. Each built-in has special rules governing it.

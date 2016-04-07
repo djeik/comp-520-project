@@ -179,14 +179,14 @@ voidType = Fix VoidType
 builtinType :: G.BuiltinType -> Type
 builtinType = Fix . BuiltinType
 
-reinterpretType :: G.Type -> Maybe Type
+reinterpretType :: G.Type -> Either String Type
 reinterpretType = cata f where
-    f :: G.GoTypeF (Maybe Type) -> Maybe Type
+    f :: G.GoTypeF (Either String Type) -> Either String Type
     f goliteType = case goliteType of
         -- unrepresentable types in Vigil
-        G.NilType -> Nothing
-        G.UnknownType -> Nothing
-        G.TypeSum _ -> Nothing
+        G.NilType -> Left "NilType is unrepresentable"
+        G.UnknownType -> Left "UnknownType is unrepresentable"
+        G.TypeSum _ -> Left "TypeSum is unrepresentable"
 
         -- discard type aliasing information
         G.AliasType _ m -> m
@@ -218,7 +218,7 @@ reinterpretType = cata f where
 --
 -- The underlying number of the global identifier is unchanged by this
 -- operation.
-reinterpretGlobalId :: G.GlobalId -> Maybe GlobalId
+reinterpretGlobalId :: G.GlobalId -> Either String GlobalId
 reinterpretGlobalId g = do
     ty <- reinterpretType (G.gidTy g)
     pure g

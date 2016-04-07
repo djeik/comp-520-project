@@ -230,16 +230,16 @@ simplifyExpr = annCata phi where
             case maybeSymbol $ bare $ gidOrigName i of
                 Nothing -> pure []
                 _ -> case reinterpretGlobalId i of
-                    Nothing -> throwError $ InvariantViolation "Unrepresentable type"
-                    Just x -> pure [Result $ SimpleVal $ IdentVal x]
+                    Left _ -> throwError $ InvariantViolation "Unrepresentable type"
+                    Right x -> pure [Result $ SimpleVal $ IdentVal x]
 
         G.TypeAssertion _ _ ->
             throwError $ InvariantViolation "Type assertions are not supported."
 
     reinterpretTypeEx :: T.Type ->  Simplify V.Type
     reinterpretTypeEx t = case reinterpretType t of
-        Nothing -> throwError $ UnrepresentableType ("reinterpretTypeEx: " ++ show t)
-        Just x -> pure x
+        Left _ -> throwError $ UnrepresentableType ("reinterpretTypeEx: " ++ show t)
+        Right x -> pure x
 
     extractI :: Maybe (Simplify (TyAnnVal, a)) -> Simplify (Maybe TyAnnVal)
     extractI x = case x of
@@ -327,8 +327,8 @@ gToVBinOp o = case o of
 
 gToVType :: TySrcAnnType -> V.BasicType
 gToVType (Fix (Ann a _)) = case reinterpretType $ fst a of
-    Nothing -> error "Unrepresentable type"
-    Just x -> x
+    Left e -> error $ "Unrepresentable type: " ++ e
+    Right x -> x
 
 -- | Extracts the type of a simple constituent.
 typeFromSimple :: SimpleConstituent -> V.Type

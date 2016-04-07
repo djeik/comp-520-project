@@ -41,5 +41,11 @@ reinterpretGlobalIdEx x = do
     case maybeSymbol $ bare $ gidOrigName x of
         Nothing -> pure Nothing
         Just _ -> case reinterpretGlobalId x of
-            Nothing -> throwError $ UnrepresentableType ("reinterpretGlobalIdEx: " ++ show x)
-            Just gid -> pure $ Just gid
+            Left e ->
+                throwError $ UnrepresentableType $ concat
+                    [ "reinterpretGlobalIdEx: ("
+                    , show x
+                    , "): "
+                    , show e
+                    ]
+            Right gid -> pure $ Just gid
