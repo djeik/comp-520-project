@@ -23,6 +23,7 @@ module Language.X86.Core
 , newLabelHere
   -- *** Emitting instructions
 , ret
+, call
 , mov
 , add
 , sub
@@ -74,6 +75,8 @@ type Asm addr label val = Free (AsmF addr label val)
 data Instruction val
     = Ret
     -- ^ Return from a function; 'ret'.
+    | Call val
+    -- ^ Call a function; 'call'.
     | Mov val val
     -- ^ Move data; 'mov'.
     | Add val val
@@ -210,6 +213,9 @@ newLabelHere = do
 -- | 'Emit' 'Ret'
 ret :: Asm addr label val ()
 ret = liftF . Emit Ret $ ()
+
+call :: val -> Asm addr label val ()
+call f = liftF . Emit (Call f) $ ()
 
 -- | 'Emit' 'Mov'
 mov :: val -> val -> Asm addr label val ()
