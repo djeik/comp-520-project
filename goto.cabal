@@ -95,6 +95,7 @@ library
     Language.Vigil.Types
     Language.X86
     Language.X86.Core
+    Language.X86.Virtual
 
 
 test-suite spec

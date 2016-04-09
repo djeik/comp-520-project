@@ -52,6 +52,9 @@ module Language.X86.Core
 , Scale(..)
 , Displacement
 , Immediate
+, FloatingRegister(..)
+, IntegerRegister(..)
+, RegisterAccessMode(..)
 , HardwareRegister(..)
 , RegisterSize(..)
 , SizedRegister(..)
@@ -213,8 +216,8 @@ data JumpDistance
     | JumpNear
     -- ^ Relative jump by a two-byte signed integer.
 
--- | A concrete register.
-data HardwareRegister
+-- | A concrete integer register.
+data IntegerRegister
     = Rax
     | Rbx
     | Rcx
@@ -223,19 +226,47 @@ data HardwareRegister
     | Rsi
     | Rdi
     | Rsp
+    | R8
+    | R9
+    | R10
+    | R11
+    | R12
+    | R13
+    | R14
+    | R15
+    deriving (Eq, Ord, Read, Show)
+
+-- | A concrete floating point register
+data FloatingRegister
+    = FloatingRegister Int
+    deriving (Eq, Ord, Read, Show)
+
+-- | A concrete register.
+data HardwareRegister
+    = IntegerHwRegister IntegerRegister
+    | FloatingHwRegister FloatingRegister
     deriving (Eq, Ord, Read, Show)
 
 -- | Gets the index of a register.
 registerIndex :: Num a => HardwareRegister -> a
 registerIndex r = case r of
-    Rax -> 0
-    Rcx -> 1
-    Rdx -> 2
-    Rbx -> 3
-    Rsp -> 4
-    Rbp -> 5
-    Rsi -> 6
-    Rdi -> 7
+    IntegerHwRegister reg -> case reg of
+        Rax -> 0
+        Rcx -> 1
+        Rdx -> 2
+        Rbx -> 3
+        Rsp -> 4
+        Rbp -> 5
+        Rsi -> 6
+        Rdi -> 7
+        R8 -> 8
+        R9 -> 9
+        R10 -> 10
+        R11 -> 11
+        R12 -> 12
+        R13 -> 13
+        R14 -> 14
+        R15 -> 15
 
 -- | A size modifier for a register.
 data RegisterSize
@@ -250,6 +281,11 @@ data RegisterSize
     -- ^ The low 32 bits of the register, e.g. @eax@.
     | Extended64
     -- ^ The full 64 bits of the register, e.g. @rax@.
+
+data RegisterAccessMode
+    = IntegerMode
+    | FloatingMode
+    deriving (Eq, Ord, Read, Show)
 
 -- | A register together with a size modifier.
 data SizedRegister reg = SizedRegister RegisterSize reg
