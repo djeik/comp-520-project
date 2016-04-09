@@ -53,6 +53,8 @@ module Language.X86.Core
 , Displacement
 , Immediate
 , HardwareRegister(..)
+, RegisterSize(..)
+, SizedRegister(..)
 , registerIndex
   -- * Misc
 , Signedness(..)
@@ -234,6 +236,23 @@ registerIndex r = case r of
     Rbp -> 5
     Rsi -> 6
     Rdi -> 7
+
+-- | A size modifier for a register.
+data RegisterSize
+    = Low8
+    -- ^ The lowest eight bits of the register, e.g. @al@.
+    | High8
+    -- ^ The high eight bits of the lowest sixteen bits of the register, e.g.
+    -- @ah@.
+    | Extended16
+    -- ^ The low sixteen bits of the register, e.g. @ax@.
+    | Extended32
+    -- ^ The low 32 bits of the register, e.g. @eax@.
+    | Extended64
+    -- ^ The full 64 bits of the register, e.g. @rax@.
+
+-- | A register together with a size modifier.
+data SizedRegister reg = SizedRegister RegisterSize reg
 
 -- | An operand to an instruction.
 data Operand reg addr label
