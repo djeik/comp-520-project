@@ -83,6 +83,7 @@ library
     Language.GoLite.Weeder.TypeLit
     Language.GoLite.Weeder.Types
     Language.Vigil
+    Language.Vigil.Compile
     Language.Vigil.Simplify
     Language.Vigil.SimplifyTraversal
     Language.Vigil.Simplify.Core

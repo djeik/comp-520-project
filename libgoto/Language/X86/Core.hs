@@ -281,6 +281,7 @@ data RegisterSize
     -- ^ The low 32 bits of the register, e.g. @eax@.
     | Extended64
     -- ^ The full 64 bits of the register, e.g. @rax@.
+    deriving (Eq, Ord, Read, Show)
 
 data RegisterAccessMode
     = IntegerMode
@@ -289,6 +290,7 @@ data RegisterAccessMode
 
 -- | A register together with a size modifier.
 data SizedRegister reg = SizedRegister RegisterSize reg
+    deriving (Eq, Ord, Read, Show)
 
 -- | An operand to an instruction.
 data Operand reg addr label
