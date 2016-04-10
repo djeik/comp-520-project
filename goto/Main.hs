@@ -131,7 +131,7 @@ goto g =
                                                 (V.simplifyPackage p) of
                                             Left critical -> print critical
                                             Right v ->
-                                                putStrLn $ render $ pretty v
+                                                putStrLn $ render $ pretty (snd v)
                                         xs -> forM_ (if oneErr then [head xs] else xs) $ \er -> do
                                                 putStrLn (renderGoLite (pretty er))
 

@@ -14,7 +14,7 @@ module Language.Vigil.Simplify.Stmt
 , realizeToExpr
 ) where
 
-import Data.Maybe ( catMaybes )
+import Data.Maybe ( catMaybes, fromMaybe )
 import Data.List ( partition )
 import Data.Tuple ( swap )
 
@@ -151,25 +151,30 @@ simplifyStmt = annCata phi where
             -- Every expression in a case head has its own list of statements
             -- in order to compute an expression which is then compared to the
             -- guard.
-            exps' <- forM exps (\(CaseExpr es, b) -> do
-                es' <- forM es (\e -> do
+            exps' <- forM exps $ \(CaseExpr es, b) -> do
+                es' <- forM es $ \e -> do
                     (e', s') <- realizeToExpr =<< simplifyExpr e
-                    pure $ s' ++ [Fix $ V.ExprStmt e'])
+                    pure $ (e', s')
                 b' <- flattenBlock b
-                pure (es', b'))
+                pure (es', b')
 
             pure $ ini' ++ guS ++ [Fix $ V.SwitchStmt guE exps' defCase]
 
         G.ForStmt pre cond post bod -> do
             pre' <- maybeToListM pre
             cond' <- pushMaybe $ fmap (\e -> realizeToCondExpr =<< simplifyExpr e) cond
-            let condS = maybeToList (snd <$> cond')
             post' <- maybeToListM post
             bod' <- flattenBlock bod
 
-            let condExprStmt = fmap (\(c, _) -> [Fix $ V.CondExprStmt c]) cond'
-
-            pure $ pre' ++ [Fix $ V.ForStmt (fmap (condS ++) condExprStmt) (bod' ++ post')]
+            pure $ pre' ++
+                [ Fix $
+                    V.ForStmt
+                    (fmap
+                        swap
+                        cond'
+                    )
+                    (bod' ++ post')
+                ]
 
         G.IncDecStmt dir e -> do
             -- This is very similar to the assign-op case of the Assignment
@@ -240,9 +245,7 @@ makeTempAndDeclare ty = do
 -- | Replaces a Maybe list value by Just its contents or an empty list if it's
 -- Nothing.
 maybeToList :: Maybe [a] -> [a]
-maybeToList x = case x of
-    Nothing -> []
-    Just a -> a
+maybeToList = fromMaybe []
 
 -- | A combination of "pushMaybe" and "maybeToList".
 maybeToListM :: Monad m => Maybe (m [a]) -> m [a]
@@ -252,11 +255,7 @@ maybeToListM x = do
 
 -- | Pushes a Maybe of a monadic value inside the monad.
 pushMaybe :: Monad m => Maybe (m a) -> m (Maybe a)
-pushMaybe x = case x of
-    Nothing -> pure Nothing
-    Just a -> do
-        a' <- a
-        pure $ Just a'
+pushMaybe = sequence
 
 -- | Flattens a simplified block into one monadic "Simplify" action.
 flattenBlock :: [Simplify [TyAnnStatement]] -> Simplify [TyAnnStatement]
@@ -341,7 +340,7 @@ realizeToExpr rs = do
 -- | If the given expression is a temporary, returns Just its identifier.
 -- Otherwise return Nothing.
 maybeGetTemp :: TyAnnExpr -> Maybe BasicIdent
-maybeGetTemp (Ann a' e) =
+maybeGetTemp (Ann _ e) =
     let isTemp = (== "%tmp") . take 4 . stringFromSymbol . gidOrigName in
     let maybeTemp i = if isTemp i then Just i else Nothing in
     case e of
@@ -364,8 +363,10 @@ realizeToCondExpr rs = do
         -- fine to assign this to a temp and check the temp as a condref.
         SimpleExpr e@(Ann a _) -> do
             t <- makeTempAndDeclare a
-            pure (CondRef $ Ann a $ ValRef $ IdentVal t ,
-                    (Fix $ V.Assign (Ann a $ ValRef $ IdentVal t) e):stmts)
+            pure
+                ( CondRef $ Ann a $ ValRef $ IdentVal t
+                , (Fix $ V.Assign (Ann a $ ValRef $ IdentVal t) e):stmts
+                )
 
 -- | Takes a simplified expression stack and realizes all the temporaries as
 -- assign statements, also returning the topmost result on its own. As a
@@ -390,7 +391,7 @@ realizeTemps rs' = do
                     pure [Fix $ V.Assign (Ann (gidTy i) $ ValRef $ IdentVal i) tex]
 
                 -- realizeShortCircuit already declares the temporary for us.
-                ShortCircuit _ _ _ _ -> realizeShortCircuit ser >>= pure . snd
+                ShortCircuit _ _ _ _ -> snd <$> realizeShortCircuit ser
 
                 _ -> throwError $ InvariantViolation "Unexpected value as \
                                                     \intermediary ")

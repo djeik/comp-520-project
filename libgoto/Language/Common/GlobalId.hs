@@ -9,6 +9,7 @@ Stability   : experimental
 
 module Language.Common.GlobalId where
 
+-- | The origin of a piece of data within a function.
 data DataOrigin
     = Local
     | Argument Int

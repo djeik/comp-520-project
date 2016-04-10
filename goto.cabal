@@ -83,6 +83,7 @@ library
     Language.GoLite.Weeder.TypeLit
     Language.GoLite.Weeder.Types
     Language.Vigil
+    Language.Vigil.Compile
     Language.Vigil.Simplify
     Language.Vigil.SimplifyTraversal
     Language.Vigil.Simplify.Core
@@ -102,7 +103,6 @@ test-suite spec
   type:                exitcode-stdio-1.0
   ghc-options:
     -Wall
-    -fno-warn-unused-do-bind
   hs-source-dirs:      test
   main-is:             Spec.hs
   default-language:    Haskell2010

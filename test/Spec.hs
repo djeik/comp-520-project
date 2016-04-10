@@ -110,8 +110,8 @@ checkSimplify bad good name contents = case parseOnly packageP name contents of
             (Right p, tst) -> case _errors tst of
                 [] -> case runSimplify (_nextGid tst + 1) (simplifyPackage p) of
                     Left critical -> bad critical
-                    Right s -> good s
-                tes -> expectationFailure "Should have typechecked"
+                    Right s -> good (snd s)
+                _ -> expectationFailure "Should have typechecked"
 
 
 checkTypecheck

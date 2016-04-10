@@ -83,7 +83,7 @@ instance (Pretty v, Pretty f) => Pretty (Program v f) where
 -- There are no initializations.
 data VarDecl ident
     = VarDecl ident
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Read, Show)
 
 instance (Pretty ident) => Pretty (VarDecl ident) where
     pretty (VarDecl i) = text "var" <+> pretty i
@@ -96,6 +96,7 @@ data FunDecl ident vardecl stmt
         , _funDeclVars :: [vardecl]
         , _funDeclBody :: [stmt]
         }
+    deriving (Eq, Ord, Read, Show)
 
 instance
     ( Pretty ident
@@ -131,9 +132,9 @@ data StatementF expr cond ref f
     -- ^ Only conditional expressions are allowed in the guard of a conditional
     -- statement. There is no initializer statement.
     | SwitchStmt
-        { guard :: (Maybe expr)
-        , cases :: [([[f]], [f])]
-        , defaultCase :: [f]
+        { switchGuard :: (Maybe expr)
+        , switchCases :: [([(expr, [f])], [f])]
+        , switchDefaultCase :: [f]
         }
     -- ^ In switch statements, non-default case heads need several lists of
     -- statements. Each original expression of the head is evaluated in turn,
@@ -143,10 +144,10 @@ data StatementF expr cond ref f
     --
     -- The defaultCase field is always present. A missing default case is
     -- indicated by an empty statement list.
-    | ForStmt (Maybe [f]) [f]
+    | ForStmt (Maybe ([f], cond)) [f]
     | BreakStmt
     | ContinueStmt
-    deriving (Eq, Functor, Show)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 instance
     ( Pretty expr
@@ -185,7 +186,11 @@ instance
                 case c of
                     -- The list of statements as a condition of the for loop
                     -- is artificial.
-                    Just c' -> text "[[" $+$ vcat (map pretty c') $+$ text "]]"
+                    Just (c', cond) ->
+                        text "[[" $+$
+                        vcat (map pretty c') $+$
+                        text "<" <> pretty cond <> text ">" $+$
+                        text "]]"
                     Nothing -> empty
                 <+> text "{" $+$
                 nest indentLevel (
@@ -198,9 +203,10 @@ instance
                     vcat (map (\(hs, es) ->
                         text "case" $+$
                         nest indentLevel (
-                            vcat (map (\h ->
+                            vcat (map (\(e, h) ->
                                 text "[["
                                 <> hsep (punctuate semi (map pretty h))
+                                <+> text "|" <+> pretty e
                                 <> text "]]") hs)
                             <+> text ":"
                             $+$ vcat (map pretty es)
@@ -228,7 +234,9 @@ data Expr ty ref ident val binop unop condexpr a
     -- ^ A call is an identifier (the callee) and a list of values (the params).
     | Cond condexpr
     -- ^ Conditional expressions are also expressions.
-    deriving (Eq, Functor, Show)
+    | InternalCall String [val]
+    -- ^ A call to a function in the runtime.
+    deriving (Eq, Functor, Ord, Read, Show)
 
 instance
     ( Pretty ty
@@ -250,6 +258,9 @@ instance
         Call i vs -> pretty i
                   <> prettyParens True (sep $ punctuate comma (map pretty vs))
         Cond e -> pretty e
+        InternalCall s vs ->
+            text (s ++ "#") <>
+            prettyParens True (sep $ punctuate comma (pretty <$> vs))
 
 -- | Conditional expressions are separate from expressions to restrict their use
 -- and for codegen considerations
@@ -257,7 +268,7 @@ data CondExpr val ref bincondop uncondop
     = CondRef ref
     | BinCond val bincondop val
     | UnCond uncondop val
-    deriving (Eq, Functor, Show)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 instance
     ( Pretty val
@@ -277,7 +288,7 @@ data Ref ident selIdent val a
     | SelectRef ident [selIdent]
     | SliceRef ident [(Maybe val, Maybe val, Maybe val)]
     | ValRef val
-    deriving (Eq, Functor, Show)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 instance
     ( Pretty ident
@@ -302,7 +313,7 @@ instance
 data Val ident lit
     = IdentVal ident
     | Literal lit
-    deriving (Eq, Functor, Show)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 instance (Pretty ident, Pretty lit) => Pretty (Val ident lit) where
     pretty v = case v of
@@ -333,6 +344,7 @@ instance Pretty (BinaryOp a) where
 data BinaryCondOp a
     = LogicalOr | LogicalAnd | Equal | NotEqual
     | LessThan | LessThanEqual | GreaterThan | GreaterThanEqual
+    deriving (Eq, Ord, Read, Show)
 
 instance Pretty (BinaryCondOp a) where
     pretty o = case o of
@@ -348,6 +360,7 @@ instance Pretty (BinaryCondOp a) where
 -- | Unary operators (unsupported GoLite unary operators are removed).
 data UnaryOp a
     = Positive | Negative | BitwiseNot
+    deriving (Eq, Ord, Read, Show)
 
 instance Pretty (UnaryOp a) where
     pretty o = case o of
@@ -358,6 +371,7 @@ instance Pretty (UnaryOp a) where
 -- | Unary conditional operators (i.e. not)
 data UnaryCondOp a
     = LogicalNot
+    deriving (Eq, Ord, Read, Show)
 
 instance Pretty (UnaryCondOp a) where
     pretty o = case o of
@@ -369,21 +383,19 @@ data Literal a
     = IntLit VigilInt
     | FloatLit VigilFloat
     | RuneLit VigilRune
-    | StringLit VigilString
-    deriving (Eq, Functor, Show)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 instance Pretty (Literal a) where
     pretty l = case l of
         IntLit x -> pretty x
         FloatLit x -> pretty x
-        StringLit x -> text $ show x
         RuneLit x -> text $ show x
 
 data Ident a
     = Ident
         { unIdent :: String
         }
-    deriving (Eq, Functor, Show)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 instance Pretty (Ident a) where
     pretty (Ident s) = text s

@@ -269,8 +269,17 @@ simplifyExpr = annCata phi where
             pure $ (Result $ SimpleExpr $ Ann a' $ V.Call i tyPs):(es ++ es')
 
         G.Literal (Ann a' l) -> do
-            a'' <- reinterpretTypeEx $ fst a'
-            pure [Result $ SimpleVal $ V.Literal (Ann a'' $ gToVLit l)]
+            a'' <- reinterpretTypeEx (fst a')
+            case l of
+                G.IntLit n ->
+                    pure [Result $ SimpleVal $ V.Literal (Ann a'' (V.IntLit n))]
+                G.FloatLit n ->
+                    pure [Result $ SimpleVal $ V.Literal (Ann a'' (V.FloatLit n))]
+                G.RuneLit n ->
+                    pure [Result $ SimpleVal $ V.Literal (Ann a'' (V.RuneLit n))]
+                G.StringLit n -> do
+                    g <- makeString n
+                    pure [Result $ SimpleVal $ IdentVal g]
 
         G.Variable i -> do
             case maybeSymbol $ bare $ gidOrigName i of
@@ -349,12 +358,6 @@ simplifyExpr = annCata phi where
         G.GreaterThan -> V.GreaterThan
         G.GreaterThanEqual -> V.GreaterThanEqual
         _ -> error "unimplemented unsupported condop error"
-
-    gToVLit g = case g of
-        G.IntLit a -> V.IntLit a
-        G.FloatLit a -> V.FloatLit a
-        G.RuneLit a -> V.RuneLit a
-        G.StringLit a -> V.StringLit a
 
 gToVBinOp :: G.BinaryOp a -> V.BinaryOp a
 gToVBinOp o = case o of

@@ -17,10 +17,11 @@ module Language.X86.Core
 , AsmF(..)
   -- ** Operations in 'Asm'
   -- *** Label management
-, newLabel
-, setLabel
 , here
+, newLabel
 , newLabelHere
+, setLabel
+, setLabelHere
   -- *** Emitting instructions
 , ret
 , call
@@ -28,6 +29,7 @@ module Language.X86.Core
 , add
 , sub
 , mul
+, idiv
 , xor
 , inc
 , dec
@@ -41,26 +43,39 @@ module Language.X86.Core
 , sar
 , cmp
 , jump
+, setc
+, neg1
+, neg2
+, cvt
+, cqo
+  -- *** Miscellaneous operations
+, scratch
+, withScratch
+, prologue
+, withPrologue
   -- * x86 instructions
 , Instruction(..)
   -- ** Jumps
-, JumpVariant(..)
+, FlagCondition(..)
 , JumpDistance(..)
   -- ** Operands
 , Operand(..)
 , Offset(..)
 , Scale(..)
 , Displacement
-, Immediate
+, Immediate(..)
 , FloatingRegister(..)
 , IntegerRegister(..)
 , RegisterAccessMode(..)
 , HardwareRegister(..)
 , RegisterSize(..)
 , SizedRegister(..)
+, SseType(..)
 , registerIndex
+, hwxmm
   -- * Misc
 , Signedness(..)
+, ScratchFlow(..)
 ) where
 
 import Control.Monad.Free
@@ -86,7 +101,16 @@ data AsmF addr label val next
     -- ^ Assign a value to a label.
     | Here (addr -> next)
     -- ^ Get the current code offset.
+    | Scratch ScratchFlow next
+    -- ^ Save or load live scratch registers. Load instructions must always
+    -- occur after a save instruction. Saves and loads may not be nested.
+    | Prologue ScratchFlow next
     deriving (Functor)
+
+-- | Whether to save or load the scratch registers.
+data ScratchFlow
+    = Save
+    | Load
 
 -- | The free monad on 'AsmF'.
 type Asm reg addr label = Free (AsmF addr label (Operand reg addr label))
@@ -129,8 +153,27 @@ data Instruction val
     -- ^ Arithmetic left shift; 'sal'.
     | Sar val val
     -- ^ Arithmetic right shift; 'sar'.
-    | Jump JumpVariant val
+    | Jump FlagCondition val
     -- ^ Perform a jump; 'jump'.
+    | Setc FlagCondition val
+    -- ^ Perform a conditional byte set; 'setc'.
+    | Neg1 val
+    -- ^ Perform a one's complement (bitwise) negation; 'neg1'.
+    | Neg2 val
+    -- ^ Perform a two's complement (arithmetic) negation; 'neg2'.
+    | Cvt SseType SseType val val
+    -- ^ Convert integers into floats and vice versa
+    | Div Signedness val val val
+    -- ^ Signed division
+    | Cqo val val
+
+data SseType
+    = PackedSingle
+    | PackedDouble
+    | ScalarSingle
+    | ScalarDouble
+    | SingleInteger
+    | PackedInteger
 
 -- | Variants of jumps.
 --
@@ -144,26 +187,26 @@ data Instruction val
 -- * @OF@ - /overflow/ flag: set if result is too large a positive number or
 --   too small a negative number (excluding the sign bit) to fit in the
 --   destination operand.
-data JumpVariant
-    = JMP JumpDistance
+data FlagCondition
+    = Unconditionally
     -- ^ Jump unconditionally.
-    | JO JumpDistance
+    | OnOverflow
     -- ^ Jump on overflow, @OF = 1@.
-    | JNO JumpDistance
+    | OnNoOverflow
     -- ^ Jump on no overflow, @OF = 0@.
-    | JS JumpDistance
+    | OnSign
     -- ^ Jump on sign, @SF = 1@.
-    | JNS JumpDistance
+    | OnNoSign
     -- ^ Jump on no sign, @SF = 0@.
-    | JE JumpDistance
+    | OnEqual
     -- ^ Jump on equal, @ZF = 1@.
     --
     -- Synonymous with @jz@, jump on zero.
-    | JNE JumpDistance
+    | OnNotEqual
     -- ^ Jump on not equal, @ZF = 0@.
     --
     -- Synonymous with @jnz@, jump on not zero.
-    | JB Signedness JumpDistance
+    | OnBelow Signedness
     -- ^ If unsigned, then jump if /below/, @CF = 1@.
     --
     -- Synonymous with @jnae@, jump if not /above/ or equal, and @jc@ jump on
@@ -172,7 +215,7 @@ data JumpVariant
     -- If signed, then jump if /less/, @SF /= OF@.
     --
     -- Synonymous with @jnge@, jump if not /greater than/ or equal.
-    | JNB Signedness JumpDistance
+    | OnNotBelow Signedness
     -- ^ If unsigned, then jump if not /below/, @CF = 0@.
     --
     -- Synonymous with @jae@, jump if above or equal, and @jnc@ jump on no
@@ -181,7 +224,7 @@ data JumpVariant
     -- If signed, then jump if /greater than/ or equal.
     --
     -- Synonymous with @jnl@, jump if not /less/.
-    | JBE Signedness JumpDistance
+    | OnBelowOrEqual Signedness
     -- ^ If unsigned, then jump if /below/ or equal, @CF = 1@ or @ZF = 1@.
     --
     -- Synonymous with @jna@, jump if not /above/.
@@ -189,7 +232,7 @@ data JumpVariant
     -- If signed, then jump if /less than/ or equal, @ZF = 1$ or @SF /= OF@.
     --
     -- Synonymous with @jng@, jump if not /greater/.
-    | JA Signedness JumpDistance
+    | OnAbove Signedness
     -- ^ If unsigned, then jump if /above/, @CF = 0@ and @ZF = 0@.
     --
     -- Synonymous with @jnbe@, jump if not /below/ or equal.
@@ -197,11 +240,11 @@ data JumpVariant
     -- If signed, then jump if /greater than/, @ZF = 0@ and @SF = OF@.
     --
     -- Synonymous with @jnle@, jump if not /less than/ or equal.
-    | JPE JumpDistance
+    | OnParityEven
     -- ^ Jump if parity even, @PF = 1@.
-    | JPO JumpDistance
+    | OnParityOdd
     -- ^ Jump if parity odd, @PF = 0@.
-    | JCXZ
+    | OnCounterZero
     -- ^ Jump on @CX@ (@ECX@) equal to zero.
 
 -- | Indicates whether an instruction operates on signed or unsigned data.
@@ -248,7 +291,7 @@ data HardwareRegister
     deriving (Eq, Ord, Read, Show)
 
 -- | Gets the index of a register.
-registerIndex :: Num a => HardwareRegister -> a
+registerIndex :: HardwareRegister -> Int
 registerIndex r = case r of
     IntegerHwRegister reg -> case reg of
         Rax -> 0
@@ -267,6 +310,11 @@ registerIndex r = case r of
         R13 -> 13
         R14 -> 14
         R15 -> 15
+    FloatingHwRegister (FloatingRegister n) -> n
+
+-- | An SSE register.
+hwxmm :: Int -> HardwareRegister
+hwxmm = FloatingHwRegister . FloatingRegister
 
 -- | A size modifier for a register.
 data RegisterSize
@@ -281,14 +329,17 @@ data RegisterSize
     -- ^ The low 32 bits of the register, e.g. @eax@.
     | Extended64
     -- ^ The full 64 bits of the register, e.g. @rax@.
+    deriving (Eq, Ord, Read, Show)
 
 data RegisterAccessMode
     = IntegerMode
     | FloatingMode
+    | MemoryMode
     deriving (Eq, Ord, Read, Show)
 
 -- | A register together with a size modifier.
 data SizedRegister reg = SizedRegister RegisterSize reg
+    deriving (Eq, Ord, Read, Show)
 
 -- | An operand to an instruction.
 data Operand reg addr label
@@ -307,6 +358,7 @@ data Operand reg addr label
     -- ^ An internal reference, e.g. to another compiled Go function.
     | External String
     -- ^ An external reference, e.g. to a C function.
+    deriving (Eq, Ord, Read, Show)
 
 data Offset reg
     = Offset Displacement reg
@@ -316,6 +368,7 @@ data Offset reg
     | ScaledIndexBase Scale Displacement reg reg
     -- ^ Scaled index base addressing can be used to concisely express array
     -- indexing.
+    deriving (Eq, Ord, Read, Show)
 
 -- | A multiplier on on an index.
 data Scale
@@ -323,9 +376,13 @@ data Scale
     | ScaleShort
     | ScaleWord
     | ScaleDword
+    deriving (Eq, Ord, Read, Show)
 
 type Displacement = Int64
-type Immediate = Word64
+data Immediate
+    = ImmF Double
+    | ImmI Word64
+    deriving (Eq, Ord, Read, Show)
 
 -- | Nullary instruction.
 type Instr0 reg addr label a = Asm reg addr label a
@@ -335,6 +392,29 @@ type Instr1 reg addr label a = Operand reg addr label -> Instr0 reg addr label a
 
 -- | Binary instruction.
 type Instr2 reg addr label a = Operand reg addr label -> Instr1 reg addr label a
+
+-- | Ternary instruction.
+type Instr3 reg addr label a = Operand reg addr label -> Instr2 reg addr label a
+
+prologue :: ScratchFlow -> Asm reg addr label ()
+prologue flow = liftF . Prologue flow $ ()
+
+withPrologue :: Asm reg addr label a -> Asm reg addr label a
+withPrologue m = do
+    prologue Save
+    x <- m
+    prologue Load
+    pure x
+
+scratch :: ScratchFlow -> Asm reg addr label ()
+scratch flow = liftF . Scratch flow $ ()
+
+withScratch :: Asm reg addr label a -> Asm reg addr label a
+withScratch m = do
+    scratch Save
+    x <- m
+    scratch Load
+    pure x
 
 -- | 'NewLabel'
 newLabel :: Asm reg addr label label
@@ -355,6 +435,9 @@ newLabelHere = do
     l <- newLabel
     setLabel <$> pure l <*> here
     pure l
+
+setLabelHere :: label -> Asm reg addr label ()
+setLabelHere l = setLabel l =<< here
 
 -- | 'Emit' 'Ret'
 ret :: Instr0 reg addr label ()
@@ -419,5 +502,23 @@ sal x y = liftF . Emit (Sal x y) $ ()
 sar :: Instr2 reg addr label ()
 sar x y = liftF . Emit (Sar x y) $ ()
 
-jump :: JumpVariant -> Instr1 reg addr label ()
+jump :: FlagCondition -> Instr1 reg addr label ()
 jump v x = liftF . Emit (Jump v x) $ ()
+
+setc :: FlagCondition -> Instr1 reg addr label ()
+setc v x = liftF . Emit (Setc v x) $ ()
+
+neg1 :: Instr1 reg addr label ()
+neg1 v = liftF . Emit (Neg1 v) $ ()
+
+neg2 :: Instr1 reg addr label ()
+neg2 v = liftF . Emit (Neg2 v) $ ()
+
+cvt :: SseType -> SseType -> Instr2 reg addr label ()
+cvt s1 s2 x y = liftF . Emit (Cvt s1 s2 x y) $ ()
+
+idiv :: Instr3 reg addr label ()
+idiv x y z = liftF . Emit (Div Signed x y z) $ ()
+
+cqo :: Instr2 reg addr label ()
+cqo x y = liftF . Emit (Cqo x y) $ ()
