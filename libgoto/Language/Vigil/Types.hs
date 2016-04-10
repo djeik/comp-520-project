@@ -33,7 +33,7 @@ module Language.Vigil.Types
 , selectorOffsetFor
   -- * Storage
 , StorageSize(..)
-, IStorage
+, IStorage(..)
 , FStorage
 , ptrStorage
   -- * Global identifiers

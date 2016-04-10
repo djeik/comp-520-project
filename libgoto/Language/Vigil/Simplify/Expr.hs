@@ -225,7 +225,7 @@ simplifyExpr = annCata phi where
                             :es
                 _ -> throwError $ InvariantViolation "Slice: unexpected non-result"
 
-        G.Call e _ ps  -> do
+        G.Call e mty ps  -> do
             a' <- reinterpretTypeEx $ fst a
             -- Convert top expressions of parameters to values when needed.
             ps' <- forM ps (\cur -> do
@@ -243,6 +243,16 @@ simplifyExpr = annCata phi where
                     (Temp (t, _)) -> IdentVal t
                     _ -> error "Expected simple value or temp") ps'
 
+
+            -- If a type argument was present, convert it to a regular argument
+            -- which is just the storage size of the type.
+            tyPs <- case mty of
+                Nothing -> pure ps''
+                Just (Fix (Ann a _)) -> do
+                    sz <- reinterpretTypeEx (fst a)
+                    pure $ (V.Literal $ Ann (V.intType V.I8)
+                        $ V.IntLit $ storageSize sz):ps''
+
             -- If the callee expression is an identifier, use it as is. Otherwise
             -- create a temporary.
             (i, es) <- exprAsId =<< e
@@ -256,7 +266,7 @@ simplifyExpr = annCata phi where
                         Result _ -> False
                         _ -> True) in pure $ concat $ filter fil ps'
 
-            pure $ (Result $ SimpleExpr $ Ann a' $ V.Call i ps''):(es ++ es')
+            pure $ (Result $ SimpleExpr $ Ann a' $ V.Call i tyPs):(es ++ es')
 
         G.Literal (Ann a' l) -> do
             a'' <- reinterpretTypeEx $ fst a'
