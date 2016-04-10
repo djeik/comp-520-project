@@ -76,10 +76,14 @@ compileVal = undefined
 
 compileRef
     :: Ref BasicIdent (Ident ()) TyAnnVal
-    -> Compiler addr label ()
+    -> Compiler addr label (VirtualOperand addr label)
 compileRef r = case r of
     ArrayRef i vs -> do
         i' <- getIdent i
+
+
+callInternal
+    :: String
 
 -- | Wraps some code with the function prologue and epilogue.
 wrapFunction :: Compiler addr label () -> Compiler addr label ()
@@ -93,3 +97,15 @@ wrapFunction v = do
         pop rbp
         ret
 
+-- | Computes how many bytes of padding are needed to reach an alignment goal.
+alignmentPadding
+    :: Int -- ^ Current size
+    -> Int -- ^ Alignment goal
+    -> Int -- ^ Number of padding bytes required
+alignmentPadding sz g = g - (sz `div` g)
+{-# INLINE alignmentPadding #-}
+
+-- | Arranges the registers and the stack to perform a call.
+prepareCall
+    :: [VirtualOperand addr label]
+    ->
