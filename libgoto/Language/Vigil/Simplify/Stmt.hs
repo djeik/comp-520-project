@@ -14,7 +14,7 @@ module Language.Vigil.Simplify.Stmt
 , realizeToExpr
 ) where
 
-import Data.Maybe ( catMaybes )
+import Data.Maybe ( catMaybes, fromMaybe )
 import Data.List ( partition )
 import Data.Tuple ( swap )
 
@@ -151,12 +151,12 @@ simplifyStmt = annCata phi where
             -- Every expression in a case head has its own list of statements
             -- in order to compute an expression which is then compared to the
             -- guard.
-            exps' <- forM exps (\(CaseExpr es, b) -> do
-                es' <- forM es (\e -> do
+            exps' <- forM exps $ \(CaseExpr es, b) -> do
+                es' <- forM es $ \e -> do
                     (e', s') <- realizeToExpr =<< simplifyExpr e
-                    pure $ s' ++ [Fix $ V.ExprStmt e'])
+                    pure $ (e', s')
                 b' <- flattenBlock b
-                pure (es', b'))
+                pure (es', b')
 
             pure $ ini' ++ guS ++ [Fix $ V.SwitchStmt guE exps' defCase]
 
@@ -169,7 +169,7 @@ simplifyStmt = annCata phi where
 
             let condExprStmt = fmap (\(c, _) -> [Fix $ V.CondExprStmt c]) cond'
 
-            pure $ pre' ++ [Fix $ V.ForStmt (fmap (condS ++) condExprStmt) (bod' ++ post')]
+            pure $ pre' ++ [Fix $ V.ForStmt _ (bod' ++ post')]
 
         G.IncDecStmt dir e -> do
             -- This is very similar to the assign-op case of the Assignment
@@ -240,9 +240,7 @@ makeTempAndDeclare ty = do
 -- | Replaces a Maybe list value by Just its contents or an empty list if it's
 -- Nothing.
 maybeToList :: Maybe [a] -> [a]
-maybeToList x = case x of
-    Nothing -> []
-    Just a -> a
+maybeToList = fromMaybe []
 
 -- | A combination of "pushMaybe" and "maybeToList".
 maybeToListM :: Monad m => Maybe (m [a]) -> m [a]
@@ -252,11 +250,7 @@ maybeToListM x = do
 
 -- | Pushes a Maybe of a monadic value inside the monad.
 pushMaybe :: Monad m => Maybe (m a) -> m (Maybe a)
-pushMaybe x = case x of
-    Nothing -> pure Nothing
-    Just a -> do
-        a' <- a
-        pure $ Just a'
+pushMaybe = sequence
 
 -- | Flattens a simplified block into one monadic "Simplify" action.
 flattenBlock :: [Simplify [TyAnnStatement]] -> Simplify [TyAnnStatement]
@@ -390,7 +384,7 @@ realizeTemps rs' = do
                     pure [Fix $ V.Assign (Ann (gidTy i) $ ValRef $ IdentVal i) tex]
 
                 -- realizeShortCircuit already declares the temporary for us.
-                ShortCircuit _ _ _ _ -> realizeShortCircuit ser >>= pure . snd
+                ShortCircuit _ _ _ _ -> snd <$> realizeShortCircuit ser
 
                 _ -> throwError $ InvariantViolation "Unexpected value as \
                                                     \intermediary ")

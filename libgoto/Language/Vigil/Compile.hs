@@ -6,10 +6,12 @@ import Language.Common.Annotation
 import Language.Vigil.Syntax
 import Language.Vigil.Syntax.TyAnn
 import Language.Vigil.Syntax.Basic
+import Language.Vigil.Types
 import Language.X86.Core
 import Language.X86.Virtual
 
 import Control.Monad.Reader
+import Data.Functor.Foldable ( cata )
 
 newtype Compiler addr label a
     = Compiler
@@ -25,6 +27,18 @@ newtype Compiler addr label a
         , MonadReader CompilerEnv
         )
 
+-- | The read-only environment of the function compiler.
+data CompilerEnv
+    = CompilerEnv
+        { compilerFunc :: FunDecl BasicIdent BasicVarDecl TyAnnStatement
+        -- ^ The function currently being compiled.
+        }
+    deriving (Eq, Ord, Read, Show)
+
+-- | Emit raw assembly.
+asm :: VirtualAsm addr label a -> Compiler addr label a
+asm = Compiler . lift . lift
+
 -- | Compiles a function.
 runCompiler :: TyAnnFunDecl -> VirtualAsm addr label ()
 runCompiler decl
@@ -34,56 +48,167 @@ runCompiler decl
         { compilerFunc = decl
         }
 
-data CompilerEnv
-    = CompilerEnv
-        { compilerFunc :: FunDecl BasicIdent BasicVarDecl TyAnnStatement
-        }
-    deriving (Eq, Ord, Read, Show)
-
--- | Emit raw assembly.
-asm :: VirtualAsm addr label a -> Compiler addr label a
-asm = Compiler . lift . lift
-
+-- | Compile a function
 compileFunction
     :: TyAnnFunDecl
     -> Compiler addr label ()
-compileFunction decl = wrapFunction $ mapM_ compileStmt $ _funDeclBody decl where
-    compileStmt :: TyAnnStatement -> Compiler addr label ()
-    compileStmt = undefined
+compileFunction decl = wrapFunction $ compileBody Nothing $ _funDeclBody decl where
+    compileBody :: Maybe label -> [TyAnnStatement] -> Compiler addr label ()
+    compileBody m = mapM_ (compileStmt m)
 
--- | Generates the code to evaluate an expression. The result of the expression
--- is returned a 'VirtualOperand'.
+    compileStmt :: Maybe label -> TyAnnStatement -> Compiler addr label ()
+    compileStmt m = ($ m) . cata f where
+        f :: TyAnnStatementF (Maybe label -> Compiler addr label ())
+            -> Maybe label -> Compiler addr label ()
+        f stmt ml = case stmt of
+            ExprStmt expr -> void $ compileExpr expr
+
+            CondExprStmt cond -> void $ compileCondExpr cond
+
+            Assign (Ann a ref) expr -> do
+                r <- compileRef ref
+                o <- compileExpr expr
+                asm $ mov r o
+
+            PrintStmt refs -> undefined -- generate call to Print
+
+            ReturnStmt m -> case m of
+                Just (Ann a ref) -> do
+                    r <- compileRef ref
+                    asm $ mov rax r
+                Nothing -> asm $ xor rax rax
+
+            IfStmt cond thenBody m -> do
+                -- sets the flags and gives us the jump variant
+                j <- compileCondExpr cond
+                l <- asm newLabel
+                asm $ jump j (Label l)
+                -- check for an else clause
+                mapM_ ($ ml) thenBody
+                asm $ setLabelHere l
+                case m of
+                    Nothing -> pure ()
+                    Just elseBody -> mapM_ ($ ml) elseBody
+
+            SwitchStmt
+                { switchGuard = m
+                , switchCases = cs
+                , switchDefaultCase = c
+                } -> do
+                    -- to jump out of the switch
+                    switchEnd <- asm newLabel
+                    -- to jump into the default case
+                    defaultCaseL <- asm newLabel
+
+                    case m of
+                        Just expr -> do
+                            g <- compileExpr expr
+
+                            code <- foldr
+                                (\(hd, bd) code -> do
+                                    postCaseBody <- asm newLabel
+
+                                    -- to jump over the case body to
+                                    -- the next case head
+                                    preCaseBody <- asm newLabel
+
+                                    -- compile the conditions to check
+                                    -- to enter this case
+                                    forM_ hd $ \(e, ec) -> do
+                                        mapM_ ($ Nothing) ec
+                                        e' <- compileExpr e
+                                        asm $ do
+                                            cmp e' g
+                                            jump JE (Label preCaseBody)
+
+                                    -- if none of the alternatives in
+                                    -- the case head match the guard,
+                                    -- then jump past the case body
+                                    asm $ do
+                                        jump JMP (Label postCaseBody)
+                                        setLabelHere preCaseBody
+
+                                    mapM_ ($ Just switchEnd) bd
+
+                                    asm $ do
+                                        jump JMP (Label switchEnd)
+                                        setLabelHere postCaseBody
+
+                                    code
+                                )
+                                (pure ())
+                                cs
+
+                            asm $ setLabelHere defaultCaseL
+                            if null c
+                                -- no default case: jump past the switch
+                                then asm $ jump JMP (Label switchEnd)
+                                else do
+                                    mapM_ ($ Just switchEnd) c
+
+
+                    asm $ setLabelHere switchEnd
+
+
+-- | Generates the code to evaluate an expression. The computed
+-- 'VirtualOperand' contains the result of the expression.
 compileExpr
     :: TyAnnExpr
     -> Compiler addr label (VirtualOperand addr label)
 compileExpr (Ann a e) = case e of
-    Binary (Ann av1 v1) op (Ann av2 v2) -> case op of
+    Binary v1 op v2 -> case op of
         Plus -> do
-            r1 <- compileRef v1
-            r2 <- compileRef v2
+            r1 <- compileVal v1
+            r2 <- compileVal v2
             asm $ add r1 r2
-
+            pure r1
 
     Unary op v -> case op of
         Positive -> undefined
 
     Ref (Ann b r) -> compileRef r
 
+-- | Compiles a conditional expression. These translate to comparisons in x86,
+-- which set flags, so the only thing that a called would need to know is which
+-- jump variant to invoke in order to perform the correct branch.
+compileCondExpr
+    :: TyAnnCondExpr
+    -> Compiler addr label JumpVariant
+compileCondExpr = undefined
+
+-- | Computes the register class for a given Vigil type.
+registerClass :: Type -> RegisterAccessMode
+registerClass (Fix ty) = case ty of
+    -- basic data types, stack-allocated
+    IntType _ -> IntegerMode
+    FloatType _ -> FloatingMode
+    -- heap-allocated complex data
+    StructType {} -> IntegerMode
+    ArrayType _ -> IntegerMode
+    StringType -> IntegerMode
+    -- impossible situations
+    FuncType {} -> IntegerMode
+    SliceType _ -> IntegerMode
+    VoidType -> IntegerMode
+    BuiltinType _ -> IntegerMode
+
 compileVal
     :: TyAnnVal
-    -> Compiler addr label ()
+    -> Compiler addr label (VirtualOperand addr label)
 compileVal = undefined
 
 compileRef
-    :: Ref BasicIdent (Ident ()) TyAnnVal
+    :: Ref BasicIdent (Ident ()) TyAnnVal ()
     -> Compiler addr label (VirtualOperand addr label)
 compileRef r = case r of
     ArrayRef i vs -> do
-        i' <- getIdent i
+        i' <- compileIdent i
+        undefined
 
-
-callInternal
-    :: String
+compileIdent
+    :: GlobalId
+    -> Compiler addr label (VirtualOperand addr label)
+compileIdent = undefined
 
 -- | Wraps some code with the function prologue and epilogue.
 wrapFunction :: Compiler addr label () -> Compiler addr label ()
@@ -104,8 +229,3 @@ alignmentPadding
     -> Int -- ^ Number of padding bytes required
 alignmentPadding sz g = g - (sz `div` g)
 {-# INLINE alignmentPadding #-}
-
--- | Arranges the registers and the stack to perform a call.
-prepareCall
-    :: [VirtualOperand addr label]
-    ->

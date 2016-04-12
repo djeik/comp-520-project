@@ -17,10 +17,11 @@ module Language.X86.Core
 , AsmF(..)
   -- ** Operations in 'Asm'
   -- *** Label management
-, newLabel
-, setLabel
 , here
+, newLabel
 , newLabelHere
+, setLabel
+, setLabelHere
   -- *** Emitting instructions
 , ret
 , call
@@ -59,6 +60,7 @@ module Language.X86.Core
 , RegisterSize(..)
 , SizedRegister(..)
 , registerIndex
+, hwxmm
   -- * Misc
 , Signedness(..)
 ) where
@@ -145,25 +147,25 @@ data Instruction val
 --   too small a negative number (excluding the sign bit) to fit in the
 --   destination operand.
 data JumpVariant
-    = JMP JumpDistance
+    = JMP
     -- ^ Jump unconditionally.
-    | JO JumpDistance
+    | JO
     -- ^ Jump on overflow, @OF = 1@.
-    | JNO JumpDistance
+    | JNO
     -- ^ Jump on no overflow, @OF = 0@.
-    | JS JumpDistance
+    | JS
     -- ^ Jump on sign, @SF = 1@.
-    | JNS JumpDistance
+    | JNS
     -- ^ Jump on no sign, @SF = 0@.
-    | JE JumpDistance
+    | JE
     -- ^ Jump on equal, @ZF = 1@.
     --
     -- Synonymous with @jz@, jump on zero.
-    | JNE JumpDistance
+    | JNE
     -- ^ Jump on not equal, @ZF = 0@.
     --
     -- Synonymous with @jnz@, jump on not zero.
-    | JB Signedness JumpDistance
+    | JB Signedness
     -- ^ If unsigned, then jump if /below/, @CF = 1@.
     --
     -- Synonymous with @jnae@, jump if not /above/ or equal, and @jc@ jump on
@@ -172,7 +174,7 @@ data JumpVariant
     -- If signed, then jump if /less/, @SF /= OF@.
     --
     -- Synonymous with @jnge@, jump if not /greater than/ or equal.
-    | JNB Signedness JumpDistance
+    | JNB Signedness
     -- ^ If unsigned, then jump if not /below/, @CF = 0@.
     --
     -- Synonymous with @jae@, jump if above or equal, and @jnc@ jump on no
@@ -181,7 +183,7 @@ data JumpVariant
     -- If signed, then jump if /greater than/ or equal.
     --
     -- Synonymous with @jnl@, jump if not /less/.
-    | JBE Signedness JumpDistance
+    | JBE Signedness
     -- ^ If unsigned, then jump if /below/ or equal, @CF = 1@ or @ZF = 1@.
     --
     -- Synonymous with @jna@, jump if not /above/.
@@ -189,7 +191,7 @@ data JumpVariant
     -- If signed, then jump if /less than/ or equal, @ZF = 1$ or @SF /= OF@.
     --
     -- Synonymous with @jng@, jump if not /greater/.
-    | JA Signedness JumpDistance
+    | JA Signedness
     -- ^ If unsigned, then jump if /above/, @CF = 0@ and @ZF = 0@.
     --
     -- Synonymous with @jnbe@, jump if not /below/ or equal.
@@ -197,9 +199,9 @@ data JumpVariant
     -- If signed, then jump if /greater than/, @ZF = 0@ and @SF = OF@.
     --
     -- Synonymous with @jnle@, jump if not /less than/ or equal.
-    | JPE JumpDistance
+    | JPE
     -- ^ Jump if parity even, @PF = 1@.
-    | JPO JumpDistance
+    | JPO
     -- ^ Jump if parity odd, @PF = 0@.
     | JCXZ
     -- ^ Jump on @CX@ (@ECX@) equal to zero.
@@ -248,7 +250,7 @@ data HardwareRegister
     deriving (Eq, Ord, Read, Show)
 
 -- | Gets the index of a register.
-registerIndex :: Num a => HardwareRegister -> a
+registerIndex :: HardwareRegister -> Int
 registerIndex r = case r of
     IntegerHwRegister reg -> case reg of
         Rax -> 0
@@ -267,6 +269,11 @@ registerIndex r = case r of
         R13 -> 13
         R14 -> 14
         R15 -> 15
+    FloatingHwRegister (FloatingRegister n) -> n
+
+-- | An SSE register.
+hwxmm :: Int -> HardwareRegister
+hwxmm = FloatingHwRegister . FloatingRegister
 
 -- | A size modifier for a register.
 data RegisterSize
@@ -286,6 +293,7 @@ data RegisterSize
 data RegisterAccessMode
     = IntegerMode
     | FloatingMode
+    | MemoryMode
     deriving (Eq, Ord, Read, Show)
 
 -- | A register together with a size modifier.
@@ -357,6 +365,9 @@ newLabelHere = do
     l <- newLabel
     setLabel <$> pure l <*> here
     pure l
+
+setLabelHere :: label -> Asm reg addr label ()
+setLabelHere l = setLabel l =<< here
 
 -- | 'Emit' 'Ret'
 ret :: Instr0 reg addr label ()
