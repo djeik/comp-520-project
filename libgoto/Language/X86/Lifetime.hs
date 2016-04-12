@@ -165,6 +165,14 @@ data LifetimeSpan
         , _end :: Int
         }
 
+-- | Two lifetime spans are equal if their starting and ending positions are the same.
+instance Eq LifetimeSpan where
+    a == b = (_start a == _start b) && (_end a == _end b)
+
+-- | Lifetime spans are ordered by start position, then by end position.
+instance Ord LifetimeSpan where
+    a <= b = (_start a < _start b) || ((_start a == _start b) && (_end a < _end b))
+
 -- | Given a virtual assembly program, computes the lifetime intervals of the
 -- virtual registers it contains.
 computeLifetimes :: VirtualAsm Int Int () -> M.Map SizedVirtualRegister LifetimeSpan
