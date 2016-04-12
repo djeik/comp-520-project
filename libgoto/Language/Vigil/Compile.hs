@@ -52,33 +52,43 @@ runCompiler decl
 compileFunction
     :: TyAnnFunDecl
     -> Compiler addr label ()
-compileFunction decl = wrapFunction $ compileBody Nothing $ _funDeclBody decl where
-    compileBody :: Maybe label -> [TyAnnStatement] -> Compiler addr label ()
-    compileBody m = mapM_ (compileStmt m)
+compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
+    none :: (Maybe label, Maybe label)
+    none = (Nothing, Nothing)
 
-    compileStmt :: Maybe label -> TyAnnStatement -> Compiler addr label ()
-    compileStmt m = ($ m) . cata f where
-        f :: TyAnnStatementF (Maybe label -> Compiler addr label ())
-            -> Maybe label -> Compiler addr label ()
-        f stmt ml = case stmt of
+    compileBody
+        :: (Maybe label, Maybe label)
+        -> [TyAnnStatement]
+        -> Compiler addr label ()
+    compileBody t = mapM_ (compileStmt t)
+
+    compileStmt
+        :: (Maybe label, Maybe label)
+        -> TyAnnStatement
+        -> Compiler addr label ()
+    compileStmt t = ($ t) . cata f where
+        f :: TyAnnStatementF ((Maybe label, Maybe label) -> Compiler addr label ())
+            -> (Maybe label, Maybe label) -> Compiler addr label ()
+        f stmt ml@(mEnd, mBeginning) = case stmt of
             ExprStmt expr -> void $ compileExpr expr
 
             CondExprStmt cond -> void $ compileCondExpr cond
 
-            Assign (Ann a ref) expr -> do
+            Assign (Ann _ ref) expr -> do
                 r <- compileRef ref
                 o <- compileExpr expr
                 asm $ mov r o
 
-            PrintStmt refs -> undefined -- generate call to Print
+            PrintStmt _ -> undefined -- generate call to Print
 
-            ReturnStmt m -> case m of
-                Just (Ann a ref) -> do
-                    r <- compileRef ref
-                    asm $ mov rax r
-                Nothing -> asm $ xor rax rax
+            ReturnStmt (Just (Ann _ ref)) -> do
+                r <- compileRef ref
+                asm $ mov rax r
 
-            IfStmt cond thenBody m -> do
+            ReturnStmt Nothing -> do
+                asm $ xor rax rax
+
+            IfStmt cond thenBody me -> do
                 -- sets the flags and gives us the jump variant
                 j <- compileCondExpr cond
                 l <- asm newLabel
@@ -86,12 +96,12 @@ compileFunction decl = wrapFunction $ compileBody Nothing $ _funDeclBody decl wh
                 -- check for an else clause
                 mapM_ ($ ml) thenBody
                 asm $ setLabelHere l
-                case m of
+                case me of
                     Nothing -> pure ()
                     Just elseBody -> mapM_ ($ ml) elseBody
 
             SwitchStmt
-                { switchGuard = m
+                { switchGuard = mg
                 , switchCases = cs
                 , switchDefaultCase = c
                 } -> do
@@ -100,7 +110,7 @@ compileFunction decl = wrapFunction $ compileBody Nothing $ _funDeclBody decl wh
                     -- to jump into the default case
                     defaultCaseL <- asm newLabel
 
-                    case m of
+                    case mg of
                         Just expr -> do
                             g <- compileExpr expr
 
@@ -115,7 +125,10 @@ compileFunction decl = wrapFunction $ compileBody Nothing $ _funDeclBody decl wh
                                     -- compile the conditions to check
                                     -- to enter this case
                                     forM_ hd $ \(e, ec) -> do
-                                        mapM_ ($ Nothing) ec
+                                        -- TODO investigate whether
+                                        -- continue/break can appear in these
+                                        -- weird contexts
+                                        mapM_ ($ none) ec
                                         e' <- compileExpr e
                                         asm $ do
                                             cmp e' g
@@ -128,7 +141,7 @@ compileFunction decl = wrapFunction $ compileBody Nothing $ _funDeclBody decl wh
                                         jump JMP (Label postCaseBody)
                                         setLabelHere preCaseBody
 
-                                    mapM_ ($ Just switchEnd) bd
+                                    mapM_ ($ (Just switchEnd, mBeginning)) bd
 
                                     asm $ do
                                         jump JMP (Label switchEnd)
@@ -144,11 +157,36 @@ compileFunction decl = wrapFunction $ compileBody Nothing $ _funDeclBody decl wh
                                 -- no default case: jump past the switch
                                 then asm $ jump JMP (Label switchEnd)
                                 else do
-                                    mapM_ ($ Just switchEnd) c
+                                    mapM_ ($ (Just switchEnd, mBeginning)) c
 
 
                     asm $ setLabelHere switchEnd
 
+            ForStmt Nothing body -> do
+                (forEnd, forStart) <- (,) <$> asm newLabel <*> asm newLabel
+                mapM_ ($ (Just forEnd, Just forStart)) body
+                asm $ setLabelHere forEnd
+
+            ForStmt (Just (code, cond)) body -> do
+                (forEnd, forStart) <- (,) <$> asm newLabel <*> asm newLabel
+
+                asm $ setLabelHere forStart
+
+                j <- compileCondExpr cond
+
+                asm $ jump j (Label forEnd)
+
+                mapM_ ($ (Just forEnd, Just forStart)) body
+
+                asm $ do
+                    jump JMP (Label forStart)
+                    setLabelHere forEnd
+
+            BreakStmt ->
+                maybe (error "invariant violation") (asm . jump JMP . Label) mEnd
+
+            ContinueStmt -> do
+                maybe (error "invariant violation") (asm . jump JMP . Label) mBeginning
 
 -- | Generates the code to evaluate an expression. The computed
 -- 'VirtualOperand' contains the result of the expression.

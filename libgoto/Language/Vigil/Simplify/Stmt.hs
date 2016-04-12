@@ -163,13 +163,18 @@ simplifyStmt = annCata phi where
         G.ForStmt pre cond post bod -> do
             pre' <- maybeToListM pre
             cond' <- pushMaybe $ fmap (\e -> realizeToCondExpr =<< simplifyExpr e) cond
-            let condS = maybeToList (snd <$> cond')
             post' <- maybeToListM post
             bod' <- flattenBlock bod
 
-            let condExprStmt = fmap (\(c, _) -> [Fix $ V.CondExprStmt c]) cond'
-
-            pure $ pre' ++ [Fix $ V.ForStmt _ (bod' ++ post')]
+            pure $ pre' ++
+                [ Fix $
+                    V.ForStmt
+                    (fmap
+                        swap
+                        cond'
+                    )
+                    (bod' ++ post')
+                ]
 
         G.IncDecStmt dir e -> do
             -- This is very similar to the assign-op case of the Assignment
@@ -358,8 +363,10 @@ realizeToCondExpr rs = do
         -- fine to assign this to a temp and check the temp as a condref.
         SimpleExpr e@(Ann a _) -> do
             t <- makeTempAndDeclare a
-            pure (CondRef $ Ann a $ ValRef $ IdentVal t ,
-                    (Fix $ V.Assign (Ann a $ ValRef $ IdentVal t) e):stmts)
+            pure
+                ( CondRef $ Ann a $ ValRef $ IdentVal t
+                , (Fix $ V.Assign (Ann a $ ValRef $ IdentVal t) e):stmts
+                )
 
 -- | Takes a simplified expression stack and realizes all the temporaries as
 -- assign statements, also returning the topmost result on its own. As a
