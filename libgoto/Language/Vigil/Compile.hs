@@ -38,7 +38,7 @@ data CompilerEnv
     = CompilerEnv
         { compilerFunc :: FunDecl BasicIdent BasicVarDecl TyAnnStatement
         }
-    deriving (Eq, Ord, Read, Show)
+    -- deriving (Eq, Ord, Read, Show)
 
 -- | Emit raw assembly.
 asm :: VirtualAsm addr label a -> Compiler addr label a
@@ -56,34 +56,39 @@ compileFunction decl = wrapFunction $ mapM_ compileStmt $ _funDeclBody decl wher
 compileExpr
     :: TyAnnExpr
     -> Compiler addr label (VirtualOperand addr label)
-compileExpr (Ann a e) = case e of
+compileExpr (Ann a e) = undefined {- case e of
     Binary (Ann av1 v1) op (Ann av2 v2) -> case op of
         Plus -> do
             r1 <- compileRef v1
             r2 <- compileRef v2
-            asm $ add r1 r2
+            undefined asm $ add r1 r2
 
 
     Unary op v -> case op of
         Positive -> undefined
 
-    Ref (Ann b r) -> compileRef r
+    Ref (Ann b r) -> compileRef r -}
 
 compileVal
     :: TyAnnVal
     -> Compiler addr label ()
 compileVal = undefined
 
+compileRef = undefined
+
+{-
 compileRef
     :: Ref BasicIdent (Ident ()) TyAnnVal
     -> Compiler addr label (VirtualOperand addr label)
 compileRef r = case r of
     ArrayRef i vs -> do
         i' <- getIdent i
-
+        -}
 
 callInternal
     :: String
+callInternal = undefined
+
 
 -- | Wraps some code with the function prologue and epilogue.
 wrapFunction :: Compiler addr label () -> Compiler addr label ()
@@ -106,6 +111,6 @@ alignmentPadding sz g = g - (sz `div` g)
 {-# INLINE alignmentPadding #-}
 
 -- | Arranges the registers and the stack to perform a call.
-prepareCall
+{- prepareCall
     :: [VirtualOperand addr label]
-    ->
+    -> -}
