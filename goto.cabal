@@ -97,6 +97,7 @@ library
     Language.X86
     Language.X86.Core
     Language.X86.Virtual
+    Language.X86.Lifetime
 
 
 test-suite spec
