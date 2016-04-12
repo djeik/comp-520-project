@@ -134,7 +134,7 @@ instance StorageSize (TypeF a) where
     storageSize t = case t of
         IntType s -> storageSize s
         FloatType s -> storageSize s
-        StructType { structSize = n } -> n
+        StructType { structSize = n } -> storageSize ptrStorage
         ArrayType _ -> storageSize ptrStorage
         SliceType _ -> storageSize ptrStorage
         FuncType {} -> storageSize ptrStorage
