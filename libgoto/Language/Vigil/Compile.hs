@@ -3,6 +3,8 @@
 module Language.Vigil.Compile where
 
 import Language.Common.Annotation
+import Language.GoLite.Misc ( unFix )
+import Language.GoLite.Types ( stringFromSymbol )
 import Language.Vigil.Syntax
 import Language.Vigil.Syntax.TyAnn
 import Language.Vigil.Syntax.Basic
@@ -11,12 +13,14 @@ import Language.X86.Core
 import Language.X86.Virtual
 
 import Control.Monad.Reader
+import Control.Monad.State
 import Data.Functor.Foldable ( cata )
+import qualified Data.Map as M
 
 newtype Compiler addr label a
     = Compiler
         { unCompiler
-            :: ReaderT CompilerEnv (
+            :: ReaderT (CompilerEnv addr label) (
                 VirtualRegisterAllocatorT (VirtualAsm addr label)
             ) a
         }
@@ -24,16 +28,37 @@ newtype Compiler addr label a
         ( Functor
         , Applicative
         , Monad
-        , MonadReader CompilerEnv
+        , MonadReader (CompilerEnv addr label)
         )
 
+instance MonadVirtualRegisterAllocator (Compiler addr label) where
+    freshVirtualRegister ram rs
+        = Compiler $ lift $ freshVirtualRegister ram rs
+
 -- | The read-only environment of the function compiler.
-data CompilerEnv
+data CompilerEnv addr label
     = CompilerEnv
-        { compilerFunc :: FunDecl BasicIdent BasicVarDecl TyAnnStatement
-        -- ^ The function currently being compiled.
+        { _identMap :: M.Map GlobalId (VirtualOperand addr label)
+        -- ^ Precomputed map that assigns each GlobalId used by the function to
+        -- a virtual operand that represents that data.
         }
     deriving (Eq, Ord, Read, Show)
+
+-- | Looks up how to access the given data.
+lookupIdent :: GlobalId -> Compiler addr label (VirtualOperand addr label)
+lookupIdent gid = do
+    identMap <- asks _identMap
+    pure $ case M.lookup gid identMap of
+        -- if it's not in the ident map for the function, then we need to
+        -- generate a reference outside the function.
+        Nothing -> case unFix $ gidTy gid of
+            -- if it's a builtin, then we have to create an external reference,
+            -- which will eventually be linked to the runtime.
+            BuiltinType _ -> External $ stringFromSymbol $ gidOrigName gid
+            -- anything else is something on the top level, so we generate an
+            -- internal reference
+            _ -> Internal $ stringFromSymbol $ gidOrigName gid
+        Just o -> o
 
 -- | Emit raw assembly.
 asm :: VirtualAsm addr label a -> Compiler addr label a
@@ -44,9 +69,14 @@ runCompiler :: TyAnnFunDecl -> VirtualAsm addr label ()
 runCompiler decl
     = runVirtualRegisterAllocatorT
     $ runReaderT (unCompiler (compileFunction decl))
-    $ CompilerEnv
-        { compilerFunc = decl
-        }
+    $ makeCompilerEnv decl
+
+makeCompilerEnv :: TyAnnFunDecl -> CompilerEnv addr label
+makeCompilerEnv
+    = flip evalStateT initial $ do
+        undefined
+    where
+        initial = undefined
 
 -- | Compile a function
 compileFunction
@@ -107,55 +137,76 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 } -> do
                     -- to jump out of the switch
                     switchEnd <- asm newLabel
-                    -- to jump into the default case
-                    defaultCaseL <- asm newLabel
 
+                    -- TODO refactor this (both cases are *essentially* the
+                    -- same.
                     case mg of
                         Just expr -> do
                             g <- compileExpr expr
 
-                            code <- foldr
-                                (\(hd, bd) code -> do
-                                    postCaseBody <- asm newLabel
+                            forM_ cs $ \(hd, bd) -> do
+                                postCaseBody <- asm newLabel
 
-                                    -- to jump over the case body to
-                                    -- the next case head
-                                    preCaseBody <- asm newLabel
+                                -- to jump over the case body to
+                                -- the next case head
+                                preCaseBody <- asm newLabel
 
-                                    -- compile the conditions to check
-                                    -- to enter this case
-                                    forM_ hd $ \(e, ec) -> do
-                                        -- TODO investigate whether
-                                        -- continue/break can appear in these
-                                        -- weird contexts
-                                        mapM_ ($ none) ec
-                                        e' <- compileExpr e
-                                        asm $ do
-                                            cmp e' g
-                                            jump JE (Label preCaseBody)
-
-                                    -- if none of the alternatives in
-                                    -- the case head match the guard,
-                                    -- then jump past the case body
+                                -- compile the conditions to check
+                                -- to enter this case
+                                forM_ hd $ \(e, ec) -> do
+                                    -- TODO investigate whether
+                                    -- continue/break can appear in these
+                                    -- weird contexts
+                                    mapM_ ($ none) ec
+                                    e' <- compileExpr e
                                     asm $ do
-                                        jump JMP (Label postCaseBody)
-                                        setLabelHere preCaseBody
+                                        cmp e' g
+                                        jump OnEqual (Label preCaseBody)
 
-                                    mapM_ ($ (Just switchEnd, mBeginning)) bd
+                                -- if none of the alternatives in
+                                -- the case head match the guard,
+                                -- then jump past the case body
+                                asm $ do
+                                    jump Unconditionally (Label postCaseBody)
+                                    setLabelHere preCaseBody
 
-                                    asm $ do
-                                        jump JMP (Label switchEnd)
-                                        setLabelHere postCaseBody
+                                mapM_ ($ (Just switchEnd, mBeginning)) bd
 
-                                    code
-                                )
-                                (pure ())
-                                cs
+                                asm $ do
+                                    jump Unconditionally (Label switchEnd)
+                                    setLabelHere postCaseBody
 
-                            asm $ setLabelHere defaultCaseL
                             if null c
                                 -- no default case: jump past the switch
-                                then asm $ jump JMP (Label switchEnd)
+                                then asm $ jump Unconditionally (Label switchEnd)
+                                else do
+                                    mapM_ ($ (Just switchEnd, mBeginning)) c
+
+                        Nothing -> do
+                            forM_ cs $ \(hd, bd) -> do
+                                postCaseBody <- asm newLabel
+                                preCaseBody <- asm newLabel
+
+                                forM_ hd $ \(e, ec) -> do
+                                    mapM_ ($ none) ec
+                                    e' <- compileExpr e
+                                    asm $ do
+                                        test e' e'
+                                        jump OnNotEqual (Label preCaseBody)
+
+                                asm $ do
+                                    jump Unconditionally (Label postCaseBody)
+                                    setLabelHere preCaseBody
+
+                                mapM_ ($ (Just switchEnd, mBeginning)) bd
+
+                                asm $ do
+                                    jump Unconditionally (Label switchEnd)
+                                    setLabelHere postCaseBody
+
+                            -- default case
+                            if null c
+                                then asm $ jump Unconditionally (Label switchEnd)
                                 else do
                                     mapM_ ($ (Just switchEnd, mBeginning)) c
 
@@ -172,6 +223,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
 
                 asm $ setLabelHere forStart
 
+                mapM_ ($ (Just forEnd, Just forStart)) code
                 j <- compileCondExpr cond
 
                 asm $ jump j (Label forEnd)
@@ -179,21 +231,36 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 mapM_ ($ (Just forEnd, Just forStart)) body
 
                 asm $ do
-                    jump JMP (Label forStart)
+                    jump Unconditionally (Label forStart)
                     setLabelHere forEnd
 
-            BreakStmt ->
-                maybe (error "invariant violation") (asm . jump JMP . Label) mEnd
+            BreakStmt -> maybe
+                (error "invariant violation")
+                (asm . jump Unconditionally . Label)
+                mEnd
 
-            ContinueStmt -> do
-                maybe (error "invariant violation") (asm . jump JMP . Label) mBeginning
+            ContinueStmt -> maybe
+                (error "invariant violation")
+                (asm . jump Unconditionally . Label)
+                mBeginning
+
+-- | Generates code to compute the integer absolute value of the given
+-- 'VirutalOperand' in place.
+integerAbs :: VirtualOperand addr label -> Compiler addr label ()
+integerAbs o = do
+    t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
+    asm $ do
+        mov t o
+        sar t (Immediate 31)
+        xor o t
+        sub o t
 
 -- | Generates the code to evaluate an expression. The computed
 -- 'VirtualOperand' contains the result of the expression.
 compileExpr
     :: TyAnnExpr
     -> Compiler addr label (VirtualOperand addr label)
-compileExpr (Ann a e) = case e of
+compileExpr (Ann _ e) = case e of
     Binary v1 op v2 -> case op of
         Plus -> do
             r1 <- compileVal v1
@@ -202,17 +269,100 @@ compileExpr (Ann a e) = case e of
             pure r1
 
     Unary op v -> case op of
-        Positive -> undefined
+        Positive -> do
+            -- compute the integer absolute value
+            -- http://stackoverflow.com/questions/2639173/x86-assembly-abs-implementation
+            o <- compileVal v
+            integerAbs o
+            pure o
 
-    Ref (Ann b r) -> compileRef r
+        Negative -> do
+            o <- compileVal v
+            integerAbs o
+            asm $ neg2 o
+            pure o
+
+        BitwiseNot -> do
+            o <- compileVal v
+            asm $ neg1 o
+            pure o
+
+    Ref (Ann _ r) -> compileRef r
+
+    Cond c -> do
+        j <- compileCondExpr c
+        vreg <- DirectRegister <$> freshVirtualRegister IntegerMode Low8
+        asm $ setc j vreg
+        pure vreg
 
 -- | Compiles a conditional expression. These translate to comparisons in x86,
 -- which set flags, so the only thing that a called would need to know is which
 -- jump variant to invoke in order to perform the correct branch.
 compileCondExpr
     :: TyAnnCondExpr
-    -> Compiler addr label JumpVariant
-compileCondExpr = undefined
+    -> Compiler addr label FlagCondition
+compileCondExpr e = case e of
+    CondRef (Ann _ ref) -> do
+        r <- compileRef ref
+        asm $ test r r
+        pure OnEqual
+
+    BinCond v1 op v2 -> do
+        let simpleCompare j = do
+                (o1, o2) <- (,) <$> compileVal v1 <*> compileVal v2
+                asm $ cmp o1 o2
+                pure j
+
+        -- don't compile v2 just yet so we can respect short-circuiting
+        case op of
+            LogicalOr -> do
+                true <- asm newLabel
+
+                -- compile the first operand
+                o1 <- compileVal v1
+
+                asm $ do
+                    -- if it's true, jump over the second operand
+                    test o1 o1
+                    jump OnNotEqual (Label true)
+
+                -- compile the second operand
+                o2 <- compileVal v2
+                asm $ do
+                    -- set the flags for whether it's true
+                    test o2 o2
+
+                asm $ setLabelHere true
+                -- at this point, ZF = 1 if either one of the operands is true.
+                -- Hence to jump into the else branch, we would have to jump on
+                -- ZF = 0, i.e. OnEqual
+                pure OnEqual
+
+            LogicalAnd -> do
+                false <- asm newLabel
+
+                o1 <- compileVal v1
+
+                asm $ do
+                    test o1 o1
+                    jump OnEqual (Label false)
+
+                o2 <- compileVal v2
+                asm $ do
+                    test o2 o2
+
+                asm $ setLabelHere false
+                -- At this point, ZF = 1 if *both* operands are true.
+                -- Hence, to jump into the else branch, we would have to jump
+                -- on ZF = 0, i.e. OnEqual.
+                pure OnEqual
+
+            Equal -> simpleCompare OnNotEqual
+            NotEqual -> simpleCompare OnEqual
+            LessThan -> simpleCompare (OnNotBelow Signed)
+            LessThanEqual -> simpleCompare (OnAbove Signed)
+            GreaterThan -> simpleCompare (OnBelowOrEqual Signed)
+            GreaterThanEqual -> simpleCompare (OnBelow Signed)
 
 -- | Computes the register class for a given Vigil type.
 registerClass :: Type -> RegisterAccessMode
@@ -239,8 +389,8 @@ compileRef
     :: Ref BasicIdent (Ident ()) TyAnnVal ()
     -> Compiler addr label (VirtualOperand addr label)
 compileRef r = case r of
-    ArrayRef i vs -> do
-        i' <- compileIdent i
+    ArrayRef i _ -> do
+        _ <- compileIdent i
         undefined
 
 compileIdent

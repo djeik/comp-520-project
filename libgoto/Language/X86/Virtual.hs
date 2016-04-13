@@ -20,9 +20,8 @@ module Language.X86.Virtual
   -- * Virtual register allocator
 , VirtualRegisterAllocatorT
 , VirtualRegisterAllocator
+, MonadVirtualRegisterAllocator(..)
 , runVirtualRegisterAllocatorT
-  -- ** Virtual registers
-, freshVirtualRegister
   -- ** Fixed hardware registers
 , rax
 , rbx

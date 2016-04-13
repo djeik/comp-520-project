@@ -42,10 +42,13 @@ module Language.X86.Core
 , sar
 , cmp
 , jump
+, setc
+, neg1
+, neg2
   -- * x86 instructions
 , Instruction(..)
   -- ** Jumps
-, JumpVariant(..)
+, FlagCondition(..)
 , JumpDistance(..)
   -- ** Operands
 , Operand(..)
@@ -131,8 +134,14 @@ data Instruction val
     -- ^ Arithmetic left shift; 'sal'.
     | Sar val val
     -- ^ Arithmetic right shift; 'sar'.
-    | Jump JumpVariant val
+    | Jump FlagCondition val
     -- ^ Perform a jump; 'jump'.
+    | Setc FlagCondition val
+    -- ^ Perform a conditional byte set; 'setc'.
+    | Neg1 val
+    -- ^ Perform a one's complement (bitwise) negation; 'neg1'.
+    | Neg2 val
+    -- ^ Perform a two's complement (arithmetic) negation; 'neg2'.
 
 -- | Variants of jumps.
 --
@@ -146,26 +155,26 @@ data Instruction val
 -- * @OF@ - /overflow/ flag: set if result is too large a positive number or
 --   too small a negative number (excluding the sign bit) to fit in the
 --   destination operand.
-data JumpVariant
-    = JMP
+data FlagCondition
+    = Unconditionally
     -- ^ Jump unconditionally.
-    | JO
+    | OnOverflow
     -- ^ Jump on overflow, @OF = 1@.
-    | JNO
+    | OnNoOverflow
     -- ^ Jump on no overflow, @OF = 0@.
-    | JS
+    | OnSign
     -- ^ Jump on sign, @SF = 1@.
-    | JNS
+    | OnNoSign
     -- ^ Jump on no sign, @SF = 0@.
-    | JE
+    | OnEqual
     -- ^ Jump on equal, @ZF = 1@.
     --
     -- Synonymous with @jz@, jump on zero.
-    | JNE
+    | OnNotEqual
     -- ^ Jump on not equal, @ZF = 0@.
     --
     -- Synonymous with @jnz@, jump on not zero.
-    | JB Signedness
+    | OnBelow Signedness
     -- ^ If unsigned, then jump if /below/, @CF = 1@.
     --
     -- Synonymous with @jnae@, jump if not /above/ or equal, and @jc@ jump on
@@ -174,7 +183,7 @@ data JumpVariant
     -- If signed, then jump if /less/, @SF /= OF@.
     --
     -- Synonymous with @jnge@, jump if not /greater than/ or equal.
-    | JNB Signedness
+    | OnNotBelow Signedness
     -- ^ If unsigned, then jump if not /below/, @CF = 0@.
     --
     -- Synonymous with @jae@, jump if above or equal, and @jnc@ jump on no
@@ -183,7 +192,7 @@ data JumpVariant
     -- If signed, then jump if /greater than/ or equal.
     --
     -- Synonymous with @jnl@, jump if not /less/.
-    | JBE Signedness
+    | OnBelowOrEqual Signedness
     -- ^ If unsigned, then jump if /below/ or equal, @CF = 1@ or @ZF = 1@.
     --
     -- Synonymous with @jna@, jump if not /above/.
@@ -191,7 +200,7 @@ data JumpVariant
     -- If signed, then jump if /less than/ or equal, @ZF = 1$ or @SF /= OF@.
     --
     -- Synonymous with @jng@, jump if not /greater/.
-    | JA Signedness
+    | OnAbove Signedness
     -- ^ If unsigned, then jump if /above/, @CF = 0@ and @ZF = 0@.
     --
     -- Synonymous with @jnbe@, jump if not /below/ or equal.
@@ -199,11 +208,11 @@ data JumpVariant
     -- If signed, then jump if /greater than/, @ZF = 0@ and @SF = OF@.
     --
     -- Synonymous with @jnle@, jump if not /less than/ or equal.
-    | JPE
+    | OnParityEven
     -- ^ Jump if parity even, @PF = 1@.
-    | JPO
+    | OnParityOdd
     -- ^ Jump if parity odd, @PF = 0@.
-    | JCXZ
+    | OnCounterZero
     -- ^ Jump on @CX@ (@ECX@) equal to zero.
 
 -- | Indicates whether an instruction operates on signed or unsigned data.
@@ -317,6 +326,7 @@ data Operand reg addr label
     -- ^ An internal reference, e.g. to another compiled Go function.
     | External String
     -- ^ An external reference, e.g. to a C function.
+    deriving (Eq, Ord, Read, Show)
 
 data Offset reg
     = Offset Displacement reg
@@ -326,6 +336,7 @@ data Offset reg
     | ScaledIndexBase Scale Displacement reg reg
     -- ^ Scaled index base addressing can be used to concisely express array
     -- indexing.
+    deriving (Eq, Ord, Read, Show)
 
 -- | A multiplier on on an index.
 data Scale
@@ -333,6 +344,7 @@ data Scale
     | ScaleShort
     | ScaleWord
     | ScaleDword
+    deriving (Eq, Ord, Read, Show)
 
 type Displacement = Int64
 type Immediate = Word64
@@ -432,5 +444,14 @@ sal x y = liftF . Emit (Sal x y) $ ()
 sar :: Instr2 reg addr label ()
 sar x y = liftF . Emit (Sar x y) $ ()
 
-jump :: JumpVariant -> Instr1 reg addr label ()
+jump :: FlagCondition -> Instr1 reg addr label ()
 jump v x = liftF . Emit (Jump v x) $ ()
+
+setc :: FlagCondition -> Instr1 reg addr label ()
+setc v x = liftF . Emit (Setc v x) $ ()
+
+neg1 :: Instr1 reg addr label ()
+neg1 v = liftF . Emit (Neg1 v) $ ()
+
+neg2 :: Instr1 reg addr label ()
+neg2 v = liftF . Emit (Neg2 v) $ ()
