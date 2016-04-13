@@ -1,0 +1,40 @@
+Members
+═══════
+
+  • Jacob Errington (260636023)
+  • Frederic Lafrance (260580705)
+
+
+Q1
+══
+
+  • Grade: 10/10
+
+
+Q2
+══
+
+  • Grade: 27.2/30
+    • Valid: 13/15
+      • Recognized as valid: 13/15
+    • Invalid: 14.2/15
+      • Recognized as invalid: 56/59
+      • Recognized as valid: 3/59
+
+
+Q3
+══
+
+  • Grade: 8/10
+    • Good details on the type rules
+    • I would've liked more details on the implementation of the symbol
+      table.
+
+
+Notes
+═════
+
+  • Your assignment was *way* too hard to grade; there is not simple way
+    to automate testing.  Your compiler should've outputted "Valid" if
+    the input program was type-correct and "Invalid" followed by an
+    error message if it wasn't.
