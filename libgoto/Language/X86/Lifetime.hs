@@ -165,6 +165,14 @@ data LifetimeSpan
         , _end :: Int
         }
 
+-- | Determines if two lifetimes overlap, which is the case when their ranges
+-- intersect.
+overlaps :: LifetimeSpan -> LifetimeSpan -> Bool
+overlaps a b
+    =  (_start a >= _start b && _start a <= _end b)
+    || (_end a >= _start b && _end a <= _end b)
+    || (_start a <= _start b && _end a >= _end b)
+
 -- | Two lifetime spans are equal if their starting and ending positions are the same.
 instance Eq LifetimeSpan where
     a == b = (_start a == _start b) && (_end a == _end b)

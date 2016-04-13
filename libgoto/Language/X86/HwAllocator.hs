@@ -41,6 +41,10 @@ import qualified Data.PQueue.Prio.Min as PQ
 import Control.Monad.ST
 import Data.STRef
 
+-- | Transforms a list of lifetime spans into a priority queue of intervals.
+-- This priority queue is ordered by start time of lifetime spans. The values
+-- are pairings between virtual registers and memory cells that will later
+-- contain the allocated memory location (it starts out as unassigned).
 lifetimesToIntervals
     :: M.Map SizedVirtualRegister LifetimeSpan
     -> ST s (PQ.MinPQueue LifetimeSpan (RegisterPairingST s))
@@ -50,51 +54,92 @@ lifetimesToIntervals = M.foldlWithKey' (\acc vreg span -> do
         pure $ PQ.insert span (RegisterPairingST vreg hreg) acc')
     (pure PQ.empty)
 
+-- | Constructs a list of conflicts for every interval.
+--
+-- Warning: this is extremely naive (quadratic time) but thankfully we only
+-- need to do it once.
 buildConflicts
     :: (PQ.MinPQueue LifetimeSpan (RegisterPairingST s))
-    -> ST s (PQ.MinPQueue LifetimeSpan (RegisterPairingST s, [RegisterInterval s]))
-buildConflicts = undefined
+    -> (PQ.MinPQueue LifetimeSpan (RegisterPairingST s, [RegisterInterval s]))
+buildConflicts pq = PQ.mapWithKey (\ourSpan us ->
+    (us, PQ.assocsU $ PQ.filterWithKey
+        (\theirSpan them -> us /= them && ourSpan `overlaps` theirSpan) pq)) pq
 
+-- | Performs register allocation linearly. Returned is a list of pairings
+-- between virtual registers and (cells containing) physical ones.
 allocate
     :: (PQ.MinPQueue LifetimeSpan (RegisterPairingST s, [RegisterInterval s]))
     -> ST s [RegisterPairingST s]
-allocate = PQ.foldlWithKey (\acc span (us, others) -> do
-    -- TODO must use the acceptable candidate list based on the register access kind
-    r <- checkFree undefined others
-    case r of
-        Right hreg -> writeSTRef (_hregST us) $ Reg hreg
-        Left (i, vreg) ->
-            if _end span > i then writeSTRef (_hregST us) Mem
-            else do
-                hw <- spillDesignated vreg others
-                writeSTRef (_hregST us) hw
-    acc' <- acc
-    pure $ us:acc') (pure [])
+allocate = PQ.foldlWithKey (\acc span (us, others) ->
+    case _vregST us of
+        -- If we are a fixed register, we've already been allocated at this point.
+        (SizedRegister _ (FixedHardwareRegister hreg)) -> do
+            acc' <- acc
+            pure $ us:acc'
 
-spillDesignated :: SizedVirtualRegister -> [RegisterInterval s] -> ST s HardwareLocation
-spillDesignated r [] = error "Unimplemented: spill failure"
-spillDesignated r (x:xs) =
-    if (_vregST $ snd x) == r
-    then do
-        hloc <- readSTRef (_hregST $ snd x)
-        writeSTRef (_hregST $ snd x) Mem
-        pure hloc
-    else spillDesignated r xs
+        (SizedRegister _ (VirtualRegister mod _)) -> do
+            let allocatableRegs = allocatableRegsForMode mod
+            r <- checkFree allocatableRegs others
+            case r of
+                -- There is a free register, so we take it.
+                Right hreg -> writeSTRef (_hregST us) $ Reg hreg False
+                Left (i, hloc) ->
+                    -- If our span ends after the latest conflicting interval,
+                    -- we spill ourselves.
+                    if _end span > i then writeSTRef (_hregST us) Mem
+                    else do
+                        -- Otherwise we spill them and take their register.
+                        hw <- readSTRef hloc
+                        writeSTRef hloc Mem
+                        writeSTRef (_hregST us) hw
+            acc' <- acc
+            pure $ us:acc') (pure [])
 
+-- | Performs the first phase of allocation, in which lifetimes referring to
+-- fixed hardware registers are automatically granted their hardware registers.
+--
+-- Note that it cannot be the case that two different lifetimes refer to the
+-- same fixed hardware register.
+preallocateFixed
+    :: (PQ.MinPQueue LifetimeSpan (RegisterPairingST s, [RegisterInterval s]))
+    -> ST s ()
+preallocateFixed = PQ.foldlWithKey (\_ span (us, _) ->
+    case _vregST us of
+        (SizedRegister _ (VirtualRegister mod _)) -> pure ()
+        (SizedRegister sz (FixedHardwareRegister hreg)) ->
+            writeSTRef (_hregST us) $ Reg (SizedRegister sz hreg) True
+    ) (pure ())
+
+-- | Checks if any register among the candidates is free among the given intervals.
+-- The return value is either a register from the candidate list that was free,
+-- or a reference to the hardware location of the virtual register whose
+-- lifetime span ends the latest.
 checkFree
     :: [SizedHardwareRegister]
     -> [RegisterInterval s]
-    -> ST s (Either (Int, SizedVirtualRegister) SizedHardwareRegister)
-checkFree = let fakeReg = (0, SizedRegister Extended64 $ VirtualRegister IntegerMode (-1)) in
-    checkFree' fakeReg where
+    -> ST s (Either (Int, STRef s HardwareLocation) SizedHardwareRegister)
+checkFree c i = do
+    fakeCell <- newSTRef Unassigned
+    let fakeReg = (-1, fakeCell)
+    -- We carry around the register that is associated with the span that ends
+    -- the latest.
+    checkFree' fakeReg c i where
     checkFree' maximal [] [] = pure $ Left maximal
     checkFree' _ (x:xs) [] = pure $ Right x
     checkFree' maximal candidates (x:xs) = do
         con <- readSTRef $ _hregST $ snd x
         let max' =  if (_start $ fst x) > fst maximal
-                    then (_start $ fst x, _vregST $ snd x)
+                    then (_start $ fst x, _hregST $ snd x)
                     else maximal
         case con of
-            Reg r -> checkFree' max' (L.delete r candidates) xs
+            Reg r fixed ->
+                let candidates' = L.delete r candidates in
+                -- If the register is fixed, we don't update the "maximal"
+                -- parameter; this means that this reg will never be designated
+                -- for spilling.
+                if fixed then
+                    checkFree' maximal candidates' xs
+                else
+                    checkFree' max' candidates' xs
             _ -> checkFree' max' candidates xs
 
