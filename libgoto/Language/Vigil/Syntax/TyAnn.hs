@@ -7,14 +7,9 @@ Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
 -}
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-
 module Language.Vigil.Syntax.TyAnn where
 
 import Language.Common.Annotation
-import Language.Common.Pretty
 import Language.Vigil.Types
 import Language.Vigil.Syntax
 import Language.Vigil.Syntax.Basic
@@ -37,14 +32,16 @@ type TyAnnStatement
     = Fix TyAnnStatementF
 
 type TyAnnExpr
-    = TyAnn (Expr
+    = TyAnn (
+        Expr
         BasicType
         TyAnnRef
         BasicIdent
         TyAnnVal
         TyAnnBinOp
         TyAnnUnOp
-        TyAnnCondExpr) ()
+        TyAnnCondExpr
+    ) ()
 
 type TyAnnBinOp = BasicBinOp
 
@@ -60,12 +57,15 @@ type TyAnnRef = TyAnn (Ref BasicIdent (Ident ()) TyAnnVal) ()
 
 type TyAnnVal = Val BasicIdent TyAnnLiteral
 
+-- | Computes the type of a type-annotated 'Val'.
+valType :: TyAnnVal -> Type
+valType v = case v of
+    IdentVal gid -> gidTy gid
+    Literal (Ann ty _) -> ty
+
 type TyAnnLiteral = TyAnn Literal ()
 
 type TyAnnVigilInt = TyAnn (Const VigilInt) ()
 type TyAnnVigilFloat = TyAnn (Const VigilFloat) ()
 type TyAnnVigilRune = TyAnn (Const VigilRune) ()
 type TyAnnVigilString = TyAnn (Const VigilString) ()
-
-instance Pretty (f a) => Pretty (TyAnn f a) where
-    pretty = pretty . bare

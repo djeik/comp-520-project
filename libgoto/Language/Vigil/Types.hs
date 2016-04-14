@@ -11,6 +11,7 @@ AST.
 -}
 
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -46,7 +47,7 @@ module Language.Vigil.Types
 , reinterpretGlobalId
 ) where
 
-import Language.Common.Annotation ( bare )
+import Language.Common.Annotation ( Ann, bare )
 import Language.Common.Pretty
 import Language.Common.Storage
 import qualified Language.Common.GlobalId as Gid
@@ -110,6 +111,9 @@ data TypeF subTy
 
 type Type = Fix TypeF
 
+instance Pretty (f a) => Pretty (Ann Type f a) where
+    pretty = pretty . bare
+
 instance Pretty Type where
     pretty (Fix t') = case t' of
         IntType n -> text "int" <> pretty n
@@ -129,7 +133,7 @@ instance StorageSize (TypeF a) where
     storageSize t = case t of
         IntType s -> storageSize s
         FloatType s -> storageSize s
-        StructType { structSize = n } -> storageSize ptrStorage
+        StructType {} -> storageSize ptrStorage
         ArrayType _ -> storageSize ptrStorage
         SliceType _ -> storageSize ptrStorage
         FuncType {} -> storageSize ptrStorage

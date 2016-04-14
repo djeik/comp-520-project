@@ -20,9 +20,8 @@ module Language.X86.Virtual
   -- * Virtual register allocator
 , VirtualRegisterAllocatorT
 , VirtualRegisterAllocator
+, MonadVirtualRegisterAllocator(..)
 , runVirtualRegisterAllocatorT
-  -- ** Virtual registers
-, freshVirtualRegister
   -- ** Fixed hardware registers
 , rax
 , rbx
@@ -98,21 +97,27 @@ data VirtualRegisterAllocatorState
     deriving (Eq, Ord, Read, Show)
 
 -- | The initial state for the virtual register allocator.
+initialVirtualRegisterAllocatorState :: VirtualRegisterAllocatorState
 initialVirtualRegisterAllocatorState
     = VirtualRegisterAllocatorState
         { _nextVirtualRegister = 0
         }
 
--- | Gets a fresh virtual register
-freshVirtualRegister
-    :: Monad m
-    => RegisterAccessMode
-    -> RegisterSize
-    -> VirtualRegisterAllocatorT m SizedVirtualRegister
-freshVirtualRegister mode sz = do
-    i <- gets _nextVirtualRegister <* modify (\s ->
-        s { _nextVirtualRegister = _nextVirtualRegister s + 1 })
-    pure $ SizedRegister sz (VirtualRegister mode i)
+instance
+    Monad m
+    => MonadVirtualRegisterAllocator (VirtualRegisterAllocatorT m) where
+
+    freshVirtualRegister mode sz = do
+        i <- gets _nextVirtualRegister <* modify (\s ->
+            s { _nextVirtualRegister = _nextVirtualRegister s + 1 })
+        pure $ SizedRegister sz (VirtualRegister mode i)
+
+class MonadVirtualRegisterAllocator m where
+    -- | Gets a fresh virtual register
+    freshVirtualRegister
+        :: RegisterAccessMode
+        -> RegisterSize
+        -> m SizedVirtualRegister
 
 fixedIntReg64 :: IntegerRegister -> VirtualOperand addr label
 fixedIntReg64
