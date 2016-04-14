@@ -45,6 +45,11 @@ module Language.X86.Core
 , setc
 , neg1
 , neg2
+  -- *** Miscellaneous operations
+, scratch
+, withScratch
+, prologue
+, withPrologue
   -- * x86 instructions
 , Instruction(..)
   -- ** Jumps
@@ -55,7 +60,7 @@ module Language.X86.Core
 , Offset(..)
 , Scale(..)
 , Displacement
-, Immediate
+, Immediate(..)
 , FloatingRegister(..)
 , IntegerRegister(..)
 , RegisterAccessMode(..)
@@ -66,6 +71,7 @@ module Language.X86.Core
 , hwxmm
   -- * Misc
 , Signedness(..)
+, ScratchFlow(..)
 ) where
 
 import Control.Monad.Free
@@ -91,7 +97,16 @@ data AsmF addr label val next
     -- ^ Assign a value to a label.
     | Here (addr -> next)
     -- ^ Get the current code offset.
+    | Scratch ScratchFlow next
+    -- ^ Save or load live scratch registers. Load instructions must always
+    -- occur after a save instruction. Saves and loads may not be nested.
+    | Prologue ScratchFlow next
     deriving (Functor)
+
+-- | Whether to save or load the scratch registers.
+data ScratchFlow
+    = Save
+    | Load
 
 -- | The free monad on 'AsmF'.
 type Asm reg addr label = Free (AsmF addr label (Operand reg addr label))
@@ -347,7 +362,10 @@ data Scale
     deriving (Eq, Ord, Read, Show)
 
 type Displacement = Int64
-type Immediate = Word64
+data Immediate
+    = ImmF Double
+    | ImmI Word64
+    deriving (Eq, Ord, Read, Show)
 
 -- | Nullary instruction.
 type Instr0 reg addr label a = Asm reg addr label a
@@ -357,6 +375,26 @@ type Instr1 reg addr label a = Operand reg addr label -> Instr0 reg addr label a
 
 -- | Binary instruction.
 type Instr2 reg addr label a = Operand reg addr label -> Instr1 reg addr label a
+
+prologue :: ScratchFlow -> Asm reg addr label ()
+prologue flow = liftF . Prologue flow $ ()
+
+withPrologue :: Asm reg addr label a -> Asm reg addr label a
+withPrologue m = do
+    prologue Save
+    x <- m
+    prologue Load
+    pure x
+
+scratch :: ScratchFlow -> Asm reg addr label ()
+scratch flow = liftF . Scratch flow $ ()
+
+withScratch :: Asm reg addr label a -> Asm reg addr label a
+withScratch m = do
+    scratch Save
+    x <- m
+    scratch Load
+    pure x
 
 -- | 'NewLabel'
 newLabel :: Asm reg addr label label

@@ -36,6 +36,29 @@ simplifyPackage (Package _ decls) = do
     let (globs, funs) = partition isGlob decls
     let globs' = filter isVar globs
 
+    fs <- fmap catMaybes $ forM funs $ \(G.TopLevelFun (G.FunDecl i ps _ bod)) -> do
+        modify (\s ->  s { newDeclarations = [] }) -- Reset state of declarations.
+        bod' <- forM bod simplifyStmt -- Simplify body
+
+        ps' <- fmap catMaybes $ forM ps $ \(pid, _) -> do
+            m <- reinterpretGlobalIdEx pid
+            pure $ case m of
+                Nothing -> Nothing
+                Just i' -> Just $ V.VarDecl i'
+
+        nis' <- gets newDeclarations
+        let nvs' = map V.VarDecl nis'
+
+        m <- reinterpretGlobalIdEx i
+        case m of
+            Nothing -> pure Nothing
+            Just i' -> pure $ Just $ V.FunDecl
+                { _funDeclName = i'
+                , _funDeclArgs = ps'
+                , _funDeclVars = nvs'
+                , _funDeclBody = concat bod'
+                }
+
     vs <-
         forM globs' $ \(G.TopLevelDecl (G.VarDecl (G.VarDeclBody is _ es))) -> do
             case es of
@@ -74,28 +97,6 @@ simplifyPackage (Package _ decls) = do
                 , _funDeclBody = concat $ map snd vs'
                 }
 
-    fs <- fmap catMaybes $ forM funs $ \(G.TopLevelFun (G.FunDecl i ps _ bod)) -> do
-        modify (\s ->  s { newDeclarations = [] }) -- Reset state of declarations.
-        bod' <- forM bod simplifyStmt -- Simplify body
-
-        ps' <- fmap catMaybes $ forM ps $ \(pid, _) -> do
-            m <- reinterpretGlobalIdEx pid
-            pure $ case m of
-                Nothing -> Nothing
-                Just i' -> Just $ V.VarDecl i'
-
-        nis' <- gets newDeclarations
-        let nvs' = map V.VarDecl nis'
-
-        m <- reinterpretGlobalIdEx i
-        case m of
-            Nothing -> pure Nothing
-            Just i' -> pure $ Just $ V.FunDecl
-                { _funDeclName = i'
-                , _funDeclArgs = ps'
-                , _funDeclVars = nvs'
-                , _funDeclBody = concat bod'
-                }
 
     let (main, notMain) = partition
                     (\(V.FunDecl i _ _ _) -> gidOrigName i == "main") (fInit:fs)

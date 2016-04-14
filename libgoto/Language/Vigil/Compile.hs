@@ -1,4 +1,7 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Language.Vigil.Compile where
 
@@ -71,12 +74,107 @@ runCompiler decl
     $ runReaderT (unCompiler (compileFunction decl))
     $ makeCompilerEnv decl
 
-makeCompilerEnv :: TyAnnFunDecl -> CompilerEnv addr label
-makeCompilerEnv
-    = flip evalStateT initial $ do
-        undefined
-    where
-        initial = undefined
+type CompilerEnvAllocState addr label =
+    ( Displacement
+    , Displacement
+    , [IntegerRegister]
+    , [Int]
+    , M.Map GlobalId (VirtualOperand addr label)
+    )
+
+makeCompilerEnv :: forall addr label. TyAnnFunDecl -> CompilerEnv addr label
+makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
+    = CompilerEnv { _identMap = identMap } where
+
+        (_, _, _, _, identMap) = execState go initial
+
+        go :: State (CompilerEnvAllocState addr label) ()
+        go = do
+            forM_ vars $ \(VarDecl gid) -> do
+                offset <- nextlocal (8 :: Displacement)
+                record gid (IndirectRegister (Offset offset $ rXx Rbp))
+
+            forM_ args $ \(VarDecl gid) -> do
+                case unFix $ gidTy gid of
+                    FloatType _ -> paramRegAssign nextfreg xmm gid
+                    _ -> paramRegAssign nextireg rXx gid
+
+        paramRegAssign
+            :: State (CompilerEnvAllocState addr label) (Maybe a)
+            -> (a -> SizedVirtualRegister)
+            -> GlobalId
+            -> State (CompilerEnvAllocState addr label) ()
+        paramRegAssign regAllocator boxer gid = do
+            m <- regAllocator
+            case m of
+                Just reg -> record gid (DirectRegister $ boxer reg)
+                Nothing -> do
+                    offset <- nextparam (8 :: Displacement)
+                    record gid (IndirectRegister (Offset offset $ rXx Rbp))
+
+        fixhw64 = SizedRegister Extended64 . FixedHardwareRegister
+        xmm = fixhw64 . hwxmm
+        rXx = fixhw64 . IntegerHwRegister
+
+        -- the initial state for the parameter and local allocator
+        initial ::
+            ( Displacement
+            , Displacement
+            , [IntegerRegister]
+            , [Int]
+            , M.Map GlobalId (VirtualOperand addr label)
+            )
+        initial =
+            ( (negate 8) -- stack offset for locals
+            , 16 -- stack offset for params
+            , [Rdi, Rsi, Rdx, Rcx, R8, R9] -- available integer registers
+            , [0..7] -- available floating registers
+            , M.empty
+            )
+
+        -- safe head from a component of the state tuple
+        nextreg
+            :: (CompilerEnvAllocState addr label -> [a])
+            -> ( [a]
+                -> CompilerEnvAllocState addr label
+                -> CompilerEnvAllocState addr label
+            )
+            -> State (CompilerEnvAllocState addr label) (Maybe a)
+        nextreg getter setter = do
+            regs <- gets getter
+            case regs of
+                [] -> pure Nothing
+                (x:xs) -> do
+                    modify (setter xs)
+                    pure (Just x)
+
+        record k v = modify $ \(a, b, c, d, m) -> (a, b, c, d, M.insert k v m)
+
+        -- get the next integer register, or 'Nothing' if there are none
+        -- available
+        nextireg = nextreg
+            (\(_, _, xs, _, _) -> xs)
+            (\xs (a, b, _, c, d) -> (a, b, xs, c, d))
+
+        -- get the next floating register, or 'Nothing' if there are none
+        -- available
+        nextfreg :: State (CompilerEnvAllocState addr label) (Maybe Int)
+        nextfreg = nextreg
+            (\(_, _, _, xs, _) -> xs)
+            (\xs (a, b, c, _, d) -> (a, b, c, xs, d))
+
+        nextmemory getter setter increment = do
+            n <- gets getter
+            modify (setter $ n + increment)
+            pure n
+
+        nextlocal = nextmemory
+            (\(n, _, _, _, _) -> n)
+            (\n (_, a, b, c, d) -> (n, a, b, c, d))
+
+        nextparam = nextmemory
+            (\(_, n, _, _, _) -> n)
+            (\n (a, _, b, c, d) -> (a, n, b, c, d))
 
 -- | Compile a function
 compileFunction
@@ -251,7 +349,7 @@ integerAbs o = do
     t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
     asm $ do
         mov t o
-        sar t (Immediate 31)
+        sar t (Immediate $ ImmI 31)
         xor o t
         sub o t
 
@@ -383,7 +481,17 @@ registerClass (Fix ty) = case ty of
 compileVal
     :: TyAnnVal
     -> Compiler addr label (VirtualOperand addr label)
-compileVal = undefined
+compileVal val = case val of
+    IdentVal ident -> compileIdent ident
+    Literal lit -> compileLiteral lit
+
+compileLiteral
+    :: TyAnnLiteral
+    -> Compiler addr label (VirtualOperand addr label)
+compileLiteral (Ann ty lit) = case lit of
+    IntLit n -> pure $ Immediate (ImmI $ fromIntegral n)
+    FloatLit n -> pure $ Immediate (ImmF n)
+    RuneLit n -> pure $ Immediate (ImmI $ fromIntegral $ fromEnum n)
 
 compileRef
     :: Ref BasicIdent (Ident ()) TyAnnVal ()
@@ -396,7 +504,7 @@ compileRef r = case r of
 compileIdent
     :: GlobalId
     -> Compiler addr label (VirtualOperand addr label)
-compileIdent = undefined
+compileIdent = lookupIdent
 
 -- | Wraps some code with the function prologue and epilogue.
 wrapFunction :: Compiler addr label () -> Compiler addr label ()
@@ -404,7 +512,11 @@ wrapFunction v = do
     asm $ do
         push rbp
         mov rbp rsp
+
+    asm $ prologue Save
     v
+    asm $ prologue Load
+
     asm $ do
         mov rsp rbp
         pop rbp
