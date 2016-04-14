@@ -48,16 +48,11 @@ module Language.Vigil.Types
 
 import Language.Common.Annotation ( bare )
 import Language.Common.Pretty
+import Language.Common.Storage
 import qualified Language.Common.GlobalId as Gid
 import qualified Language.GoLite.Types as G
 
 import Data.Functor.Foldable ( Fix(..), cata )
-
--- | Types having an associated storage requirement as a number of bytes needed
--- to represent the data.
-class StorageSize a where
-    -- | Compute the number of bytes needed to store a value of this type.
-    storageSize :: a -> Int
 
 -- | A storage requirement for an integer.
 data IStorage

@@ -27,7 +27,9 @@ generate the following:
 @
 -}
 
-module Language.X86.HwAllocator where
+module Language.X86.HwAllocator
+( allocate
+) where
 
 import Language.X86.Core
 import Language.X86.Hardware
@@ -40,6 +42,14 @@ import qualified Data.PQueue.Prio.Min as PQ
 
 import Control.Monad.ST
 import Data.STRef
+
+-- | Performs all the steps of register allocation, taking a map of lifetime
+-- spans to a list of register pairings.
+allocate :: M.Map SizedVirtualRegister LifetimeSpan -> [RegisterPairing]
+allocate s = runST $ (buildConflicts <$> (lifetimesToIntervals s))
+            >>= preallocateFixed
+            >>= allocate'
+            >>= extractCells
 
 -- | Transforms a list of lifetime spans into a priority queue of intervals.
 -- This priority queue is ordered by start time of lifetime spans. The values
@@ -67,13 +77,13 @@ buildConflicts pq = PQ.mapWithKey (\ourSpan us ->
 
 -- | Performs register allocation linearly. Returned is a list of pairings
 -- between virtual registers and (cells containing) physical ones.
-allocate
+allocate'
     :: (PQ.MinPQueue LifetimeSpan (RegisterPairingST s, [RegisterInterval s]))
     -> ST s [RegisterPairingST s]
-allocate = PQ.foldlWithKey (\acc span (us, others) ->
+allocate' = PQ.foldlWithKey (\acc span (us, others) ->
     case _vregST us of
         -- If we are a fixed register, we've already been allocated at this point.
-        (SizedRegister _ (FixedHardwareRegister hreg)) -> do
+        (SizedRegister _ (FixedHardwareRegister _)) -> do
             acc' <- acc
             pure $ us:acc'
 
@@ -86,11 +96,11 @@ allocate = PQ.foldlWithKey (\acc span (us, others) ->
                 Left (i, hloc) ->
                     -- If our span ends after the latest conflicting interval,
                     -- we spill ourselves.
-                    if _end span > i then writeSTRef (_hregST us) Mem
+                    if _end span > i then writeSTRef (_hregST us) $ Mem (-1)
                     else do
                         -- Otherwise we spill them and take their register.
                         hw <- readSTRef hloc
-                        writeSTRef hloc Mem
+                        writeSTRef hloc $ Mem (-1)
                         writeSTRef (_hregST us) hw
             acc' <- acc
             pure $ us:acc') (pure [])
@@ -100,15 +110,17 @@ allocate = PQ.foldlWithKey (\acc span (us, others) ->
 --
 -- Note that it cannot be the case that two different lifetimes refer to the
 -- same fixed hardware register.
+--
+-- Returns its argument for chaining purposes.
 preallocateFixed
     :: (PQ.MinPQueue LifetimeSpan (RegisterPairingST s, [RegisterInterval s]))
-    -> ST s ()
-preallocateFixed = PQ.foldlWithKey (\_ span (us, _) ->
+    -> ST s (PQ.MinPQueue LifetimeSpan (RegisterPairingST s, [RegisterInterval s]))
+preallocateFixed m = (PQ.foldlWithKey (\_ _ (us, _) ->
     case _vregST us of
-        (SizedRegister _ (VirtualRegister mod _)) -> pure ()
+        (SizedRegister _ (VirtualRegister _ _)) -> pure ()
         (SizedRegister sz (FixedHardwareRegister hreg)) ->
             writeSTRef (_hregST us) $ Reg (SizedRegister sz hreg) True
-    ) (pure ())
+    ) (pure ())) m >> pure m
 
 -- | Checks if any register among the candidates is free among the given intervals.
 -- The return value is either a register from the candidate list that was free,
@@ -125,7 +137,7 @@ checkFree c i = do
     -- the latest.
     checkFree' fakeReg c i where
     checkFree' maximal [] [] = pure $ Left maximal
-    checkFree' _ (x:xs) [] = pure $ Right x
+    checkFree' _ (x:_) [] = pure $ Right x
     checkFree' maximal candidates (x:xs) = do
         con <- readSTRef $ _hregST $ snd x
         let max' =  if (_start $ fst x) > fst maximal
@@ -143,3 +155,66 @@ checkFree c i = do
                     checkFree' max' candidates' xs
             _ -> checkFree' max' candidates xs
 
+
+-- | Extracts data from the register pairing cells into its pure equivalent.
+extractCells :: [RegisterPairingST s] -> ST s [RegisterPairing]
+extractCells = traverse (\p -> do
+    h' <- readSTRef $ _hregST p
+    pure (_vregST p, h'))
+
+
+-- | A stateful pairing between a virtual register and a hardware location.
+-- It carries state around so that updating the hardware location is immediately
+-- propagated to other instances of the pairing.
+data RegisterPairingST s =
+    RegisterPairingST
+    { _vregST :: SizedVirtualRegister
+    -- ^ The virtual register of this pairing.
+    , _hregST :: STRef s HardwareLocation
+    -- ^ A memory cell in which lives the hardware location currently assigned
+    -- to this interval.
+    }
+
+-- | When we compare stateful register pairings, we are only interested in
+-- which virtual register is being paired, not the actual state.
+instance Eq (RegisterPairingST s) where
+    a == b = _vregST a == _vregST b
+
+-- | An interval used for allocation, combining a stateful register pairing with
+-- the lifetime associated with the virtual register of the pairing.
+type RegisterInterval s = (LifetimeSpan, RegisterPairingST s)
+
+-- | The registers that can be allocated for a given access mode. Here, we are
+-- not concerned about register sizes, so the registers returned have the maximal
+-- size.
+allocatableRegsForMode :: RegisterAccessMode -> [SizedHardwareRegister]
+allocatableRegsForMode m = case m of
+    IntegerMode -> allocatableIntRegs
+    FloatingMode -> allocatableFloatRegs
+
+-- | Every integer register can be allocated except @rax@, which is designated
+-- as scratch and return value register.
+allocatableIntRegs :: [SizedHardwareRegister]
+allocatableIntRegs = map ((SizedRegister Extended64) . IntegerHwRegister)
+    [ Rbx
+    , Rcx
+    , Rdx
+    , Rbp
+    , Rsi
+    , Rdi
+    , Rsp
+    , R8
+    , R9
+    , R10
+    , R11
+    , R12
+    , R13
+    , R14
+    , R15
+    ]
+
+-- | Every floating-point register can be allocated except @xmm0@.
+allocatableFloatRegs :: [SizedHardwareRegister]
+allocatableFloatRegs = map
+    ((SizedRegister Extended64) . FloatingHwRegister  . FloatingRegister)
+    [1..15]

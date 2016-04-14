@@ -12,87 +12,85 @@ The mirror image of "Language.X86.Virtual", except with hardware registers.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Language.X86.Hardware
-( -- * Hardware assembly
-  HardwareAsm
+( HardwareAsm
 , HardwareOperand
-  -- * Hardware register allocation
+ -- * Registers
 , SizedHardwareRegister
-, RegisterPairingST(..)
-, RegisterPairing
-, RegisterInterval
 , HardwareLocation(..)
-, allocatableRegsForMode
+, RegisterPairing
+, safeRegisters
+ -- * Translation
+, HardwareTranslation(..)
+, HardwareTranslationState(..)
+, HardwareTranslationError(..)
 ) where
 
 import Language.X86.Core
-import Language.X86.Lifetime
 import Language.X86.Virtual
 
-
-import Data.STRef
+import Control.Monad.Except
+import Control.Monad.Identity
+import Control.Monad.State
 
 type HardwareAsm addr label = Asm SizedHardwareRegister addr label
 
-type SizedHardwareRegister = SizedRegister HardwareRegister
-
 type HardwareOperand = Operand SizedHardwareRegister
 
+type SizedHardwareRegister = SizedRegister HardwareRegister
 
-data RegisterPairingST s =
-    RegisterPairingST
-    { _vregST :: SizedVirtualRegister
-    -- ^ The virtual register corresponding to this interval
-    , _hregST :: STRef s HardwareLocation
-    -- ^ A memory cell in which lives the hardware location currently assigned
-    -- to this interval.
-    }
-
-instance Eq (RegisterPairingST s) where
-    a == b = _vregST a == _vregST b
+-- | Indicates the hardware location of a virtual register
+type RegisterPairing = (SizedVirtualRegister, HardwareLocation)
 
 -- | The possible locations for a virtual register.
 data HardwareLocation =
       Reg SizedHardwareRegister Bool
       -- ^ A hardware register. A flag indicates whether this location is fixed
       -- or not. If it is fixed, it will never be spilled.
-    | Mem
+    | Mem Int
+    -- ^ A memory location. Concretely, this indicates an offset on the stack.
     | Unassigned
+    -- ^ Indicates that this virtual register was not yet assigned a location.
 
-type RegisterPairing = (SizedVirtualRegister, SizedHardwareRegister)
+data HardwareTranslationState
+    = HardwareTranslationState
+        { _currentSpillOffset :: Int
+        -- ^ At which offset should we put the next spilled variable.
+        , _safeRegistersUsed :: [SizedHardwareRegister]
+        -- ^ A list of the safe registers that have been allocated.
+        , _ip :: Int
+        -- ^ The current program point we are at.
+        }
 
-type RegisterInterval s = (LifetimeSpan, RegisterPairingST s)
+-- | A monad for virtual-to-hardware translation.
+newtype HardwareTranslation a
+    = HardwareTranslation
+        { runHardwareTranslationT
+            :: ExceptT HardwareTranslationError (
+                StateT HardwareTranslationState Identity
+            ) a
+        }
+    deriving
+        ( Functor
+        , Applicative
+        , Monad
+        , MonadState HardwareTranslationState
+        , MonadError HardwareTranslationError
+        )
 
--- | The registers that can be allocated for a given access mode. Here, we are
--- not concerned about register sizes, so the registers returned have the maximal
--- size.
-allocatableRegsForMode :: RegisterAccessMode -> [SizedHardwareRegister]
-allocatableRegsForMode m = case m of
-    IntegerMode -> allocatableIntRegs
-    FloatingMode -> allocatableFloatRegs
+data HardwareTranslationError =
+    InvariantViolation String
 
--- | Every integer register can be allocated except @rax@, which is designated
--- as scratch and return value register.
-allocatableIntRegs :: [SizedHardwareRegister]
-allocatableIntRegs = map ((SizedRegister Extended64) . IntegerHwRegister)
+-- | The following registers are marked as safe (or, in ABI parlance, as
+-- "belonging to the calling function", and must therefore be saved and restored
+-- by every function.
+--
+-- Note that @rbp@ is also safe, but is saved and restored in the function
+-- prologue/epilogue.
+safeRegisters :: [SizedHardwareRegister]
+safeRegisters= map ((SizedRegister Extended64) . IntegerHwRegister)
     [ Rbx
-    , Rcx
-    , Rdx
-    , Rbp
-    , Rsi
-    , Rdi
-    , Rsp
-    , R8
-    , R9
-    , R10
-    , R11
     , R12
     , R13
     , R14
     , R15
     ]
-
--- | Every floating-point register can be allocated except @xmm0@.
-allocatableFloatRegs :: [SizedHardwareRegister]
-allocatableFloatRegs = map
-    ((SizedRegister Extended64) . FloatingHwRegister  . FloatingRegister)
-    [1..15]

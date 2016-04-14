@@ -63,6 +63,8 @@ module Language.X86.Core
 , Signedness(..)
 ) where
 
+import Language.Common.Storage
+
 import Control.Monad.Free
 import Data.Int
 import Data.Word
@@ -267,6 +269,7 @@ registerIndex r = case r of
         R13 -> 13
         R14 -> 14
         R15 -> 15
+    FloatingRegister i -> i
 
 -- | A size modifier for a register.
 data RegisterSize
@@ -282,6 +285,14 @@ data RegisterSize
     | Extended64
     -- ^ The full 64 bits of the register, e.g. @rax@.
     deriving (Eq, Ord, Read, Show)
+
+instance StorageSize RegisterSize where
+    storageSize p = case p of
+        Low8 -> 1
+        High8 -> 1
+        Extended16 -> 2
+        Extended32 -> 4
+        Extended64 -> 8
 
 data RegisterAccessMode
     = IntegerMode
