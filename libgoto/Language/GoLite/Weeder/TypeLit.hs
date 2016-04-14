@@ -16,7 +16,7 @@ module Language.GoLite.Weeder.TypeLit
 , weedFields
 ) where
 
-import Language.GoLite.Misc
+import Language.Common.Misc
 import Language.GoLite.Weeder.Core
 
 {- | Weeds a type.

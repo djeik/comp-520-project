@@ -1,5 +1,5 @@
 {-|
-Module      : Language.GoLite.Misc
+Module      : Language.Common.Misc
 Description : Stuff that fits nowhere else.
 Copyright   : (c) Jacob Errington and Frederic Lafrance, 2016
 License     : MIT
@@ -12,7 +12,7 @@ module \"Util\".
 
 {-# LANGUAGE TupleSections #-}
 
-module Language.GoLite.Misc
+module Language.Common.Misc
 ( ($>)
 , safeZip
 , distTuple

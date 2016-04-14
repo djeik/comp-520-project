@@ -20,7 +20,7 @@ module Language.GoLite.Parser
 , module Language.GoLite.Parser.Stmt
 ) where
 
-import Language.GoLite.Misc ( distTuple )
+import Language.Common.Misc ( distTuple )
 import Language.GoLite.Parser.Core
 import Language.GoLite.Parser.Decl
 import Language.GoLite.Parser.Stmt

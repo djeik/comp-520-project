@@ -8,6 +8,8 @@ import Language.GoLite.Pretty hiding ( (<>) )
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Typecheck
 import Language.GoLite.Typecheck.Types
+import Language.Vigil.Compile ( runCompiler )
+import Language.X86.Virtual ( VirtualAsm )
 
 import Control.Monad ( forM_, when )
 import Data.List ( sortBy )
@@ -130,8 +132,15 @@ goto g =
                                                 (_nextGid s + 1)
                                                 (V.simplifyPackage p) of
                                             Left critical -> print critical
-                                            Right v ->
-                                                putStrLn $ render $ pretty (snd v)
+                                            Right (strings, prog) -> mapM_
+                                                ( putStrLn . (++ "\n\n")
+                                                . render
+                                                . pretty
+                                                . (runCompiler
+                                                    :: V.TyAnnFunDecl
+                                                    -> VirtualAsm Int Int ())
+                                                )
+                                                (V._funcs prog)
                                         xs -> forM_ (if oneErr then [head xs] else xs) $ \er -> do
                                                 putStrLn (renderGoLite (pretty er))
 

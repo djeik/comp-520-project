@@ -42,10 +42,12 @@ module Language.X86.Virtual
 , xmm
 ) where
 
+import Language.Common.Pretty
 import Language.X86.Core
 
 import Control.Monad.Identity
 import Control.Monad.State
+import Text.PrettyPrint as P
 
 type VirtualAsm addr label = Asm SizedVirtualRegister addr label
 
@@ -60,6 +62,13 @@ data VirtualRegister
     -- ^ Virtual registers are associated with unique identifiers.
     | FixedHardwareRegister HardwareRegister
     deriving (Eq, Ord, Read, Show)
+
+instance Pretty VirtualRegister where
+    pretty vreg = case vreg of
+        VirtualRegister ram i ->
+            let rp = text $ case ram of IntegerMode -> "i" ; FloatingMode -> "f"
+            in text "v" <> rp <> P.int i
+        FixedHardwareRegister r -> pretty r
 
 -- | An operand in virtual-register assembly code uses sized virtual registers.
 type VirtualOperand = Operand SizedVirtualRegister
@@ -108,10 +117,10 @@ instance
     Monad m
     => MonadVirtualRegisterAllocator (VirtualRegisterAllocatorT m) where
 
-    freshVirtualRegister mode sz = do
+    freshVirtualRegister m sz = do
         i <- gets _nextVirtualRegister <* modify (\s ->
             s { _nextVirtualRegister = _nextVirtualRegister s + 1 })
-        pure $ SizedRegister sz (VirtualRegister mode i)
+        pure $ SizedRegister sz (VirtualRegister m i)
 
 class MonadVirtualRegisterAllocator m where
     -- | Gets a fresh virtual register

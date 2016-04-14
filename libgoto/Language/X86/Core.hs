@@ -10,6 +10,8 @@ Monad that represents an abstract form of x86 with labels.
 -}
 
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Language.X86.Core
 ( -- * The @Asm@ monad
@@ -78,7 +80,13 @@ module Language.X86.Core
 , ScratchFlow(..)
 ) where
 
+import Language.Common.Pretty hiding ( int )
+import qualified Language.Common.Pretty as P
+import Language.Common.Misc
+
 import Control.Monad.Free
+import Control.Monad.State
+import Data.Maybe ( fromMaybe )
 import Data.Int
 import Data.Word
 
@@ -174,6 +182,15 @@ data SseType
     | ScalarDouble
     | SingleInteger
     | PackedInteger
+
+instance Pretty SseType where
+    pretty t = text $ case t of
+        PackedSingle -> "ps"
+        PackedDouble -> "pd"
+        ScalarSingle -> "ss"
+        ScalarDouble -> "sd"
+        SingleInteger -> "si"
+        PackedInteger -> "pi"
 
 -- | Variants of jumps.
 --
@@ -279,16 +296,44 @@ data IntegerRegister
     | R15
     deriving (Eq, Ord, Read, Show)
 
+instance Pretty IntegerRegister where
+    pretty reg = text $ case reg of
+        Rax -> "rax"
+        Rbx -> "rbx"
+        Rcx -> "rcx"
+        Rdx -> "rdx"
+        Rbp -> "rbp"
+        Rsi -> "rsi"
+        Rdi -> "rdi"
+        Rsp -> "rsp"
+        R8 -> "r8"
+        R9 -> "r9"
+        R10 -> "r10"
+        R11 -> "r11"
+        R12 -> "r12"
+        R13 -> "r13"
+        R14 -> "r14"
+        R15 -> "r15"
+
 -- | A concrete floating point register
 data FloatingRegister
     = FloatingRegister Int
     deriving (Eq, Ord, Read, Show)
+
+instance Pretty FloatingRegister where
+    pretty f = case f of
+        FloatingRegister n -> text "xmm" <> P.int n
 
 -- | A concrete register.
 data HardwareRegister
     = IntegerHwRegister IntegerRegister
     | FloatingHwRegister FloatingRegister
     deriving (Eq, Ord, Read, Show)
+
+instance Pretty HardwareRegister where
+    pretty hw = case hw of
+        IntegerHwRegister ir -> pretty ir
+        FloatingHwRegister fr -> pretty fr
 
 -- | Gets the index of a register.
 registerIndex :: HardwareRegister -> Int
@@ -334,12 +379,15 @@ data RegisterSize
 data RegisterAccessMode
     = IntegerMode
     | FloatingMode
-    | MemoryMode
     deriving (Eq, Ord, Read, Show)
 
 -- | A register together with a size modifier.
 data SizedRegister reg = SizedRegister RegisterSize reg
     deriving (Eq, Ord, Read, Show)
+
+instance Pretty reg => Pretty (SizedRegister reg) where
+    pretty r = case r of
+        SizedRegister _ reg -> pretty reg
 
 -- | An operand to an instruction.
 data Operand reg addr label
@@ -350,6 +398,8 @@ data Operand reg addr label
     | IndirectRegister (Offset reg)
     -- ^ The value contained in a memory address indicated by the value of a
     -- register together with a signed offset.
+
+    -- TODO address isn't needed ?
     | Address addr
     -- ^ An address
     | Label label
@@ -522,3 +572,101 @@ idiv x y z = liftF . Emit (Div Signed x y z) $ ()
 
 cqo :: Instr2 reg addr label ()
 cqo x y = liftF . Emit (Cqo x y) $ ()
+
+-- Pretty printers --
+
+instance Pretty reg => Pretty (Asm reg Int Int ()) where
+    pretty = flip evalState initial . iter f . ($> pure empty) where
+        initial :: Int
+        initial = 0
+
+        nextNum :: State Int Int
+        nextNum = do
+            n <- get
+            modify $ \_ -> n + 1
+            pure n
+
+        f :: AsmF Int Int (Operand reg Int Int) (State Int Doc) -> (State Int Doc)
+        f a = case a of
+            Emit instr next -> ($+$) <$> pure (prettyInstr instr) <*> next
+            NewLabel lf -> lf =<< nextNum
+            SetLabel _ _ m -> m
+            Here af -> af =<< nextNum
+            Scratch _ m -> m
+            Prologue _ m -> m
+
+        opretty op = case op of
+            Immediate imm -> case imm of
+                ImmI i -> P.int (fromIntegral i)
+                ImmF i -> P.double i
+            DirectRegister reg -> pretty reg
+            IndirectRegister offset -> prettyBrackets True $ offsetp offset
+            Address _ -> error "unimplemented: address pretty"
+            Label i -> text "l" <> P.int i
+            Internal s -> text s
+            External s -> text s
+
+        offsetp off = case off of
+            Offset d r -> pretty r <+> if d >= 0
+                then text "+" <+> P.int (fromIntegral d)
+                else text "-" <+> P.int (negate $ fromIntegral d)
+
+        opretty2 o1 o2 = opretty o1 <+> opretty o2
+        mnep t o = text t <+> opretty o
+        mnep2 t o1 o2 = text t <+> opretty2 o1 o2
+
+        prettyInstr :: Instruction (Operand reg Int Int) -> Doc
+        prettyInstr instr = case instr of
+            Ret -> text "ret"
+            Call o -> mnep "call" o
+            Mov o1 o2 -> mnep2 "mov" o1 o2
+            Add o1 o2 -> mnep2 "add" o1 o2
+            Sub o1 o2 -> mnep2 "sub" o1 o2
+            Mul sign o1 o2 m ->
+                let mnemonic = case sign of Signed -> "imul" ; Unsigned -> "mul"
+                in mnep2 mnemonic o1 o2 <+> fromMaybe empty (fmap opretty m)
+            Xor o1 o2 -> mnep2 "xor" o1 o2
+            Inc o -> mnep "inc" o
+            Dec o -> mnep "dec" o
+            Push o -> mnep "push" o
+            Pop o -> mnep "pop" o
+            Nop -> text "nop"
+            Syscall -> text "syscall"
+            Int o -> mnep "int" o
+            Cmp o1 o2 -> mnep2 "cmp" o1 o2
+            Test o1 o2 -> mnep2 "test" o1 o2
+            Sal o1 o2 -> mnep2 "sal" o1 o2
+            Sar o1 o2 -> mnep2 "sar" o1 o2
+            Jump cond o -> (<+> opretty o) . text $ case cond of
+                Unconditionally -> "jump"
+                OnOverflow -> "jo"
+                OnNoOverflow -> "jno"
+                OnSign -> "js"
+                OnNoSign -> "jns"
+                OnEqual -> "je"
+                OnNotEqual -> "jne"
+                OnBelow sign -> case sign of
+                    Signed -> "jl"
+                    Unsigned -> "jb"
+                OnNotBelow sign -> case sign of
+                    Signed -> "jnl"
+                    Unsigned -> "jnb"
+                OnBelowOrEqual sign -> case sign of
+                    Signed -> "jle"
+                    Unsigned -> "jbe"
+                OnAbove sign -> case sign of
+                    Signed -> "jg"
+                    Unsigned -> "ja"
+                OnParityEven -> "jpe"
+                OnParityOdd -> "jpo"
+                OnCounterZero -> "jcxz"
+            Setc cond o -> (<+> opretty o) . text $ case cond of
+                _ -> error "fuck you"
+            Neg1 o -> mnep "not" o
+            Neg2 o -> mnep "neg" o
+            Cvt t1 t2 o1 o2 ->
+                text "cvt" <> pretty t1 <> pretty t2 <+> opretty2 o1 o2
+            Div sign _ _ o -> (<+> opretty o) . text $ case sign of
+                Signed -> "idiv"
+                Unsigned -> "div"
+            Cqo _ _ -> text "cqo"

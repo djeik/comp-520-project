@@ -26,7 +26,7 @@ module Language.GoLite.Typecheck
 ) where
 
 import qualified Language.Common.GlobalId as Gid
-import Language.GoLite.Misc
+import Language.Common.Misc
 import Language.Common.Monad.Traverse
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Typecheck

@@ -6,7 +6,7 @@
 module Language.Vigil.Compile where
 
 import Language.Common.Annotation
-import Language.GoLite.Misc ( unFix )
+import Language.Common.Misc ( unFix )
 import Language.GoLite.Types ( stringFromSymbol )
 import Language.Vigil.Syntax as T
 import Language.Vigil.Syntax.TyAnn
@@ -611,9 +611,7 @@ compileRef r = case r of
             (pure i')
             vs
 
-
-
-
+    ValRef val -> compileVal val
 
 prepareCall :: [TyAnnVal] -> Compiler addr label ()
 prepareCall vals = mapM_ (uncurry assign) (reverse $ zip rams' vals) where

@@ -26,7 +26,7 @@ module Language.GoLite.Lexer.Core
 , module Text.Megaparsec.String
 ) where
 
-import Language.GoLite.Misc ( ($>) )
+import Language.Common.Misc ( ($>) )
 
 import Data.Maybe ( isJust )
 import Text.Megaparsec

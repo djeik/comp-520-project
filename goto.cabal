@@ -39,6 +39,7 @@ library
     Language.Common.Annotation
     Language.Common.GlobalId
     Language.Common.Monad.Traverse
+    Language.Common.Misc
     Language.Common.Pretty
     Language.GoLite
     Language.GoLite.Lexer
@@ -47,7 +48,6 @@ library
     Language.GoLite.Lexer.Literal
     Language.GoLite.Lexer.Semi
     Language.GoLite.Lexer.Symbols
-    Language.GoLite.Misc
     Language.GoLite.Parser
     Language.GoLite.Parser.Core
     Language.GoLite.Parser.Decl

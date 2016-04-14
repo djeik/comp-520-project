@@ -38,7 +38,7 @@ import Language.GoLite.Lexer.Semi
 import Language.GoLite.Lexer.Symbols
 import Language.GoLite.Lexer.Keywords
 
-import Language.GoLite.Misc
+import Language.Common.Misc
 
 import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Types
