@@ -388,7 +388,7 @@ typecheckVarDecl d = case d of
 
         ty <- traverse canonicalize mty
 
-        ies' <- forM ies $ \(ident@(Ann a (Ident i)), expr) -> do
+        ies' <- forM ies $ \(ident, expr) -> do
             (ty', expr') <- case ty of
                 Nothing -> do
                     expr' <- typecheckExpr expr
@@ -409,15 +409,18 @@ typecheckVarDecl d = case d of
                     pure (t, expr')
 
             g <- nextGid ident (defaultType ty') Local
-            declareSymbol i $ VariableInfo
-                { symLocation = SourcePosition a
-                , symType = defaultType ty'
-                , symGid = g
-                }
 
             pure $ (g, expr')
 
         let (idents', exprs') = unzip ies'
+
+        -- Declare all identifiers AFTER typechecking the expressions.
+        forM (zip idents' (map fst ies)) $ \(g, (Ann a (Ident i))) ->
+            declareSymbol i $ VariableInfo
+                    { symLocation = SourcePosition a
+                    , symType = gidTy g
+                    , symGid = g
+                    }
 
         pure $ VarDeclBody idents' ty exprs'
 
