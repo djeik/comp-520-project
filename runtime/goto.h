@@ -94,6 +94,8 @@ int64_t gocap(go_slice* s);
 
 void panic(char* message);
 
+go_slice* make(int64_t type[]);
+
 /* Functions for deep-copying managed objects. */
 go_struct* deepcopy_struct(go_struct* src);
 go_array* deepcopy_array(go_array* src);
@@ -108,6 +110,7 @@ go_slice* shallowcopy_slice(go_slice* src);
 
 /* Functions for creating and initializing new managed items. */
 go_array* new_array(int64_t type[]);
+void new_deep_backing_array(go_array* a, int64_t type[]);
 go_slice* new_slice(int64_t type[]);
 go_struct* new_struct(int64_t type[]);
 

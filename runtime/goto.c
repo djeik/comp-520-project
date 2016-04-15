@@ -256,6 +256,31 @@ void panic(char* message) {
     exit(1);
 }
 
+/* Make a slice of the given type. This is the one spot where we need to do deep
+initialization of slices. */
+go_slice* make(int64_t type[]) {
+    int64_t len = type[1], cap = type[2];
+    if (type[0] == UNKNOWN_GT)
+        panic("make: cannot have inner type be unknown.");
+
+    if (len > cap)
+        panic("make: len must be less than or equal to cap");
+
+    go_slice* s = malloc(sizeof(go_slice));
+    s->cap = cap;
+    s->arr_data.len = len;
+    s->arr_data.array_type = type[0];
+    s->arr_data.elem_size = storage_size(s->arr_data.array_type);
+
+    s->arr_data.backing = malloc(s->cap * s->arr_data.elem_size);
+
+    gConsumed = 0;
+    new_deep_backing_array(&(s->arr_data), type + 3);
+    gConsumed = 0;
+
+    return s;
+}
+
 /* Deep-copies an array. The array metadata is copied. The backing buffer is
 deep-copied according to the type of the array. */
 go_array* deepcopy_array(go_array* src) {
@@ -447,33 +472,7 @@ go_array* new_array(int64_t type[]) {
     a->elem_size = storage_size(a->array_type);
     a->backing = malloc(a->len * a->elem_size);
 
-    int64_t i;
-    switch (a->array_type) {
-        case UNKNOWN_GT: panic("new_array: cannot allocate unknown type");
-        case INT1_GT:
-        case INT2_GT:
-        case INT4_GT:
-        case INT8_GT:
-        case FLOAT_GT:
-            memset(a->backing, 0, a->len * a->elem_size);
-            break;
-
-        case STRING_GT:
-        case ARRAY_GT:
-            for (i = 0; i < a->len; i++)
-                INDEX_ARRAY(a, i, go_array) = new_array(type + 2);
-            break;
-
-        case SLICE_GT:
-            for (i = 0; i < a->len; i++)
-                INDEX_ARRAY(a, i, go_slice) = new_slice(type + 2);
-            break;
-
-        case STRUCT_GT:
-            for (i = 0; i < a->len; i++)
-                INDEX_ARRAY(a, i, go_struct) = new_struct(type + 2);
-            break;
-    }
+    new_deep_backing_array(a, type + 2);
 
     if (consumed_was_0)
         gConsumed = 0;
@@ -508,6 +507,36 @@ go_slice* new_slice(int64_t type[]) {
         gConsumed += 1;
 
     return s;
+}
+
+void new_deep_backing_array(go_array* a, int64_t type[]) {
+    int64_t i;
+    switch (a->array_type) {
+        case UNKNOWN_GT: panic("new_deep_backing_array: cannot allocate unknown type");
+        case INT1_GT:
+        case INT2_GT:
+        case INT4_GT:
+        case INT8_GT:
+        case FLOAT_GT:
+            memset(a->backing, 0, a->len * a->elem_size);
+            break;
+
+        case STRING_GT:
+        case ARRAY_GT:
+            for (i = 0; i < a->len; i++)
+                INDEX_ARRAY(a, i, go_array) = new_array(type);
+            break;
+
+        case SLICE_GT:
+            for (i = 0; i < a->len; i++)
+                INDEX_ARRAY(a, i, go_slice) = new_slice(type);
+            break;
+
+        case STRUCT_GT:
+            for (i = 0; i < a->len; i++)
+                INDEX_ARRAY(a, i, go_struct) = new_struct(type);
+            break;
+    }
 }
 
 /* Recursively creates and initializes a struct. */
