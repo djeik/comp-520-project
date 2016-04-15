@@ -6,10 +6,7 @@ License     : MIT
 Maintainer  : goto@mail.jerrington.me
 Stability   : experimental
 
-The register allocator turns virtual assembly instruction into hardware assembly
-instructions; all references to virtual registers are eliminated and replaced
-with references to hardware registers.
-
+The register allocator turns virtual registers into hardware memory locations.
 The allocation strategy is linear. Every interval is considered in increasing
 order of starting positions, and given, if possible, a hardware register of the
 correct kind that is not used by any of the conflicting intervals. If no
