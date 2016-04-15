@@ -1332,25 +1332,33 @@ typecheckBuiltin a b mty exprs = do
                         , typeArgument = Nothing
                         }
                     pure unknownType
-                Just ty ->
-                    -- Note: this isn't really optimal for error messages, we'd
-                    -- expect 3 arguments, but one will be a type.
-                    withArgLengthCheck 2 a exprs $ const $
-                        let x = head exprs in
-                        let y = exprs !! 1 in
-                        let (tyx, ax) = topAnn x in
-                        let (tyy, ay) = topAnn y in
-                        case (unFix $ unalias tyx, unFix $ unalias tyy) of
-                            (Ty.IntType _, Ty.IntType _) -> pure (fst (topAnn ty))
-                            (x', y') -> do
-                                when (not $ isIntegral $ Fix y')
-                                    (mismatchWithUnk tyy
-                                        typedIntType (Ann ay $ Just y) $> ())
-                                when (not $ isIntegral $ Fix x')
-                                    (mismatchWithUnk tyx
-                                        typedIntType (Ann ax $ Just x) $> ())
-                                pure (fst (topAnn ty))
-
+                Just (Fix (Ann aTy ty)) ->
+                    case ty of
+                        SliceType _ ->
+                            -- Note: this isn't really optimal for error messages,
+                            -- since we'd expect 3 arguments, but one will be a type.
+                            withArgLengthCheck 2 a exprs $ const $
+                                let x = head exprs in
+                                let y = exprs !! 1 in
+                                let (tyx, ax) = topAnn x in
+                                let (tyy, ay) = topAnn y in
+                                case (unFix $ unalias tyx, unFix $ unalias tyy) of
+                                    (Ty.IntType _, Ty.IntType _) -> pure (fst aTy)
+                                    (x', y') -> do
+                                        when (not $ isIntegral $ Fix y')
+                                            (mismatchWithUnk tyy
+                                                typedIntType (Ann ay $ Just y) $> ())
+                                        when (not $ isIntegral $ Fix x')
+                                            (mismatchWithUnk tyx
+                                                typedIntType (Ann ax $ Just x) $> ())
+                                        pure (fst aTy)
+                        _ -> do
+                            reportError $ UnsatisfyingType
+                                { unsatOffender = fst aTy
+                                , unsatReason = text "the type argument of make\
+                                    \ should be a slice type"
+                                , errorLocation = snd aTy }
+                            pure unknownType
     where
         -- Checks that there are the specified number of arguments and, if yes,
         -- runs the given function, or reports an error if no.
