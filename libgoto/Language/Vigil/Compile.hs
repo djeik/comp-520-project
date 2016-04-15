@@ -14,6 +14,7 @@ import Language.Vigil.Syntax.Basic
 import Language.Vigil.Types
 import Language.X86.Core
 import Language.X86.Virtual
+import Language.X86.Virtual.Registers
 
 import Control.Monad.Reader
 import Control.Monad.State

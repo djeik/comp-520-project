@@ -9,6 +9,7 @@ Stability   : experimental
 
 module Language.X86.Virtual.Registers where
 
+import Language.X86.Core
 import Language.X86.Virtual
 
 fixedIntReg64 :: IntegerRegister -> VirtualOperand addr label
