@@ -93,6 +93,10 @@ createLifetimes = iterM phi where
             modify (\s -> s {_curLocation = _curLocation s + 1})
             n
 
+        -- Ignore pseudoinstructions
+        Scratch _ n -> n
+        Prologue _ n -> n
+
     checkLifetimeForInst i = case i of
         Ret -> pure ()
         Nop -> pure ()
@@ -123,6 +127,9 @@ createLifetimes = iterM phi where
             -- Still undecided on what should happen here. In some cases our
             -- analysis is genuinely thrown off (such as with jumps with a
             -- variable offset) but others might be "ignorable".
+        Neg1 v -> checkLifetime v
+        Neg2 v -> checkLifetime v
+        Setc _ v -> checkLifetime v
 
     -- In the case of a jump, we do some basic control flow analysis to ensure
     -- that the ranges are still correct.

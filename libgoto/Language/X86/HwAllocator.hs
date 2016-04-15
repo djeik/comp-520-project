@@ -43,6 +43,8 @@ import qualified Data.PQueue.Prio.Min as PQ
 import Control.Monad.ST
 import Data.STRef
 
+import Prelude hiding ( span, mod )
+
 -- | Performs all the steps of register allocation, taking a map of lifetime
 -- spans to a list of register pairings.
 allocate :: M.Map SizedVirtualRegister LifetimeSpan -> [RegisterPairing]
