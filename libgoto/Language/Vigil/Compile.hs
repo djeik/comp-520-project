@@ -14,6 +14,7 @@ import Language.Vigil.Syntax.Basic
 import Language.Vigil.Types
 import Language.X86.Core
 import Language.X86.Virtual
+import Language.X86.Virtual.Registers
 
 import Control.Monad.Reader
 import Control.Monad.State
@@ -481,8 +482,6 @@ compileExpr (Ann ty e) = case e of
                 t <- DirectRegister <$> freshVirtualRegister FloatingMode Extended64
                 asm $ mov t (xmm 0)
                 pure t
-
-
 
 -- | Compiles a conditional expression. These translate to comparisons in x86,
 -- which set flags, so the only thing that a called would need to know is which

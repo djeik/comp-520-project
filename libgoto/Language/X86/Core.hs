@@ -83,6 +83,7 @@ module Language.X86.Core
 import Language.Common.Pretty hiding ( int )
 import qualified Language.Common.Pretty as P
 import Language.Common.Misc
+import Language.Common.Storage
 
 import Control.Monad.Free
 import Control.Monad.State
@@ -376,9 +377,18 @@ data RegisterSize
     -- ^ The full 64 bits of the register, e.g. @rax@.
     deriving (Eq, Ord, Read, Show)
 
+instance StorageSize RegisterSize where
+    storageSize p = case p of
+        Low8 -> 1
+        High8 -> 1
+        Extended16 -> 2
+        Extended32 -> 4
+        Extended64 -> 8
+
 data RegisterAccessMode
     = IntegerMode
     | FloatingMode
+    | MemoryMode
     deriving (Eq, Ord, Read, Show)
 
 -- | A register together with a size modifier.

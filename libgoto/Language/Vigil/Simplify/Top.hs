@@ -60,7 +60,6 @@ simplifyPackage (Package _ decls) = do
                 , _funDeclVars = nvs'
                 , _funDeclBody = concat bod'
                 }
-
     vs <- forM globs' $ \(G.TopLevelDecl (G.VarDecl (G.VarDeclBody is _ es))) -> do
         case es of
             -- TODO: in the case of no initialization, perhaps provide a

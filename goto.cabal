@@ -34,7 +34,8 @@ library
     mtl >=2.2 && <2.3,
     pretty >=1.1 && <1.2,
     recursion-schemes >=4.1 && <4.2,
-    bifunctors >=5.2 && <5.3
+    bifunctors >=5.2 && <5.3,
+    pqueue >= 1.3 && <1.4
   exposed-modules:
     Language.Common.Annotation
     Language.Common.GlobalId
@@ -96,7 +97,13 @@ library
     Language.Vigil.Types
     Language.X86
     Language.X86.Core
+    Language.X86.Hardware
+    Language.X86.Hardware.Registers
+    Language.X86.HwAllocator
+    Language.X86.HwTranslator
+    Language.X86.Lifetime
     Language.X86.Virtual
+    Language.X86.Virtual.Registers
 
 
 test-suite spec

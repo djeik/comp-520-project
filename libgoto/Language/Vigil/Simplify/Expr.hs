@@ -248,8 +248,8 @@ simplifyExpr = annCata phi where
             -- which is just the storage size of the type.
             tyPs <- case mty of
                 Nothing -> pure ps''
-                Just (Fix (Ann a _)) -> do
-                    sz <- reinterpretTypeEx (fst a)
+                Just (Fix (Ann b _)) -> do
+                    sz <- reinterpretTypeEx (fst b)
                     pure $ (V.Literal $ Ann (V.intType V.I8)
                         $ V.IntLit $ storageSize sz):ps''
 
