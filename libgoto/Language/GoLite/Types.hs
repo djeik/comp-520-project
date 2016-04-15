@@ -486,6 +486,7 @@ isPrintable (unalias -> Fix t) = case t of
     VoidType -> False
     Struct _ -> False
     Array _ _ -> False
+    Slice _ -> False
     UnknownType -> True
     _ -> True
 
