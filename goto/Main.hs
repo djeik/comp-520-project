@@ -136,7 +136,11 @@ goto g =
                                                         putStrLn .
                                                         render $
                                                         d
-                                                    Left e -> print e
+                                                    Left (d, e) -> do
+                                                        putStrLn "error:"
+                                                        print e
+                                                        putStrLn "virtual:"
+                                                        putStrLn (render d)
                                         xs -> forM_ (if oneErr then [head xs] else xs) $ \er -> do
                                                 putStrLn (renderGoLite (pretty er))
 

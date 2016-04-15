@@ -200,8 +200,8 @@ translate vToH live stkSz = iterM phi . ($> pure ()) where
                     Mem i ->
                         pure $ Register $ Indirect $ Offset (fromIntegral i) $
                         SizedRegister Extended64 $ IntegerHwRegister Rbp
-                    Unassigned -> throwError $ InvariantViolation
-                        "Register has not been assigned"
+                    Unassigned -> throwError $ InvariantViolation $
+                        "Register has not been assigned " ++ show r
                 Nothing -> throwError $ InvariantViolation
                     "Virtual register with no corresponding hardware location"
 

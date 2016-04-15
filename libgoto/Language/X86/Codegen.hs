@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Language.X86.Codegen where
 
 import qualified Language.Common.GlobalId as Gid
@@ -28,6 +30,7 @@ data CodegenError
 f <*$> e = case e of
     Left x -> Left (f x)
     Right x -> Right x
+infixl 3 <*$>
 
 allocateRegisters
     :: Int
@@ -46,10 +49,17 @@ allocateRegisters stkSz v
 
 -- | Compile a type-annotated Vigil program into a full text file that can be
 -- assembled by nasm.
-codegen :: StringLitMap -> TyAnnProgram -> Either CodegenError Doc
+codegen :: StringLitMap -> TyAnnProgram -> Either (Doc, CodegenError) Doc
 codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
-    funcs' <- mapM genFunc funcs
-    main' <- mapM genFunc main
+
+    let vfuncs
+            = vcat (genVirtualFunc <$> funcs)
+            $+$ fromMaybe empty (genVirtualFunc <$> main)
+
+    (funcs', main') <- (vfuncs, )
+        <*$> (,)
+        <$> mapM genFunc funcs
+        <*> mapM genFunc main
 
     pure $
         text "section .data" $+$ nest indentLevel (
@@ -70,6 +80,13 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
         )
 
     where
+        genVirtualFunc :: TyAnnFunDecl -> Doc
+        genVirtualFunc func@(FunDecl { _funDeclName = gid })
+            = text (stringFromSymbol (gidOrigName gid)) <> text ":"
+            $+$ nest indentLevel (
+                pretty (runCompiler func :: VirtualAsm Int ())
+            )
+
         genFunc :: TyAnnFunDecl -> Either CodegenError Doc
         genFunc func@(FunDecl { _funDeclName = gid }) = do
             hwasm <- HardwareTranslationError <*$> allocateRegisters 0 (runCompiler func)
