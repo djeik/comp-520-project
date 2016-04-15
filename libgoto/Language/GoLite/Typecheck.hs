@@ -326,7 +326,7 @@ canonicalize = annCata f where
 -- | Typechecks a source position-annotated 'Package'.
 typecheckPackage :: SrcAnnPackage -> Typecheck TySrcAnnPackage
 typecheckPackage (Package ident decls)
-    = Package <$> pure ident <*> (mapM typecheckTopLevelDecl decls) <* dropScope
+    = withScope $ Package <$> pure ident <*> (mapM typecheckTopLevelDecl decls) <* dropScope
 
 -- | Typechecks a source position-annotated 'TopLevelDecl'.
 typecheckTopLevelDecl :: SrcAnnTopLevelDecl -> Typecheck TySrcAnnTopLevelDecl
