@@ -52,8 +52,8 @@ data CompilerEnv label
 -- | Looks up how to access the given data.
 lookupIdent :: GlobalId -> Compiler label (VirtualOperand label)
 lookupIdent gid = do
-    identMap <- asks _identMap
-    pure $ case M.lookup gid identMap of
+    imap <- asks _identMap
+    pure $ case M.lookup gid imap of
         -- if it's not in the ident map for the function, then we need to
         -- generate a reference outside the function.
         Nothing -> case unFix $ gidTy gid of
@@ -74,29 +74,42 @@ asm = Compiler . lift . lift
 -- | Compiles a function.
 runCompiler :: TyAnnFunDecl -> VirtualAsm label ()
 runCompiler decl
-    = runVirtualRegisterAllocatorT
-    $ runReaderT (unCompiler (compileFunction decl))
-    $ makeCompilerEnv decl
+    = runVirtualRegisterAllocatorT $ do
+        env <- makeCompilerEnv decl
+        runReaderT (unCompiler (compileFunction decl)) env
 
-type CompilerEnvAllocState label =
-    ( Displacement
-    , Displacement
-    , [IntegerRegister]
-    , [Int]
-    , M.Map GlobalId (VirtualOperand label)
-    )
+data CompilerEnvAllocState label
+    = CompilerEnvAllocState
+        { stkOffset :: Displacement
+        , intregs :: [IntegerRegister]
+        , floatregs :: [Int]
+        , identMap :: M.Map GlobalId (VirtualOperand label)
+        }
+    deriving (Eq, Ord, Read, Show)
 
-makeCompilerEnv :: forall label. TyAnnFunDecl -> CompilerEnv label
+makeCompilerEnv
+    :: forall label. TyAnnFunDecl
+    -> VirtualRegisterAllocatorT (VirtualAsm label) (CompilerEnv label)
 makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
-    = CompilerEnv { _identMap = identMap } where
+    = CompilerEnv <$> is where
+        is :: VirtualRegisterAllocatorT
+            (VirtualAsm label)
+            (M.Map GlobalId (VirtualOperand label))
+        is = identMap <$> execStateT go initial
 
-        (_, _, _, _, identMap) = execState go initial
-
-        go :: State (CompilerEnvAllocState label) ()
+        go :: StateT
+            (CompilerEnvAllocState label)
+            (VirtualRegisterAllocatorT (VirtualAsm label))
+            ()
         go = do
             forM_ vars $ \(VarDecl gid) -> do
-                offset <- nextlocal (8 :: Displacement)
-                record gid (Register $ Indirect (Offset offset $ rXx Rbp))
+                v <- case unFix $ gidTy gid of
+                    FloatType _ -> Register . Direct
+                        <$> lift (freshVirtualRegister FloatingMode Extended64)
+                    _ -> Register . Direct
+                        <$> lift (freshVirtualRegister IntegerMode Extended64)
+
+                record gid v
 
             forM_ args $ \(VarDecl gid) -> do
                 case unFix $ gidTy gid of
@@ -104,10 +117,16 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
                     _ -> paramRegAssign nextireg rXx gid
 
         paramRegAssign
-            :: State (CompilerEnvAllocState label) (Maybe a)
+            :: StateT
+                (CompilerEnvAllocState label)
+                (VirtualRegisterAllocatorT (VirtualAsm label))
+                (Maybe a)
             -> (a -> SizedVirtualRegister)
             -> GlobalId
-            -> State (CompilerEnvAllocState label) ()
+            -> StateT
+                (CompilerEnvAllocState label)
+                (VirtualRegisterAllocatorT (VirtualAsm label))
+                ()
         paramRegAssign regAllocator boxer gid = do
             m <- regAllocator
             case m of
@@ -123,20 +142,13 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
         rXx = fixhw64 . IntegerHwRegister
 
         -- the initial state for the parameter and local allocator
-        initial ::
-            ( Displacement
-            , Displacement
-            , [IntegerRegister]
-            , [Int]
-            , M.Map GlobalId (VirtualOperand label)
-            )
-        initial =
-            ( (negate 8) -- stack offset for locals
-            , 16 -- stack offset for params
-            , [Rdi, Rsi, Rdx, Rcx, R8, R9] -- available integer registers
-            , [0..7] -- available floating registers
-            , M.empty
-            )
+        initial :: CompilerEnvAllocState label
+        initial = CompilerEnvAllocState
+            { stkOffset = 16
+            , intregs = [Rdi, Rsi, Rdx, Rcx, R8, R9]
+            , floatregs = [0..7]
+            , identMap = M.empty
+            }
 
         -- safe head from a component of the state tuple
         nextreg
@@ -145,7 +157,10 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
                 -> CompilerEnvAllocState label
                 -> CompilerEnvAllocState label
             )
-            -> State (CompilerEnvAllocState label) (Maybe a)
+            -> StateT
+                (CompilerEnvAllocState label)
+                (VirtualRegisterAllocatorT (VirtualAsm label))
+                (Maybe a)
         nextreg getter setter = do
             regs <- gets getter
             case regs of
@@ -154,33 +169,22 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
                     modify (setter xs)
                     pure (Just x)
 
-        record k v = modify $ \(a, b, c, d, m) -> (a, b, c, d, M.insert k v m)
+        record k v = modify $ \s -> s { identMap = M.insert k v (identMap s) }
 
         -- get the next integer register, or 'Nothing' if there are none
         -- available
-        nextireg = nextreg
-            (\(_, _, xs, _, _) -> xs)
-            (\xs (a, b, _, c, d) -> (a, b, xs, c, d))
+        nextireg = nextreg intregs (\x s -> s { intregs = x })
 
         -- get the next floating register, or 'Nothing' if there are none
         -- available
-        nextfreg :: State (CompilerEnvAllocState label) (Maybe Int)
-        nextfreg = nextreg
-            (\(_, _, _, xs, _) -> xs)
-            (\xs (a, b, c, _, d) -> (a, b, c, xs, d))
+        nextfreg = nextreg floatregs (\x s -> s { floatregs = x })
 
         nextmemory getter setter increment = do
             n <- gets getter
             modify (setter $ n + increment)
             pure n
 
-        nextlocal = nextmemory
-            (\(n, _, _, _, _) -> n)
-            (\n (_, a, b, c, d) -> (n, a, b, c, d))
-
-        nextparam = nextmemory
-            (\(_, n, _, _, _) -> n)
-            (\n (a, _, b, c, d) -> (a, n, b, c, d))
+        nextparam = nextmemory stkOffset (\x s -> s { stkOffset = x } )
 
 -- | Compile a function
 compileFunction
