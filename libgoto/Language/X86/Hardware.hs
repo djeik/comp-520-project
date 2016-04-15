@@ -57,6 +57,7 @@ data HardwareLocation =
     -- ^ A memory location. Concretely, this indicates an offset on the stack.
     | Unassigned
     -- ^ Indicates that this virtual register was not yet assigned a location.
+    deriving (Show, Eq)
 
 data HardwareTranslationState label
     = HardwareTranslationState

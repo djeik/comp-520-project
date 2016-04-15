@@ -45,10 +45,11 @@ import Prelude hiding ( span, mod )
 -- | Performs all the steps of register allocation, taking a map of lifetime
 -- spans to a list of register pairings.
 allocate :: M.Map SizedVirtualRegister LifetimeSpan -> [RegisterPairing]
-allocate s = runST $ (buildConflicts <$> (lifetimesToIntervals s))
-            >>= preallocateFixed
-            >>= allocate'
-            >>= extractCells
+allocate s = runST $ do
+    is <- (buildConflicts <$> (lifetimesToIntervals s))
+    preallocateFixed is
+    pairs <- allocate' is
+    extractCells pairs
 
 -- | Transforms a list of lifetime spans into a priority queue of intervals.
 -- This priority queue is ordered by start time of lifetime spans. The values
@@ -113,13 +114,14 @@ allocate' = PQ.foldlWithKey (\acc span (us, others) ->
 -- Returns its argument for chaining purposes.
 preallocateFixed
     :: (PQ.MinPQueue LifetimeSpan (RegisterPairingST s, [RegisterInterval s]))
-    -> ST s (PQ.MinPQueue LifetimeSpan (RegisterPairingST s, [RegisterInterval s]))
-preallocateFixed m = (PQ.foldlWithKey (\_ _ (us, _) ->
-    case _vregST us of
-        (SizedRegister _ (VirtualRegister _ _)) -> pure ()
-        (SizedRegister sz (FixedHardwareRegister hreg)) ->
-            writeSTRef (_hregST us) $ Reg (SizedRegister sz hreg) True
-    ) (pure ())) m >> pure m
+    -> ST s ()
+preallocateFixed = mapM_ f . map fst . PQ.elemsU where
+    f us = do
+        case _vregST us of
+            (SizedRegister _ (VirtualRegister _ _)) -> pure ()
+            (SizedRegister sz (FixedHardwareRegister hreg)) ->
+                writeSTRef (_hregST us) $ Reg (SizedRegister sz hreg) True
+
 
 -- | Checks if any register among the candidates is free among the given intervals.
 -- The return value is either a register from the candidate list that was free,

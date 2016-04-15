@@ -169,6 +169,7 @@ data LifetimeSpan
         { _start :: Int
         , _end :: Int
         }
+    deriving (Show)
 
 -- | Determines if two lifetimes overlap, which is the case when their ranges
 -- intersect.
