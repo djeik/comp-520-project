@@ -23,7 +23,7 @@ module Language.X86.Lifetime where
 import Language.X86.Core
 import Language.X86.Virtual
 
-import Control.Monad.Free
+import Control.Monad.Trans.Free
 import Control.Monad.Identity
 import Control.Monad.State
 
@@ -127,6 +127,7 @@ createLifetimes = iterM phi where
         Neg1 v -> checkLifetime v
         Neg2 v -> checkLifetime v
         Setc _ v -> checkLifetime v
+        _ -> error "unimplemented: checkLifetimeForInst"
 
     -- In the case of a jump, we do some basic control flow analysis to ensure
     -- that the ranges are still correct.

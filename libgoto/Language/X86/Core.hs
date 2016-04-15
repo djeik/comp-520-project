@@ -15,7 +15,8 @@ Monad that represents an abstract form of x86 with labels.
 
 module Language.X86.Core
 ( -- * The @Asm@ monad
-  Asm
+  AsmT
+, Asm
 , AsmF(..)
   -- ** Operations in 'Asm'
   -- *** Label management
@@ -84,8 +85,9 @@ import qualified Language.Common.Pretty as P
 import Language.Common.Misc
 import Language.Common.Storage
 
-import Control.Monad.Free
+import Control.Monad.Identity
 import Control.Monad.State
+import Control.Monad.Trans.Free
 import Data.Maybe ( fromMaybe )
 import Data.Int
 import Data.Word
@@ -118,8 +120,10 @@ data ScratchFlow
     = Save
     | Load
 
--- | The free monad on 'AsmF'.
-type Asm reg label = Free (AsmF label (Operand reg label))
+-- | The free monad transformer on 'AsmF'.
+type AsmT reg label = FreeT (AsmF label (Operand reg label))
+
+type Asm reg label = AsmT reg label Identity
 
 -- | An x86 instruction
 data Instruction val
@@ -438,31 +442,31 @@ data Immediate
     deriving (Eq, Ord, Read, Show)
 
 -- | Nullary instruction.
-type Instr0 reg label a = Asm reg label a
+type Instr0 reg label m a = AsmT reg label m a
 
 -- | Unary instruction.
-type Instr1 reg label a = Operand reg label -> Instr0 reg label a
+type Instr1 reg label m a = Operand reg label -> Instr0 reg label m a
 
 -- | Binary instruction.
-type Instr2 reg label a = Operand reg label -> Instr1 reg label a
+type Instr2 reg label m a = Operand reg label -> Instr1 reg label m a
 
 -- | Ternary instruction.
-type Instr3 reg label a = Operand reg label -> Instr2 reg label a
+type Instr3 reg label m a = Operand reg label -> Instr2 reg label m a
 
-prologue :: ScratchFlow -> Asm reg label ()
+prologue :: Monad m => ScratchFlow -> AsmT reg label m ()
 prologue flow = liftF . Prologue flow $ ()
 
-withPrologue :: Asm reg label a -> Asm reg label a
+withPrologue :: Monad m => AsmT reg label m a -> AsmT reg label m a
 withPrologue m = do
     prologue Save
     x <- m
     prologue Load
     pure x
 
-scratch :: ScratchFlow -> Asm reg label ()
+scratch :: Monad m => ScratchFlow -> AsmT reg label m ()
 scratch flow = liftF . Scratch flow $ ()
 
-withScratch :: Asm reg label a -> Asm reg label a
+withScratch :: Monad m => AsmT reg label m a -> AsmT reg label m a
 withScratch m = do
     scratch Save
     x <- m
@@ -470,108 +474,108 @@ withScratch m = do
     pure x
 
 -- | 'NewLabel'
-newLabel :: Asm reg label label
+newLabel :: Monad m => AsmT reg label m label
 newLabel = liftF . NewLabel $ id
 
 -- | 'SetLabel'
-setLabel :: label -> Asm reg label ()
+setLabel :: Monad m => label -> AsmT reg label m ()
 setLabel l = liftF . SetLabel l $ ()
 
 -- | Defines a new label and immediately sets it to the value obtained from
 -- 'here'.
-newLabelHere :: Asm reg label label
+newLabelHere :: Monad m => AsmT reg label m label
 newLabelHere = do
     l <- newLabel
-    setLabel <$> pure l
+    setLabel l
     pure l
 
 -- | 'Emit' 'Ret'
-ret :: Instr0 reg label ()
+ret :: Monad m => Instr0 reg label m ()
 ret = liftF . Emit Ret $ ()
 
-call :: Instr1 reg label ()
+call :: Monad m => Instr1 reg label m ()
 call f = liftF . Emit (Call f) $ ()
 
 -- | 'Emit' 'Mov'
-mov :: Instr2 reg label ()
+mov :: Monad m => Instr2 reg label m ()
 mov x y = liftF . Emit (Mov x y) $ ()
 
 -- | 'Emit' 'Add'
-add :: Instr2 reg label ()
+add :: Monad m => Instr2 reg label m ()
 add x y = liftF . Emit (Add x y) $ ()
 
 -- | 'Emit' 'Sub'
-sub :: Instr2 reg label ()
+sub :: Monad m => Instr2 reg label m ()
 sub x y = liftF . Emit (Sub x y) $ ()
 
 -- | 'Emit' 'Mul'
-mul :: Signedness
+mul :: Monad m => Signedness
     -> Operand reg label
     -> Operand reg label
     -> Maybe (Operand reg label)
-    -> Asm reg label ()
+    -> AsmT reg label m ()
 mul s x y z = liftF . Emit (Mul s x y z) $ ()
 
-xor :: Instr2 reg label ()
+xor :: Monad m => Instr2 reg label m ()
 xor x y = liftF . Emit (Xor x y) $ ()
 
-inc :: Instr1 reg label ()
+inc :: Monad m => Instr1 reg label m ()
 inc v = liftF . Emit (Inc v) $ ()
 
-dec :: Instr1 reg label ()
+dec :: Monad m => Instr1 reg label m ()
 dec v = liftF . Emit (Dec v) $ ()
 
-push :: Instr1 reg label ()
+push :: Monad m => Instr1 reg label m ()
 push v = liftF . Emit (Push v) $ ()
 
-pop :: Instr1 reg label ()
+pop :: Monad m => Instr1 reg label m ()
 pop v = liftF . Emit (Pop v) $ ()
 
-nop :: Instr0 reg label ()
+nop :: Monad m => Instr0 reg label m ()
 nop = liftF . Emit Nop $ ()
 
-syscall :: Instr0 reg label ()
+syscall :: Monad m => Instr0 reg label m ()
 syscall = liftF . Emit Syscall $ ()
 
-int :: Instr1 reg label ()
+int :: Monad m => Instr1 reg label m ()
 int v = liftF . Emit (Int v) $ ()
 
-cmp :: Instr2 reg label ()
+cmp :: Monad m => Instr2 reg label m ()
 cmp x y = liftF . Emit (Cmp x y) $ ()
 
-test :: Instr2 reg label ()
+test :: Monad m => Instr2 reg label m ()
 test x y = liftF . Emit (Test x y) $ ()
 
-sal :: Instr2 reg label ()
+sal :: Monad m => Instr2 reg label m ()
 sal x y = liftF . Emit (Sal x y) $ ()
 
-sar :: Instr2 reg label ()
+sar :: Monad m => Instr2 reg label m ()
 sar x y = liftF . Emit (Sar x y) $ ()
 
-jump :: FlagCondition -> Instr1 reg label ()
+jump :: Monad m => FlagCondition -> Instr1 reg label m ()
 jump v x = liftF . Emit (Jump v x) $ ()
 
-setc :: FlagCondition -> Instr1 reg label ()
+setc :: Monad m => FlagCondition -> Instr1 reg label m ()
 setc v x = liftF . Emit (Setc v x) $ ()
 
-neg1 :: Instr1 reg label ()
+neg1 :: Monad m => Instr1 reg label m ()
 neg1 v = liftF . Emit (Neg1 v) $ ()
 
-neg2 :: Instr1 reg label ()
+neg2 :: Monad m => Instr1 reg label m ()
 neg2 v = liftF . Emit (Neg2 v) $ ()
 
-cvt :: SseType -> SseType -> Instr2 reg label ()
+cvt :: Monad m => SseType -> SseType -> Instr2 reg label m ()
 cvt s1 s2 x y = liftF . Emit (Cvt s1 s2 x y) $ ()
 
-idiv :: Instr3 reg label ()
+idiv :: Monad m => Instr3 reg label m ()
 idiv x y z = liftF . Emit (Div Signed x y z) $ ()
 
-cqo :: Instr2 reg label ()
+cqo :: Monad m => Instr2 reg label m ()
 cqo x y = liftF . Emit (Cqo x y) $ ()
 
 -- Pretty printers --
 
-instance Pretty reg => Pretty (Asm reg Int ()) where
+instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
     pretty = flip evalState initial . iter f . ($> pure empty) where
         initial :: Int
         initial = 0

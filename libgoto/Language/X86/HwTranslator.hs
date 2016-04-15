@@ -19,6 +19,7 @@ assembly. The main steps of this translation are:
 
 module Language.X86.HwTranslator where
 
+import Language.Common.Misc
 import Language.Common.Storage
 import Language.X86.Core
 import Language.X86.Hardware
@@ -26,66 +27,72 @@ import Language.X86.Hardware.Registers
 import Language.X86.Lifetime
 import Language.X86.Virtual
 
-import Control.Monad.Free
+import Control.Monad.Identity
 import Control.Monad.Except
 import Control.Monad.State
+import Control.Monad.Trans.Free
 
 import qualified Data.Map.Strict as M
 
-asm :: Monad m => m a -> HardwareTranslationT m a
-asm = HardwareTranslationT . lift . lift
+type Alg f a = f a -> a
 
 translate
-    :: forall label
-    . M.Map SizedVirtualRegister HardwareLocation
+    :: M.Map SizedVirtualRegister HardwareLocation
     -> [(SizedHardwareRegister, LifetimeSpan)]
     -> Int
-    -> VirtualAsm label ()
-    -> HardwareTranslation label ()
-translate vToH live stkSz = iterM phi where
-    phi :: AsmF label (Operand SizedVirtualRegister label) (HardwareTranslation label ())
-        -> HardwareTranslation label ()
+    -> VirtualAsm Int ()
+    -> HardwareTranslation Int (HardwareAsm Int ())
+translate vToH live stkSz = iterM phi . ($> pure ()) where
+    phi :: Alg
+            (AsmF Int (Operand SizedVirtualRegister Int))
+            (HardwareTranslation Int (HardwareAsm Int ()))
     phi a = case a of
         -- Pass through newLabel
-        NewLabel f -> do
-            l <- asm newLabel
-            f l
+        NewLabel f -> f =<< gets _ip
 
         -- Pass through setLabel
-        SetLabel l n -> do
-            asm $ setLabel l
-            n
+        SetLabel l m -> do
+            p <- m
+            pure $ do
+                setLabel l
+                p
 
-        Prologue di n -> case di of
+        Prologue di n -> do
+            code <- case di of
+                -- Function prologue: make space on the stack for spills, push
+                -- safe registers that are in use throughout this function.
+                Save -> do
+                    off <- gets _currentSpillOffset
+                    pregs <- gets _safeRegistersUsed
 
-            -- Function prologue: make space on the stack for spills, push
-            -- safe registers that are in use throughout this function.
-            Save -> do
-                off <- gets _currentSpillOffset
-                pregs <- gets _safeRegistersUsed
-                asm $ sub rsp (Immediate $ ImmI $ fromIntegral $ -(off - stkSz))
-                void $ forM pregs (\(SizedRegister _ reg) -> case reg of
+                    let s = sub rsp (Immediate $ ImmI $ fromIntegral $ -(off - stkSz))
+
+                    saveCode <- forM pregs $ \(SizedRegister _ reg) -> case reg of
                         FloatingHwRegister _ -> throwError $ InvariantViolation
                             "No floating register is safe"
-                        IntegerHwRegister r -> asm $ push $ fixedIntReg64 r
-                    )
-                n
+                        IntegerHwRegister r -> pure $ push $ fixedIntReg64 r
 
-            -- Mirror image of Prologue Save (pop safe registers, clear the
-            -- space on the stack.
-            Load -> do
-                off <- gets _currentSpillOffset
-                pregs <- gets _safeRegistersUsed
+                    pure $ s >> sequence_ saveCode
 
-                -- Obviously, this popping needs to be done in reverse.
-                void $ forM (reverse pregs) (\(SizedRegister _ reg) -> case reg of
+                -- Mirror image of Prologue Save (pop safe registers, clear the
+                -- space on the stack.
+                Load -> do
+                    off <- gets _currentSpillOffset
+                    pregs <- gets _safeRegistersUsed
+
+                    -- Obviously, this popping needs to be done in reverse.
+                    loadCode <- forM (reverse pregs) $ \(SizedRegister _ reg) -> case reg of
                         FloatingHwRegister _ -> throwError $ InvariantViolation
                             "No floating register is safe"
-                        IntegerHwRegister r -> asm $ pop $ fixedIntReg64 r
-                    )
+                        IntegerHwRegister r -> pure $ pop $ fixedIntReg64 r
 
-                asm $ add rsp (Immediate $ ImmI $ fromIntegral $ -(off - stkSz))
-                n
+                    let a' = add rsp (Immediate $ ImmI $ fromIntegral $ -(off - stkSz))
+
+                    pure $ sequence_ loadCode >> a'
+
+            next <- n
+
+            pure $ code >> next
 
         Scratch di n ->
             case di of
@@ -94,35 +101,41 @@ translate vToH live stkSz = iterM phi where
                 Save -> do
                     i <- gets _ip
                     let sr = getLiveScratch i live
+
                     modify $ \s -> s { _latestSavedRegisters = sr }
-                    void $ forM sr (\r -> asm $ push $ Register $ Direct r)
-                    n
+
+                    ss <- forM sr (\r -> pure $ push $ Register $ Direct r)
+                    next <- n
+
+                    pure $ sequence_ ss >> next
 
                 -- Mirror: pop in reverse the registers we had saved before.
                 Load -> do
                     sr <- gets _latestSavedRegisters
-                    void $ forM (reverse sr) (\r -> asm $ pop $ Register $ Direct r)
-                    n
+                    let ss = map (pop . Register . Direct) (reverse sr)
+                    next <- n
+                    pure $ sequence_ ss >> next
 
         Emit i n -> do
-            translateInst i
-            modify $ \s -> s {_ip = _ip s + 1}
-            n
+            s <- translateInst i
+            modify $ \st -> st { _ip = _ip st + 1 }
+            next <- n
+            pure $ s >> next
 
     translateInst i = case i of
-        Ret -> asm ret
+        Ret -> pure ret
         Mov v1 v2 -> (v1, v2) ?~> mov
         Call v -> v !~> call
         Add v1 v2 -> (v1, v2) ?~> add
         Sub v1 v2 -> (v1, v2) ?~> sub
-        Mul s v1 v2 mv3 -> undefined
-        Xor v1 v2 -> (v1, v2) ?~> xor  -- Definition of Mul will change
+        Mul s v1 v2 mv3 -> error "Definition of Mul will change" s v1 v2 mv3
+        Xor v1 v2 -> (v1, v2) ?~> xor
         Inc v -> v !~> inc
         Dec v -> v !~> dec
         Push v -> v !~> push
         Pop v -> v !~> pop
-        Nop -> asm nop
-        Syscall -> asm syscall
+        Nop -> pure nop
+        Syscall -> pure syscall
         Int v -> v !~> int
         Cmp v1 v2 -> (v1, v2) ?~> cmp
         Test v1 v2 -> (v1, v2) ?~> test
@@ -132,6 +145,8 @@ translate vToH live stkSz = iterM phi where
         Setc cond v -> v !~> (setc cond)
         Neg1 v -> v !~> neg1
         Neg2 v -> v !~> neg2
+        _ -> error "unimplemented: translateInst"
+
 
     -- Translates an operand from virtual to hardware, and synthesizes the
     -- given instruction that uses the hardware operand.
@@ -139,7 +154,7 @@ translate vToH live stkSz = iterM phi where
     -- This operator is pronounced "translate".
     v !~> fInst = do
         v' <- translateOp v
-        asm $ fInst v'
+        pure $ fInst v'
 
     {- A two-operand version of (!~>). A check is made to ensure that the
     operands are not both indirects. If they are, then we go from this:
@@ -149,14 +164,20 @@ translate vToH live stkSz = iterM phi where
         inst [dst] rax
     This is okay because rax is never allocated, specifically for this purpose.
     -}
+
+    (?~>)
+        :: (VirtualOperand Int, VirtualOperand Int)
+        -> (HardwareOperand Int -> HardwareOperand Int -> HardwareAsm Int ())
+        -> HardwareTranslation Int (HardwareAsm Int ())
     (v1, v2) ?~> fInst = do
         v1' <- translateOp v1
         v2' <- translateOp v2
         case (v1, v2) of
             (Register (Indirect _), Register (Indirect _)) -> do
-                asm $ mov rax v2'
-                asm $ fInst v1' rax
-            _ -> asm $ fInst v1' v2'
+                pure $ do
+                    mov rax v2'
+                    fInst v1' rax
+            _ -> pure $ fInst v1' v2'
 
     translateOp
         :: VirtualOperand label
@@ -195,9 +216,9 @@ translate vToH live stkSz = iterM phi where
             Bottom line: an error is thrown if the register was spilled.
             -}
             Indirect off -> case off of
-                Offset d r -> case M.lookup r vToH of
+                Offset disp r -> case M.lookup r vToH of
                     Just loc -> case loc of
-                        Reg r' _ -> pure $ Register $ Indirect $ Offset d r'
+                        Reg r' _ -> pure $ Register $ Indirect $ Offset disp r'
                         Mem _ -> throwError $ InvariantViolation
                             "Spilled virtual indirect register"
                         Unassigned -> throwError $ InvariantViolation
@@ -250,4 +271,3 @@ computeAllocState = foldl (\acc (v, h) -> do
 
 getVRegSize :: SizedVirtualRegister -> RegisterSize
 getVRegSize (SizedRegister sz _) = sz
-

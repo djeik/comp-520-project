@@ -13,6 +13,7 @@ The mirror image of "Language.X86.Virtual", except with hardware registers.
 module Language.X86.Hardware
 ( -- * Hardware assembly definitions
   HardwareAsm
+, HardwareAsmT
 , HardwareOperand
  -- * Register definitions
 , SizedHardwareRegister
@@ -25,15 +26,20 @@ module Language.X86.Hardware
 , HardwareTranslationT(..)
 , HardwareTranslationState(..)
 , HardwareTranslationError(..)
+, runHardwareTranslationT
+, runHardwareTranslation
 ) where
 
 import Language.X86.Core
 import Language.X86.Virtual
 
 import Control.Monad.Except
+import Control.Monad.Identity
 import Control.Monad.State
 
 type HardwareAsm label = Asm SizedHardwareRegister label
+
+type HardwareAsmT label = AsmT SizedHardwareRegister label
 
 type HardwareOperand = Operand SizedHardwareRegister
 
@@ -52,7 +58,7 @@ data HardwareLocation =
     | Unassigned
     -- ^ Indicates that this virtual register was not yet assigned a location.
 
-data HardwareTranslationState
+data HardwareTranslationState label
     = HardwareTranslationState
         { _currentSpillOffset :: Int
         -- ^ At which offset should we put the next spilled variable.
@@ -65,27 +71,50 @@ data HardwareTranslationState
         -- the last call.
         }
 
+initialHardwareTranslationState :: HardwareTranslationState label
+initialHardwareTranslationState
+    = HardwareTranslationState
+        { _currentSpillOffset = 0
+        , _safeRegistersUsed = []
+        , _ip = 0
+        , _latestSavedRegisters = []
+        }
+
 -- | A monad for virtual-to-hardware translation.
-newtype HardwareTranslationT m a
+newtype HardwareTranslationT label m a
     = HardwareTranslationT
-        { runHardwareTranslationT
+        { unHardwareTranslationT
             :: ExceptT HardwareTranslationError (
-                StateT HardwareTranslationState m
+                StateT (HardwareTranslationState label) m
             ) a
         }
     deriving
         ( Functor
         , Applicative
         , Monad
-        , MonadState HardwareTranslationState
+        , MonadState (HardwareTranslationState label)
         , MonadError HardwareTranslationError
         )
 
+runHardwareTranslationT
+    :: Monad m
+    => HardwareTranslationT label m a
+    -> m (Either HardwareTranslationError a)
+runHardwareTranslationT
+    = flip evalStateT initialHardwareTranslationState
+    . runExceptT
+    . unHardwareTranslationT
 
-type HardwareTranslation label a = HardwareTranslationT (HardwareAsm label) a
+runHardwareTranslation
+    :: HardwareTranslation label a
+    -> Either HardwareTranslationError a
+runHardwareTranslation = runIdentity . runHardwareTranslationT
 
-data HardwareTranslationError =
-    InvariantViolation String
+type HardwareTranslation label a = HardwareTranslationT label Identity a
+
+data HardwareTranslationError
+    = InvariantViolation String
+    deriving (Eq, Ord, Read, Show)
 
 -- | The registers that are marked as safe (or, in ABI parlance, as "belonging
 -- to the calling function"), and which must therefore be saved and restored by

@@ -14,6 +14,7 @@ Monad that represents an abstract form of x86 with labels.
 module Language.X86.Virtual
 ( -- * Virtual assembly
   VirtualAsm
+, VirtualAsmT
 , VirtualRegister(..)
 , SizedVirtualRegister
 , VirtualOperand
@@ -30,6 +31,8 @@ import Language.X86.Core
 import Control.Monad.Identity
 import Control.Monad.State
 import Text.PrettyPrint as P
+
+type VirtualAsmT label = AsmT SizedVirtualRegister label
 
 type VirtualAsm label = Asm SizedVirtualRegister label
 
