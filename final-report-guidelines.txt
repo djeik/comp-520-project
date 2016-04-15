@@ -1,0 +1,26 @@
+Introduction
+
+* motivate the project
+* roadmap of rest of paper
+
+Who did what and resources used
+
+Compiler structure
+
+* DIAGRAM (tikz)
+* what technologies used and why
+* discuss three major phases:
+    * scanner, parser, weeder
+    * symbol tables, typechecking
+    * code generation:
+        * what target and why
+
+Examples
+
+* sample inputs and outputs, and interesting things that happen in special
+  cases
+
+Conclusion and future work
+
+* motivate project
+* discuss what we would improve if we had more time
