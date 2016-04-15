@@ -266,7 +266,16 @@ simplifyExpr = annCata phi where
                         Result _ -> False
                         _ -> True) in pure $ concat $ filter fil ps'
 
-            pure $ (Result $ SimpleExpr $ Ann a' $ V.Call i tyPs):(es ++ es')
+            let inner = case gidTy i of
+                    Fix (V.BuiltinType gTy) -> V.InternalCall (case gTy of
+                        T.AppendType -> "append"
+                        T.CapType -> "cap"
+                        T.CopyType -> "copy"
+                        T.LenType -> "len"
+                        T.MakeType -> "make")
+                    _ -> V.Call i
+
+            pure $ (Result $ SimpleExpr $ Ann a' $ inner tyPs):(es ++ es')
 
         G.Literal (Ann a' l) -> do
             a'' <- reinterpretTypeEx (fst a')
