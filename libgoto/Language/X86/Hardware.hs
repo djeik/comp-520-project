@@ -13,7 +13,7 @@ The mirror image of "Language.X86.Virtual", except with hardware registers.
 module Language.X86.Hardware
 ( -- * Hardware assembly definitions
   HardwareAsm
-, HardwareOperand(..)
+, HardwareOperand
  -- * Register definitions
 , SizedHardwareRegister
 , HardwareLocation(..)
@@ -31,10 +31,9 @@ import Language.X86.Core
 import Language.X86.Virtual
 
 import Control.Monad.Except
-import Control.Monad.Identity
 import Control.Monad.State
 
-type HardwareAsm addr label = Asm SizedHardwareRegister addr label
+type HardwareAsm label = Asm SizedHardwareRegister label
 
 type HardwareOperand = Operand SizedHardwareRegister
 
@@ -83,7 +82,7 @@ newtype HardwareTranslationT m a
         )
 
 
-type HardwareTranslation addr label = HardwareTranslationT (HardwareAsm addr label)
+type HardwareTranslation label a = HardwareTranslationT (HardwareAsm label) a
 
 data HardwareTranslationError =
     InvariantViolation String

@@ -19,11 +19,9 @@ module Language.X86.Core
 , AsmF(..)
   -- ** Operations in 'Asm'
   -- *** Label management
-, here
 , newLabel
 , newLabelHere
 , setLabel
-, setLabelHere
   -- *** Emitting instructions
 , ret
 , call
@@ -62,6 +60,7 @@ module Language.X86.Core
 , JumpDistance(..)
   -- ** Operands
 , Operand(..)
+, Directness(..)
 , Offset(..)
 , Scale(..)
 , Displacement
@@ -101,15 +100,13 @@ import Data.Word
 -- Normally, @label@, @addr@ and @val@ should be related somehow. For example,
 -- if we want to allow jumping to labels, then @val@ should be some sum type in
 -- which one summand contains @label@.
-data AsmF addr label val next
+data AsmF label val next
     = Emit (Instruction val) next
     -- ^ Output an instruction.
     | NewLabel (label -> next)
     -- ^ Create a new uninitialized label.
-    | SetLabel label addr next
+    | SetLabel label next
     -- ^ Assign a value to a label.
-    | Here (addr -> next)
-    -- ^ Get the current code offset.
     | Scratch ScratchFlow next
     -- ^ Save or load live scratch registers. Load instructions must always
     -- occur after a save instruction. Saves and loads may not be nested.
@@ -122,7 +119,7 @@ data ScratchFlow
     | Load
 
 -- | The free monad on 'AsmF'.
-type Asm reg addr label = Free (AsmF addr label (Operand reg addr label))
+type Asm reg label = Free (AsmF label (Operand reg label))
 
 -- | An x86 instruction
 data Instruction val
@@ -388,7 +385,6 @@ instance StorageSize RegisterSize where
 data RegisterAccessMode
     = IntegerMode
     | FloatingMode
-    | MemoryMode
     deriving (Eq, Ord, Read, Show)
 
 -- | A register together with a size modifier.
@@ -400,35 +396,32 @@ instance Pretty reg => Pretty (SizedRegister reg) where
         SizedRegister _ reg -> pretty reg
 
 -- | An operand to an instruction.
-data Operand reg addr label
+data Operand reg label
     = Immediate Immediate
     -- ^ A constant value.
-    | DirectRegister reg
-    -- ^ The value contained in a register.
-    | IndirectRegister (Offset reg)
-    -- ^ The value contained in a memory address indicated by the value of a
-    -- register together with a signed offset.
-
-    -- TODO address isn't needed ?
-    | Address addr
-    -- ^ An address
+    | Register (Directness reg)
     | Label label
     -- ^ A internal label to a location within the current function.
-    | Internal String
+    | Internal (Directness String)
     -- ^ An internal reference, e.g. to another compiled Go function.
-    | External String
+    | External (Directness String)
     -- ^ An external reference, e.g. to a C function.
     deriving (Eq, Ord, Read, Show)
+
+-- | Whether access to a memory location is direct or indirect.
+data Directness a
+    = Direct a
+    -- ^ Direct access to data.
+    | Indirect (Offset a)
+    -- ^ Indirect access to data, with an offset.
+    deriving (Eq, Functor, Ord, Read, Show)
 
 data Offset reg
     = Offset Displacement reg
     -- ^ A register indirection with a displacement.
     --
     -- More space-efficient code can be generated if the displacement is small.
-    | ScaledIndexBase Scale Displacement reg reg
-    -- ^ Scaled index base addressing can be used to concisely express array
-    -- indexing.
-    deriving (Eq, Ord, Read, Show)
+    deriving (Eq, Functor, Ord, Read, Show)
 
 -- | A multiplier on on an index.
 data Scale
@@ -445,31 +438,31 @@ data Immediate
     deriving (Eq, Ord, Read, Show)
 
 -- | Nullary instruction.
-type Instr0 reg addr label a = Asm reg addr label a
+type Instr0 reg label a = Asm reg label a
 
 -- | Unary instruction.
-type Instr1 reg addr label a = Operand reg addr label -> Instr0 reg addr label a
+type Instr1 reg label a = Operand reg label -> Instr0 reg label a
 
 -- | Binary instruction.
-type Instr2 reg addr label a = Operand reg addr label -> Instr1 reg addr label a
+type Instr2 reg label a = Operand reg label -> Instr1 reg label a
 
 -- | Ternary instruction.
-type Instr3 reg addr label a = Operand reg addr label -> Instr2 reg addr label a
+type Instr3 reg label a = Operand reg label -> Instr2 reg label a
 
-prologue :: ScratchFlow -> Asm reg addr label ()
+prologue :: ScratchFlow -> Asm reg label ()
 prologue flow = liftF . Prologue flow $ ()
 
-withPrologue :: Asm reg addr label a -> Asm reg addr label a
+withPrologue :: Asm reg label a -> Asm reg label a
 withPrologue m = do
     prologue Save
     x <- m
     prologue Load
     pure x
 
-scratch :: ScratchFlow -> Asm reg addr label ()
+scratch :: ScratchFlow -> Asm reg label ()
 scratch flow = liftF . Scratch flow $ ()
 
-withScratch :: Asm reg addr label a -> Asm reg addr label a
+withScratch :: Asm reg label a -> Asm reg label a
 withScratch m = do
     scratch Save
     x <- m
@@ -477,115 +470,108 @@ withScratch m = do
     pure x
 
 -- | 'NewLabel'
-newLabel :: Asm reg addr label label
+newLabel :: Asm reg label label
 newLabel = liftF . NewLabel $ id
 
 -- | 'SetLabel'
-setLabel :: label -> addr -> Asm reg addr label ()
-setLabel l a = liftF . SetLabel l a $ ()
-
--- | 'Here'
-here :: Asm reg addr label addr
-here = liftF . Here $ id
+setLabel :: label -> Asm reg label ()
+setLabel l = liftF . SetLabel l $ ()
 
 -- | Defines a new label and immediately sets it to the value obtained from
 -- 'here'.
-newLabelHere :: Asm reg addr label label
+newLabelHere :: Asm reg label label
 newLabelHere = do
     l <- newLabel
-    setLabel <$> pure l <*> here
+    setLabel <$> pure l
     pure l
 
-setLabelHere :: label -> Asm reg addr label ()
-setLabelHere l = setLabel l =<< here
-
 -- | 'Emit' 'Ret'
-ret :: Instr0 reg addr label ()
+ret :: Instr0 reg label ()
 ret = liftF . Emit Ret $ ()
 
-call :: Instr1 reg addr label ()
+call :: Instr1 reg label ()
 call f = liftF . Emit (Call f) $ ()
 
 -- | 'Emit' 'Mov'
-mov :: Instr2 reg addr label ()
+mov :: Instr2 reg label ()
 mov x y = liftF . Emit (Mov x y) $ ()
 
 -- | 'Emit' 'Add'
-add :: Instr2 reg addr label ()
+add :: Instr2 reg label ()
 add x y = liftF . Emit (Add x y) $ ()
 
 -- | 'Emit' 'Sub'
-sub :: Instr2 reg addr label ()
+sub :: Instr2 reg label ()
 sub x y = liftF . Emit (Sub x y) $ ()
 
 -- | 'Emit' 'Mul'
 mul :: Signedness
-    -> Operand reg addr label
-    -> Operand reg addr label
-    -> Maybe (Operand reg addr label)
-    -> Asm reg addr label ()
+    -> Operand reg label
+    -> Operand reg label
+    -> Maybe (Operand reg label)
+    -> Asm reg label ()
 mul s x y z = liftF . Emit (Mul s x y z) $ ()
 
-xor :: Instr2 reg addr label ()
+xor :: Instr2 reg label ()
 xor x y = liftF . Emit (Xor x y) $ ()
 
-inc :: Instr1 reg addr label ()
+inc :: Instr1 reg label ()
 inc v = liftF . Emit (Inc v) $ ()
 
-dec :: Instr1 reg addr label ()
+dec :: Instr1 reg label ()
 dec v = liftF . Emit (Dec v) $ ()
 
-push :: Instr1 reg addr label ()
+push :: Instr1 reg label ()
 push v = liftF . Emit (Push v) $ ()
 
-pop :: Instr1 reg addr label ()
+pop :: Instr1 reg label ()
 pop v = liftF . Emit (Pop v) $ ()
 
-nop :: Instr0 reg addr label ()
+nop :: Instr0 reg label ()
 nop = liftF . Emit Nop $ ()
 
-syscall :: Instr0 reg addr label ()
+syscall :: Instr0 reg label ()
 syscall = liftF . Emit Syscall $ ()
 
-int :: Instr1 reg addr label ()
+int :: Instr1 reg label ()
 int v = liftF . Emit (Int v) $ ()
 
-cmp :: Instr2 reg addr label ()
+cmp :: Instr2 reg label ()
 cmp x y = liftF . Emit (Cmp x y) $ ()
 
-test :: Instr2 reg addr label ()
+test :: Instr2 reg label ()
 test x y = liftF . Emit (Test x y) $ ()
 
-sal :: Instr2 reg addr label ()
+sal :: Instr2 reg label ()
 sal x y = liftF . Emit (Sal x y) $ ()
 
-sar :: Instr2 reg addr label ()
+sar :: Instr2 reg label ()
 sar x y = liftF . Emit (Sar x y) $ ()
 
-jump :: FlagCondition -> Instr1 reg addr label ()
+jump :: FlagCondition -> Instr1 reg label ()
 jump v x = liftF . Emit (Jump v x) $ ()
 
-setc :: FlagCondition -> Instr1 reg addr label ()
+setc :: FlagCondition -> Instr1 reg label ()
 setc v x = liftF . Emit (Setc v x) $ ()
 
-neg1 :: Instr1 reg addr label ()
+neg1 :: Instr1 reg label ()
 neg1 v = liftF . Emit (Neg1 v) $ ()
 
-neg2 :: Instr1 reg addr label ()
+neg2 :: Instr1 reg label ()
 neg2 v = liftF . Emit (Neg2 v) $ ()
 
-cvt :: SseType -> SseType -> Instr2 reg addr label ()
+cvt :: SseType -> SseType -> Instr2 reg label ()
 cvt s1 s2 x y = liftF . Emit (Cvt s1 s2 x y) $ ()
 
-idiv :: Instr3 reg addr label ()
+idiv :: Instr3 reg label ()
 idiv x y z = liftF . Emit (Div Signed x y z) $ ()
 
-cqo :: Instr2 reg addr label ()
+cqo :: Instr2 reg label ()
 cqo x y = liftF . Emit (Cqo x y) $ ()
 
 -- Pretty printers --
 
-instance Pretty reg => Pretty (Asm reg Int Int ()) where
+instance Pretty reg => Pretty (Asm reg Int ()) where
     pretty = flip evalState initial . iter f . ($> pure empty) where
         initial :: Int
         initial = 0
@@ -593,39 +579,45 @@ instance Pretty reg => Pretty (Asm reg Int Int ()) where
         nextNum :: State Int Int
         nextNum = do
             n <- get
-            modify $ \_ -> n + 1
+            put $ n + 1
             pure n
 
-        f :: AsmF Int Int (Operand reg Int Int) (State Int Doc) -> (State Int Doc)
+        f :: AsmF Int (Operand reg Int) (State Int Doc) -> (State Int Doc)
         f a = case a of
             Emit instr next -> ($+$) <$> pure (prettyInstr instr) <*> next
             NewLabel lf -> lf =<< nextNum
-            SetLabel _ _ m -> m
-            Here af -> af =<< nextNum
+            SetLabel i m -> ($+$) <$> pure (text "l" <> P.int i <> text ":") <*> m
             Scratch _ m -> m
             Prologue _ m -> m
 
+        opretty :: Pretty reg => Operand reg Int -> Doc
         opretty op = case op of
             Immediate imm -> case imm of
                 ImmI i -> P.int (fromIntegral i)
                 ImmF i -> P.double i
-            DirectRegister reg -> pretty reg
-            IndirectRegister offset -> prettyBrackets True $ offsetp offset
-            Address _ -> error "unimplemented: address pretty"
+            Register d -> case pretty <$> d of
+                Direct reg -> pretty reg
+                Indirect off -> prettyBrackets True (offsetp off)
             Label i -> text "l" <> P.int i
-            Internal s -> text s
-            External s -> text s
+            Internal d -> case text <$> d of
+                Direct s -> s
+                Indirect off -> prettyBrackets True (offsetp off)
+            External d -> case text <$> d of
+                Direct s -> s
+                Indirect off -> prettyBrackets True (offsetp off)
 
         offsetp off = case off of
-            Offset d r -> pretty r <+> if d >= 0
+            Offset d r -> r <+> if d >= 0
                 then text "+" <+> P.int (fromIntegral d)
                 else text "-" <+> P.int (negate $ fromIntegral d)
 
         opretty2 o1 o2 = opretty o1 <+> opretty o2
+
+        mnep :: Pretty reg => String -> Operand reg Int -> Doc
         mnep t o = text t <+> opretty o
         mnep2 t o1 o2 = text t <+> opretty2 o1 o2
 
-        prettyInstr :: Instruction (Operand reg Int Int) -> Doc
+        prettyInstr :: Instruction (Operand reg Int) -> Doc
         prettyInstr instr = case instr of
             Ret -> text "ret"
             Call o -> mnep "call" o

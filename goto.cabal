@@ -96,6 +96,7 @@ library
     Language.Vigil.Syntax.TyAnn
     Language.Vigil.Types
     Language.X86
+    Language.X86.Codegen
     Language.X86.Core
     Language.X86.Hardware
     Language.X86.Hardware.Registers

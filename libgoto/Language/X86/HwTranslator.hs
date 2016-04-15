@@ -36,30 +36,24 @@ asm :: Monad m => m a -> HardwareTranslationT m a
 asm = HardwareTranslationT . lift . lift
 
 translate
-    :: forall addr label
+    :: forall label
     . M.Map SizedVirtualRegister HardwareLocation
     -> [(SizedHardwareRegister, LifetimeSpan)]
     -> Int
-    -> VirtualAsm addr label ()
-    -> HardwareTranslation addr label ()
+    -> VirtualAsm label ()
+    -> HardwareTranslation label ()
 translate vToH live stkSz = iterM phi where
-    phi :: AsmF addr label (Operand SizedVirtualRegister addr label) (HardwareTranslation addr label ())
-        -> HardwareTranslation addr label ()
+    phi :: AsmF label (Operand SizedVirtualRegister label) (HardwareTranslation label ())
+        -> HardwareTranslation label ()
     phi a = case a of
-
-        -- Pass through here
-        Here f -> do
-            h <- asm here
-            f h
-
         -- Pass through newLabel
         NewLabel f -> do
             l <- asm newLabel
             f l
 
         -- Pass through setLabel
-        SetLabel l ad n -> do
-            asm $ setLabel l ad
+        SetLabel l n -> do
+            asm $ setLabel l
             n
 
         Prologue di n -> case di of
@@ -101,13 +95,13 @@ translate vToH live stkSz = iterM phi where
                     i <- gets _ip
                     let sr = getLiveScratch i live
                     modify $ \s -> s { _latestSavedRegisters = sr }
-                    void $ forM sr (\r -> asm $ push $ DirectRegister r)
+                    void $ forM sr (\r -> asm $ push $ Register $ Direct r)
                     n
 
                 -- Mirror: pop in reverse the registers we had saved before.
                 Load -> do
                     sr <- gets _latestSavedRegisters
-                    void $ forM (reverse sr) (\r -> asm $ pop $ DirectRegister r)
+                    void $ forM (reverse sr) (\r -> asm $ pop $ Register $ Direct r)
                     n
 
         Emit i n -> do
@@ -159,18 +153,17 @@ translate vToH live stkSz = iterM phi where
         v1' <- translateOp v1
         v2' <- translateOp v2
         case (v1, v2) of
-            (IndirectRegister _, IndirectRegister _) -> do
+            (Register (Indirect _), Register (Indirect _)) -> do
                 asm $ mov rax v2'
                 asm $ fInst v1' rax
             _ -> asm $ fInst v1' v2'
 
     translateOp
-        :: VirtualOperand addr label
-        -> HardwareTranslation addr label (HardwareOperand addr label)
+        :: VirtualOperand label
+        -> HardwareTranslation label (HardwareOperand label)
     translateOp o = case o of
         -- Any non-reg operand is just passed as-is. We have to do this boilerplate
         -- for typechecking reasons.
-        Address a -> pure $ Address a
         Label l -> pure $ Label l
         Internal s -> pure $ Internal s
         External s -> pure $ External s
@@ -179,42 +172,48 @@ translate vToH live stkSz = iterM phi where
         {- Direct registers: check the translation table. If it got an actual
             hardware register, use it. If it got spilled, generate an offset
             from rbp. -}
-        (DirectRegister r) -> case M.lookup r vToH of
-            Just loc -> case loc of
-                Reg r' _ -> pure $ DirectRegister r'
-                Mem i -> pure $ IndirectRegister $ Offset (fromIntegral i) $
-                        SizedRegister Extended64 $ IntegerHwRegister Rbp
-                Unassigned -> throwError $ InvariantViolation
-                    "Register has not been assigned"
-            Nothing -> throwError $ InvariantViolation
-                "Virtual register with no corresponding hardware location"
-
-        {- Indirect registers: normally these should only be generated with
-        fixed hardware registers. If we end up with an indirect virtual, then
-        we're in a problematic situation, because that virtual could have been
-        spilled, which creates a second layer of indirection. There's ways of
-        dealing with that in instructions with one operand, but when you move up
-        to two operands, you might end up in a situation where you need to push
-        another register to make enough room for those operands.
-
-        Bottom line: an error is thrown if the register was spilled.
-        -}
-        (IndirectRegister off) -> case off of
-            Offset d r -> case M.lookup r vToH of
+        Register d -> case d of
+            Direct r -> case M.lookup r vToH of
                 Just loc -> case loc of
-                    Reg r' _ -> pure $ IndirectRegister $ Offset d r'
-                    Mem _ -> throwError $ InvariantViolation
-                        "Spilled virtual indirect register"
+                    Reg r' _ -> pure $ Register $ Direct r'
+                    Mem i ->
+                        pure $ Register $ Indirect $ Offset (fromIntegral i) $
+                        SizedRegister Extended64 $ IntegerHwRegister Rbp
                     Unassigned -> throwError $ InvariantViolation
-                        "Register has not been assigned."
+                        "Register has not been assigned"
                 Nothing -> throwError $ InvariantViolation
-                    "Register has no corresponding hardware location"
+                    "Virtual register with no corresponding hardware location"
+
+            {- Indirect registers: normally these should only be generated with
+            fixed hardware registers. If we end up with an indirect virtual, then
+            we're in a problematic situation, because that virtual could have been
+            spilled, which creates a second layer of indirection. There's ways of
+            dealing with that in instructions with one operand, but when you move up
+            to two operands, you might end up in a situation where you need to push
+            another register to make enough room for those operands.
+
+            Bottom line: an error is thrown if the register was spilled.
+            -}
+            Indirect off -> case off of
+                Offset d r -> case M.lookup r vToH of
+                    Just loc -> case loc of
+                        Reg r' _ -> pure $ Register $ Indirect $ Offset d r'
+                        Mem _ -> throwError $ InvariantViolation
+                            "Spilled virtual indirect register"
+                        Unassigned -> throwError $ InvariantViolation
+                            "Register has not been assigned."
+                    Nothing -> throwError $ InvariantViolation
+                        "Register has no corresponding hardware location"
 
 -- | Given an offset, constructs the operand to access the spill location
 -- associated with it.
-spillOperand :: Int -> HardwareOperand addr label
-spillOperand i = IndirectRegister $ Offset (fromIntegral i) $
-                SizedRegister Extended64 $ IntegerHwRegister Rbp
+spillOperand :: Int -> HardwareOperand label
+spillOperand i
+    = Register
+    $ Indirect
+    $ Offset (fromIntegral i)
+    $ SizedRegister Extended64
+    $ IntegerHwRegister Rbp
 
 -- | Obtains all the unsafe registers that are live at the given program point.
 getLiveScratch
@@ -231,7 +230,7 @@ getLiveScratch i = map fst . filter (\(h, l) ->
 --
 -- Returns a new version of the register pairings in which all spills have their
 -- proper offset computed.
-computeAllocState :: [RegisterPairing] -> HardwareTranslation addr label [RegisterPairing]
+computeAllocState :: [RegisterPairing] -> HardwareTranslation label [RegisterPairing]
 computeAllocState = foldl (\acc (v, h) -> do
     acc' <- acc
     case h of

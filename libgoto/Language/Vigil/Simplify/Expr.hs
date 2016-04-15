@@ -286,7 +286,21 @@ simplifyExpr = annCata phi where
                 Nothing -> pure []
                 _ -> case reinterpretGlobalId i of
                     Left _ -> throwError $ InvariantViolation "Unrepresentable type"
-                    Right x -> pure [Result $ SimpleVal $ IdentVal x]
+                    Right x -> do
+                        let name = stringFromSymbol (gidOrigName x)
+                        if gidTy i == untypedBoolType
+                            then if name == "gocode_true"
+                                then pure [
+                                    Result . SimpleVal . V.Literal $
+                                    Ann V.boolType (V.IntLit 1)
+                                ]
+                                else if name == "gocode_false"
+                                then pure [
+                                    Result . SimpleVal . V.Literal $
+                                    Ann V.boolType (V.IntLit 0)
+                                ]
+                                else throwError $ InvariantViolation $ "untyped boolean is not true or false: " ++ name
+                            else pure [Result $ SimpleVal $ IdentVal x]
 
         G.TypeAssertion _ _ ->
             throwError $ InvariantViolation "Type assertions are not supported."

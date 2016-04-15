@@ -22,35 +22,35 @@ import Data.Functor.Foldable ( cata )
 import qualified Data.Map as M
 import Data.List ( foldl' )
 
-newtype Compiler addr label a
+newtype Compiler label a
     = Compiler
         { unCompiler
-            :: ReaderT (CompilerEnv addr label) (
-                VirtualRegisterAllocatorT (VirtualAsm addr label)
+            :: ReaderT (CompilerEnv label) (
+                VirtualRegisterAllocatorT (VirtualAsm label)
             ) a
         }
     deriving
         ( Functor
         , Applicative
         , Monad
-        , MonadReader (CompilerEnv addr label)
+        , MonadReader (CompilerEnv label)
         )
 
-instance MonadVirtualRegisterAllocator (Compiler addr label) where
+instance MonadVirtualRegisterAllocator (Compiler label) where
     freshVirtualRegister ram rs
         = Compiler $ lift $ freshVirtualRegister ram rs
 
 -- | The read-only environment of the function compiler.
-data CompilerEnv addr label
+data CompilerEnv label
     = CompilerEnv
-        { _identMap :: M.Map GlobalId (VirtualOperand addr label)
+        { _identMap :: M.Map GlobalId (VirtualOperand label)
         -- ^ Precomputed map that assigns each GlobalId used by the function to
         -- a virtual operand that represents that data.
         }
     deriving (Eq, Ord, Read, Show)
 
 -- | Looks up how to access the given data.
-lookupIdent :: GlobalId -> Compiler addr label (VirtualOperand addr label)
+lookupIdent :: GlobalId -> Compiler label (VirtualOperand label)
 lookupIdent gid = do
     identMap <- asks _identMap
     pure $ case M.lookup gid identMap of
@@ -59,42 +59,44 @@ lookupIdent gid = do
         Nothing -> case unFix $ gidTy gid of
             -- if it's a builtin, then we have to create an external reference,
             -- which will eventually be linked to the runtime.
-            BuiltinType _ -> External $ stringFromSymbol $ gidOrigName gid
+            BuiltinType _ -> External . Direct . stringFromSymbol $ gidOrigName gid
             -- anything else is something on the top level, so we generate an
             -- internal reference
-            _ -> Internal $ stringFromSymbol $ gidOrigName gid
+            FuncType {} -> Internal $ Direct $ stringFromSymbol $ gidOrigName gid
+            _ ->
+                Internal $ Indirect $ Offset 0 $ stringFromSymbol $ gidOrigName gid
         Just o -> o
 
 -- | Emit raw assembly.
-asm :: VirtualAsm addr label a -> Compiler addr label a
+asm :: VirtualAsm label a -> Compiler label a
 asm = Compiler . lift . lift
 
 -- | Compiles a function.
-runCompiler :: TyAnnFunDecl -> VirtualAsm addr label ()
+runCompiler :: TyAnnFunDecl -> VirtualAsm label ()
 runCompiler decl
     = runVirtualRegisterAllocatorT
     $ runReaderT (unCompiler (compileFunction decl))
     $ makeCompilerEnv decl
 
-type CompilerEnvAllocState addr label =
+type CompilerEnvAllocState label =
     ( Displacement
     , Displacement
     , [IntegerRegister]
     , [Int]
-    , M.Map GlobalId (VirtualOperand addr label)
+    , M.Map GlobalId (VirtualOperand label)
     )
 
-makeCompilerEnv :: forall addr label. TyAnnFunDecl -> CompilerEnv addr label
+makeCompilerEnv :: forall label. TyAnnFunDecl -> CompilerEnv label
 makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
     = CompilerEnv { _identMap = identMap } where
 
         (_, _, _, _, identMap) = execState go initial
 
-        go :: State (CompilerEnvAllocState addr label) ()
+        go :: State (CompilerEnvAllocState label) ()
         go = do
             forM_ vars $ \(VarDecl gid) -> do
                 offset <- nextlocal (8 :: Displacement)
-                record gid (IndirectRegister (Offset offset $ rXx Rbp))
+                record gid (Register $ Indirect (Offset offset $ rXx Rbp))
 
             forM_ args $ \(VarDecl gid) -> do
                 case unFix $ gidTy gid of
@@ -102,17 +104,17 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
                     _ -> paramRegAssign nextireg rXx gid
 
         paramRegAssign
-            :: State (CompilerEnvAllocState addr label) (Maybe a)
+            :: State (CompilerEnvAllocState label) (Maybe a)
             -> (a -> SizedVirtualRegister)
             -> GlobalId
-            -> State (CompilerEnvAllocState addr label) ()
+            -> State (CompilerEnvAllocState label) ()
         paramRegAssign regAllocator boxer gid = do
             m <- regAllocator
             case m of
-                Just reg -> record gid (DirectRegister $ boxer reg)
+                Just reg -> record gid (Register . Direct $ boxer reg)
                 Nothing -> do
                     offset <- nextparam (8 :: Displacement)
-                    record gid (IndirectRegister (Offset offset $ rXx Rbp))
+                    record gid (Register $ Indirect (Offset offset $ rXx Rbp))
 
         fixhw64 = SizedRegister Extended64 . FixedHardwareRegister
 
@@ -126,7 +128,7 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
             , Displacement
             , [IntegerRegister]
             , [Int]
-            , M.Map GlobalId (VirtualOperand addr label)
+            , M.Map GlobalId (VirtualOperand label)
             )
         initial =
             ( (negate 8) -- stack offset for locals
@@ -138,12 +140,12 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
 
         -- safe head from a component of the state tuple
         nextreg
-            :: (CompilerEnvAllocState addr label -> [a])
+            :: (CompilerEnvAllocState label -> [a])
             -> ( [a]
-                -> CompilerEnvAllocState addr label
-                -> CompilerEnvAllocState addr label
+                -> CompilerEnvAllocState label
+                -> CompilerEnvAllocState label
             )
-            -> State (CompilerEnvAllocState addr label) (Maybe a)
+            -> State (CompilerEnvAllocState label) (Maybe a)
         nextreg getter setter = do
             regs <- gets getter
             case regs of
@@ -162,7 +164,7 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
 
         -- get the next floating register, or 'Nothing' if there are none
         -- available
-        nextfreg :: State (CompilerEnvAllocState addr label) (Maybe Int)
+        nextfreg :: State (CompilerEnvAllocState label) (Maybe Int)
         nextfreg = nextreg
             (\(_, _, _, xs, _) -> xs)
             (\xs (a, b, c, _, d) -> (a, b, c, xs, d))
@@ -183,7 +185,7 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
 -- | Compile a function
 compileFunction
     :: TyAnnFunDecl
-    -> Compiler addr label ()
+    -> Compiler label ()
 compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
     none :: (Maybe label, Maybe label)
     none = (Nothing, Nothing)
@@ -191,16 +193,16 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
     compileBody
         :: (Maybe label, Maybe label)
         -> [TyAnnStatement]
-        -> Compiler addr label ()
+        -> Compiler label ()
     compileBody t = mapM_ (compileStmt t)
 
     compileStmt
         :: (Maybe label, Maybe label)
         -> TyAnnStatement
-        -> Compiler addr label ()
+        -> Compiler label ()
     compileStmt t = ($ t) . cata f where
-        f :: TyAnnStatementF ((Maybe label, Maybe label) -> Compiler addr label ())
-            -> (Maybe label, Maybe label) -> Compiler addr label ()
+        f :: TyAnnStatementF ((Maybe label, Maybe label) -> Compiler label ())
+            -> (Maybe label, Maybe label) -> Compiler label ()
         f stmt ml@(mEnd, mBeginning) = case stmt of
             ExprStmt expr -> void $ compileExpr expr
 
@@ -219,7 +221,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 asm $ withScratch $ do
                     mov rdi (Immediate $ ImmI $ fromIntegral sty)
                     mov rsi o
-                    call (External "goprint")
+                    call (External . Direct $ "goprint")
 
             ReturnStmt (Just (Ann _ ref)) -> do
                 r <- compileRef ref
@@ -235,7 +237,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 asm $ jump j (Label l)
                 -- check for an else clause
                 mapM_ ($ ml) thenBody
-                asm $ setLabelHere l
+                asm $ setLabel l
                 case me of
                     Nothing -> pure ()
                     Just elseBody -> mapM_ ($ ml) elseBody
@@ -278,13 +280,13 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                                 -- then jump past the case body
                                 asm $ do
                                     jump Unconditionally (Label postCaseBody)
-                                    setLabelHere preCaseBody
+                                    setLabel preCaseBody
 
                                 mapM_ ($ (Just switchEnd, mBeginning)) bd
 
                                 asm $ do
                                     jump Unconditionally (Label switchEnd)
-                                    setLabelHere postCaseBody
+                                    setLabel postCaseBody
 
                             if null c
                                 -- no default case: jump past the switch
@@ -306,13 +308,13 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
 
                                 asm $ do
                                     jump Unconditionally (Label postCaseBody)
-                                    setLabelHere preCaseBody
+                                    setLabel preCaseBody
 
                                 mapM_ ($ (Just switchEnd, mBeginning)) bd
 
                                 asm $ do
                                     jump Unconditionally (Label switchEnd)
-                                    setLabelHere postCaseBody
+                                    setLabel postCaseBody
 
                             -- default case
                             if null c
@@ -320,18 +322,17 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                                 else do
                                     mapM_ ($ (Just switchEnd, mBeginning)) c
 
-
-                    asm $ setLabelHere switchEnd
+                    asm $ setLabel switchEnd
 
             ForStmt Nothing body -> do
                 (forEnd, forStart) <- (,) <$> asm newLabel <*> asm newLabel
                 mapM_ ($ (Just forEnd, Just forStart)) body
-                asm $ setLabelHere forEnd
+                asm $ setLabel forEnd
 
             ForStmt (Just (code, cond)) body -> do
                 (forEnd, forStart) <- (,) <$> asm newLabel <*> asm newLabel
 
-                asm $ setLabelHere forStart
+                asm $ setLabel forStart
 
                 mapM_ ($ (Just forEnd, Just forStart)) code
                 j <- compileCondExpr cond
@@ -342,7 +343,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
 
                 asm $ do
                     jump Unconditionally (Label forStart)
-                    setLabelHere forEnd
+                    setLabel forEnd
 
             BreakStmt -> maybe
                 (error "invariant violation")
@@ -356,9 +357,9 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
 
 -- | Generates code to compute the integer absolute value of the given
 -- 'VirutalOperand' in place.
-integerAbs :: VirtualOperand addr label -> Compiler addr label ()
+integerAbs :: VirtualOperand label -> Compiler label ()
 integerAbs o = do
-    t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
+    t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
     asm $ do
         mov t o
         sar t (Immediate $ ImmI 31)
@@ -369,7 +370,7 @@ integerAbs o = do
 -- 'VirtualOperand' contains the result of the expression.
 compileExpr
     :: TyAnnExpr
-    -> Compiler addr label (VirtualOperand addr label)
+    -> Compiler label (VirtualOperand label)
 compileExpr (Ann ty e) = case e of
     Conversion dstTy (Ann srcTy ref) -> do
         o <- compileRef ref
@@ -377,11 +378,11 @@ compileExpr (Ann ty e) = case e of
             (IntType _, IntType _) -> pure o
             (FloatType _, FloatType _) -> pure o
             (FloatType _, IntType _) -> do
-                t <- DirectRegister <$> freshVirtualRegister FloatingMode Extended64
+                t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
                 asm $ cvt ScalarDouble SingleInteger t o
                 pure t
             (IntType _, FloatType _) -> do
-                t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ cvt SingleInteger ScalarDouble t o
                 pure t
             _ -> error "wtf?"
@@ -393,28 +394,28 @@ compileExpr (Ann ty e) = case e of
         case op of
             -- TODO need to implement for floats
             Plus -> do
-                t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ do
                     mov t r1
                     add t r2
                 pure t
 
             Minus -> do
-                t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ do
                     mov t r1
                     sub t r2
                 pure t
 
             Times -> do
-                t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ do
                     mov t r1
                     mul Signed t r2 Nothing
                 pure t
 
             Divide -> do
-                t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ do
                     mov rax r1 -- low 64 bits of dividend
                     cqo rdx rax -- sign extend rax into rdx
@@ -445,7 +446,7 @@ compileExpr (Ann ty e) = case e of
 
     Cond c -> do
         j <- compileCondExpr c
-        vreg <- DirectRegister <$> freshVirtualRegister IntegerMode Low8
+        vreg <- Register . Direct <$> freshVirtualRegister IntegerMode Low8
         asm $ setc j vreg
         pure vreg
 
@@ -459,28 +460,29 @@ compileExpr (Ann ty e) = case e of
 
         case unFix ty of
             IntType _ -> do
-                t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ mov t rax
                 pure t
             FloatType _ -> do
-                t <- DirectRegister <$> freshVirtualRegister FloatingMode Extended64
+                t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
                 asm $ mov t (xmm 0)
                 pure t
 
     InternalCall name vs -> do
         asm $ scratch Save
         prepareCall vs
-        asm $ call (External name)
+        asm $ call (External . Direct $ name)
         asm $ scratch Load
 
         case unFix ty of
-            IntType _ -> do
-                t <- DirectRegister <$> freshVirtualRegister IntegerMode Extended64
-                asm $ mov t rax
-                pure t
             FloatType _ -> do
-                t <- DirectRegister <$> freshVirtualRegister FloatingMode Extended64
+                t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
                 asm $ mov t (xmm 0)
+                pure t
+
+            _ -> do
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                asm $ mov t rax
                 pure t
 
 -- | Compiles a conditional expression. These translate to comparisons in x86,
@@ -488,7 +490,7 @@ compileExpr (Ann ty e) = case e of
 -- jump variant to invoke in order to perform the correct branch.
 compileCondExpr
     :: TyAnnCondExpr
-    -> Compiler addr label FlagCondition
+    -> Compiler label FlagCondition
 compileCondExpr e = case e of
     CondRef (Ann _ ref) -> do
         r <- compileRef ref
@@ -520,7 +522,7 @@ compileCondExpr e = case e of
                     -- set the flags for whether it's true
                     test o2 o2
 
-                asm $ setLabelHere true
+                asm $ setLabel true
                 -- at this point, ZF = 1 if either one of the operands is true.
                 -- Hence to jump into the else branch, we would have to jump on
                 -- ZF = 0, i.e. OnEqual
@@ -539,7 +541,7 @@ compileCondExpr e = case e of
                 asm $ do
                     test o2 o2
 
-                asm $ setLabelHere false
+                asm $ setLabel false
                 -- At this point, ZF = 1 if *both* operands are true.
                 -- Hence, to jump into the else branch, we would have to jump
                 -- on ZF = 0, i.e. OnEqual.
@@ -576,14 +578,14 @@ registerClass (Fix ty) = case ty of
 
 compileVal
     :: TyAnnVal
-    -> Compiler addr label (VirtualOperand addr label)
+    -> Compiler label (VirtualOperand label)
 compileVal val = case val of
     IdentVal ident -> compileIdent ident
     Literal lit -> compileLiteral lit
 
 compileLiteral
     :: TyAnnLiteral
-    -> Compiler addr label (VirtualOperand addr label)
+    -> Compiler label (VirtualOperand label)
 compileLiteral (Ann _ lit) = case lit of
     IntLit n -> pure $ Immediate (ImmI $ fromIntegral n)
     FloatLit n -> pure $ Immediate (ImmF n)
@@ -591,7 +593,7 @@ compileLiteral (Ann _ lit) = case lit of
 
 compileRef
     :: Ref BasicIdent (Ident ()) TyAnnVal ()
-    -> Compiler addr label (VirtualOperand addr label)
+    -> Compiler label (VirtualOperand label)
 compileRef r = case r of
     ArrayRef i vs -> do
         i' <- compileIdent i
@@ -603,23 +605,23 @@ compileRef r = case r of
                 asm $ do
                     mov rdi o
                     mov rsi o'
-                    call (External "array_index")
-                    mov (DirectRegister v1) rax
-                pure $ IndirectRegister $ Offset 0 v1
+                    call (External . Direct $ "array_index")
+                    mov (Register . Direct $ v1) rax
+                pure $ Register $ Indirect $ Offset 0 v1
             )
             (pure i')
             vs
 
     ValRef val -> compileVal val
 
-prepareCall :: [TyAnnVal] -> Compiler addr label ()
+prepareCall :: [TyAnnVal] -> Compiler label ()
 prepareCall vals = mapM_ (uncurry assign) (reverse $ zip rams' vals) where
     assign m v = do
         case m of
             Nothing -> compileVal v >>= asm . push
             Just r -> compileVal v >>= asm . mov (ihw r)
 
-    ihw = DirectRegister . SizedRegister Extended64 . FixedHardwareRegister
+    ihw = Register . Direct . SizedRegister Extended64 . FixedHardwareRegister
 
     -- the preferred access mode for each parameter
     rams :: [RegisterAccessMode]
@@ -642,11 +644,11 @@ prepareCall vals = mapM_ (uncurry assign) (reverse $ zip rams' vals) where
 
 compileIdent
     :: GlobalId
-    -> Compiler addr label (VirtualOperand addr label)
+    -> Compiler label (VirtualOperand label)
 compileIdent = lookupIdent
 
 -- | Wraps some code with the function prologue and epilogue.
-wrapFunction :: Compiler addr label () -> Compiler addr label ()
+wrapFunction :: Compiler label () -> Compiler label ()
 wrapFunction v = do
     asm $ do
         push rbp

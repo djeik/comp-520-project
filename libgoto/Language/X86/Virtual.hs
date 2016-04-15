@@ -31,7 +31,7 @@ import Control.Monad.Identity
 import Control.Monad.State
 import Text.PrettyPrint as P
 
-type VirtualAsm addr label = Asm SizedVirtualRegister addr label
+type VirtualAsm label = Asm SizedVirtualRegister label
 
 -- | A virtual register together with a size modifier.
 type SizedVirtualRegister = SizedRegister VirtualRegister

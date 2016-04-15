@@ -42,16 +42,15 @@ extendLifetime r = do
                         (_lifetimes s) })
 
 -- | Extends the lifetime of any registers contained in this operand.
-checkLifetime :: Operand SizedVirtualRegister Int Int -> LifetimeAnalysis ()
+checkLifetime :: Operand SizedVirtualRegister Int -> LifetimeAnalysis ()
 checkLifetime o = case o of
-    DirectRegister reg -> extendLifetime reg
-    IndirectRegister disp -> case disp of
-        Offset _ reg -> extendLifetime reg
-        ScaledIndexBase _ _ r1 r2 -> (extendLifetime r1) >>= (const $ extendLifetime r2)
+    Register d -> case d of
+        Direct reg -> extendLifetime reg
+        Indirect disp -> case disp of
+            Offset _ reg -> extendLifetime reg
 
     -- If an operand does no contain a register, it affects no lifetimes.
     _ -> pure ()
-
 
 -- | In the case of a backwards jump, we want to extend the lifetimes of anything
 -- that is live between the jump's target and the jump's location. This ensures
@@ -68,14 +67,11 @@ extendLifetimeForJump begin end = do
 
 -- | Determine the lifetimes for every virtual register in the given assembly
 -- code. We are only interested in the state of this computation.
-createLifetimes :: VirtualAsm Int Int () -> LifetimeAnalysis ()
+createLifetimes :: VirtualAsm Int () -> LifetimeAnalysis ()
 createLifetimes = iterM phi where
-    phi :: AsmF Int Int (Operand SizedVirtualRegister Int Int) (LifetimeAnalysis ())
+    phi :: AsmF Int (Operand SizedVirtualRegister Int) (LifetimeAnalysis ())
         -> LifetimeAnalysis ()
     phi a = case a of
-
-        Here f -> gets _curLocation >>= f
-
         -- Generate a new label. This is fairly arbitrary; we just need them to
         -- be unique for this computation, as we keep a record of when labels
         -- get set.
@@ -84,8 +80,9 @@ createLifetimes = iterM phi where
             modify $ \s -> s {_nextLabel = _nextLabel s + 1}
             f lbl
 
-        SetLabel l ad n -> do
-            modify (\s -> s {_labelLocations = M.insert l ad $ _labelLocations s})
+        SetLabel l n -> do
+            c <- gets _curLocation
+            modify (\s -> s {_labelLocations = M.insert l c $ _labelLocations s})
             n
 
         Emit i n -> do
@@ -190,7 +187,7 @@ instance Ord LifetimeSpan where
 
 -- | Given a virtual assembly program, computes the lifetime intervals of the
 -- virtual registers it contains.
-computeLifetimes :: VirtualAsm Int Int () -> M.Map SizedVirtualRegister LifetimeSpan
+computeLifetimes :: VirtualAsm Int () -> M.Map SizedVirtualRegister LifetimeSpan
 computeLifetimes vasm =
     let start = LifetimeAnalysisState {
         _lifetimes = M.empty

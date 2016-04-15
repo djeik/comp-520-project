@@ -89,16 +89,20 @@ simplifyPackage (Package _ decls) = do
     ss <- gets strings
 
     -- create the initialization calls for the string literals
-    vs2 <- forM (M.keys ss) $ \g -> do
+    (vs2, ss') <- fmap unzip $ forM (M.assocs ss) $ \(g, str) -> do
         gi <- makeIdent
             stringType
             (T.symbolFromString $ T.stringFromSymbol (gidOrigName g) ++ "data")
         pure $
-            ( Just $ V.VarDecl g
-            , [Fix $ V.Assign
-                (Ann (gidTy g) $ ValRef $ IdentVal g)
-                (Ann stringType $ V.InternalCall "from_cstr" [IdentVal gi])]
+            ( ( Just $ V.VarDecl g
+              , [Fix $ V.Assign
+                  (Ann (gidTy g) $ ValRef $ IdentVal g)
+                  (Ann stringType $ V.InternalCall "from_cstr" [IdentVal gi])]
+              )
+            , (gi, str)
             )
+
+    modify $ \s -> s { strings = M.fromList ss' }
 
     -- vs: pairs of declarations and their initializing statements
     let vs' = concat vs ++ vs2

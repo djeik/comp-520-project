@@ -94,7 +94,7 @@ makeString str = do
     let g = Gid.GlobalId
             { Gid.gidNum = num
             , Gid.gidTy = stringType
-            , Gid.gidOrigName = symbolFromString $ "%strlit" ++ show num
+            , Gid.gidOrigName = symbolFromString $ "strlit" ++ show num
             , Gid.gidOrigin = Gid.Local
             }
     recordString g str
