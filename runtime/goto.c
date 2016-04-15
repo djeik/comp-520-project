@@ -29,6 +29,9 @@ is, while the Go spec determines that it follows the IEEE-754 format.
 
 #include "goto.h"
 
+extern void gocode_main(void);
+extern void init(void);
+
 /* Used by the print, println builtins. */
 void goprint(GOTYPE ty, void* par) {
     switch (ty) {
@@ -45,26 +48,26 @@ void goprint(GOTYPE ty, void* par) {
 
         case STRING_GT:
             if (!par)
-                panic("goprint: null string argument");
+                gopanic("goprint: null string argument");
 
             printf("%s", (char*) ((go_array*) par)->backing);
             break;
 
-        case UNKNOWN_GT: panic("Cannot print unknown types");
-        case ARRAY_GT: panic("Cannot print array types");
-        case SLICE_GT: panic("Cannot print slice types");
-        case STRUCT_GT: panic("Cannot print struct types");
+        case UNKNOWN_GT: gopanic("Cannot print unknown types");
+        case ARRAY_GT: gopanic("Cannot print array types");
+        case SLICE_GT: gopanic("Cannot print slice types");
+        case STRUCT_GT: gopanic("Cannot print struct types");
     }
 }
 
 /* Converts an ASCIIZ string into a managed golite string. */
 go_array* from_cstr(char* s) {
     if (!s)
-        panic("from_cstr: null argument");
+        gopanic("from_cstr: null argument");
 
     go_array* a = malloc(sizeof(go_array));
     if (!a)
-        panic("from_cstr: out of memory");
+        gopanic("from_cstr: out of memory");
 
     a->len = strlen(s);
     a->elem_size = sizeof(char);
@@ -78,19 +81,19 @@ go_array* from_cstr(char* s) {
 A run-time panic occurs if the index is out of bounds. */
 void* index_slice(go_slice* s, int64_t i) {
     if (!s)
-        panic("index_slice: null argument");
+        gopanic("index_slice: null argument");
 
     return index_array(&(s->arr_data), i);
 }
 
 /* Index into an array. A pointer to the data is returned.
-A run-time panic occurs if the index is out of bounds. */
+A run-time gopanic occurs if the index is out of bounds. */
 void* index_array(go_array* a, int64_t i) {
     if (!a)
-        panic("index_array: null argument");
+        gopanic("index_array: null argument");
 
     if (i < 0 || i >= a->len)
-        panic("index out of bounds");
+        gopanic("index out of bounds");
 
     return POINT_ARRAY(a, i);
 }
@@ -103,14 +106,14 @@ go_slice* slice_slice(go_slice* s, int64_t low, int64_t high, int64_t bound) {
 /* Slice into an array. */
 go_slice* slice_array(go_array* a, int64_t low, int64_t high, int64_t bound) {
     if(!a)
-        panic("slice_array: null argument");
+        gopanic("slice_array: null argument");
 
     if (0 > low || low > high || high > bound || bound > a->len)
-        panic("slice out of bounds");
+        gopanic("slice out of bounds");
 
     go_slice* sli = malloc(sizeof(go_slice));
     if (!sli)
-        panic("slice_array: could not allocate go_slice");
+        gopanic("slice_array: could not allocate go_slice");
 
     sli->cap = bound - low;
     sli->arr_data.len = high - low;
@@ -124,7 +127,7 @@ go_slice* slice_array(go_array* a, int64_t low, int64_t high, int64_t bound) {
 /* Length of a slice. */
 int64_t golen_slice(go_slice* s) {
     if (!s)
-        panic("len_slice: null argument");
+        gopanic("len_slice: null argument");
 
     return golen_array(&(s->arr_data));
 }
@@ -133,7 +136,7 @@ int64_t golen_slice(go_slice* s) {
 of arrays is statically known. */
 int64_t golen_array(go_array* a) {
     if (!a)
-        panic("len_array: null argument");
+        gopanic("len_array: null argument");
 
     return a->len;
 }
@@ -141,7 +144,7 @@ int64_t golen_array(go_array* a) {
 /* Appends to a slice. */
 go_slice* goappend_slice(go_slice* s, void* e) {
     if(!s)
-        panic("append_slice: null first argument");
+        gopanic("append_slice: null first argument");
 
     /* Go spec: "If the capacity of s is not large enough to fit the additional
     values, append allocates a new, sufficiently large underlying array" */
@@ -176,7 +179,7 @@ go_slice* goappend_slice(go_slice* s, void* e) {
 
 void assign_into_array(go_array* dst, int64_t n, void* e) {
     switch (dst->array_type) {
-        case UNKNOWN_GT: panic("goappend_slice: cannot append unknown type");
+        case UNKNOWN_GT: gopanic("goappend_slice: cannot append unknown type");
 
         case INT1_GT:
         case INT2_GT:
@@ -205,14 +208,14 @@ void assign_into_array(go_array* dst, int64_t n, void* e) {
 /* Implements the + operator for strings. */
 go_array* concat_strings(go_array* a, go_array* b) {
     if(!a)
-        panic("concat_strings: null left argument");
+        gopanic("concat_strings: null left argument");
 
     if(!b)
-        panic("concat_strings: null right argument");
+        gopanic("concat_strings: null right argument");
 
     go_array* dst = malloc(sizeof(go_array));
     if (!dst)
-        panic("concat_strings: could not allocate go_array");
+        gopanic("concat_strings: could not allocate go_array");
 
     dst->len = a->len + b->len;
     dst->elem_size = sizeof(char);
@@ -228,10 +231,10 @@ go_array* concat_strings(go_array* a, go_array* b) {
 /* Copies a slice. Returns the number of elements copied. */
 int64_t gocopy(go_slice* dst, go_slice* src) {
     if(!src)
-        panic("gocopy: null source argument");
+        gopanic("gocopy: null source argument");
 
     if(!dst)
-        panic("gocopy: null destination argument");
+        gopanic("gocopy: null destination argument");
 
     int64_t len = src->arr_data.len;
     if (len > dst->arr_data.len)
@@ -245,26 +248,26 @@ int64_t gocopy(go_slice* dst, go_slice* src) {
 /* Queries the capacity of a slice. */
 int64_t gocap(go_slice* s) {
     if (!s)
-        panic("cap: null argument");
+        gopanic("cap: null argument");
 
     return s->cap;
 }
 
 /* Run-time panic (a.k.a. exit) */
-void panic(char* message) {
-    printf("Runtime panic: %s\n", message);
+void gopanic(char* message) {
+    printf("Runtime gopanic: %s\n", message);
     exit(1);
 }
 
 /* Make a slice of the given type. This is the one spot where we need to do deep
 initialization of slices. */
-go_slice* make(int64_t type[]) {
+go_slice* gomake(int64_t type[]) {
     int64_t len = type[1], cap = type[2];
     if (type[0] == UNKNOWN_GT)
-        panic("make: cannot have inner type be unknown.");
+        gopanic("gomake: cannot have inner type be unknown.");
 
     if (len > cap)
-        panic("make: len must be less than or equal to cap");
+        gopanic("gomake: len must be less than or equal to cap");
 
     go_slice* s = malloc(sizeof(go_slice));
     s->cap = cap;
@@ -285,11 +288,11 @@ go_slice* make(int64_t type[]) {
 deep-copied according to the type of the array. */
 go_array* deepcopy_array(go_array* src) {
     if (!src)
-        panic("deepcopy_array: null source");
+        gopanic("deepcopy_array: null source");
 
     go_array* dst = malloc(sizeof(go_array));
     if (!dst)
-        panic("deepcopy_array: could not allocate new go_array");
+        gopanic("deepcopy_array: could not allocate new go_array");
 
     dst->len = src->len;
     dst->elem_size = src->elem_size;
@@ -307,7 +310,7 @@ capacity. */
 void deepcopy_backing_array(go_array* dst, go_array* src) {
     int64_t i;
     switch (dst->array_type) {
-        case UNKNOWN_GT: panic("deepcopy_array: cannot copy unknown type");
+        case UNKNOWN_GT: gopanic("deepcopy_array: cannot copy unknown type");
 
         case INT1_GT:
         case INT2_GT:
@@ -343,11 +346,11 @@ void deepcopy_backing_array(go_array* dst, go_array* src) {
 deep-copied according to the type of each struct field. */
 go_struct* deepcopy_struct(go_struct* src) {
     if (!src)
-        panic("deepcopy_struct: null source");
+        gopanic("deepcopy_struct: null source");
 
     go_struct* dst = malloc(sizeof(go_struct));
     if (!dst)
-        panic("deepcopy_struct: could not allocate new go_struct");
+        gopanic("deepcopy_struct: could not allocate new go_struct");
 
     dst->num_fields = src->num_fields;
     memcpy(dst->types, src->types, src->num_fields);
@@ -358,7 +361,7 @@ go_struct* deepcopy_struct(go_struct* src) {
         sfield = struct_field(src, i);
         dfield = struct_field(dst, i);
         switch (src->types[i]) {
-            case UNKNOWN_GT: panic("deepcopy_struct: cannot copy unknown type");
+            case UNKNOWN_GT: gopanic("deepcopy_struct: cannot copy unknown type");
 
             case INT1_GT:
             case INT2_GT:
@@ -395,7 +398,7 @@ void* struct_field(go_struct* s, int64_t i) {
 /* Returns the storage size of a given type. */
 size_t storage_size(GOTYPE t) {
     switch (t) {
-        case UNKNOWN_GT: panic("unknown type has no storage size");
+        case UNKNOWN_GT: gopanic("unknown type has no storage size");
         case INT1_GT: return sizeof(char);
         case INT2_GT: return sizeof(int16_t);
         case INT4_GT: return sizeof(int32_t);
@@ -419,11 +422,11 @@ to is the same in the destination (i.e. only a pointer copy is done).
 This occurs in assignments. */
 go_slice* shallowcopy_slice(go_slice* src) {
     if (!src)
-        panic("shallowcopy_slice: null source");
+        gopanic("shallowcopy_slice: null source");
 
     go_slice* dst = malloc(sizeof(go_slice));
     if (!dst)
-        panic("shallowcopy_slice: could not allocate new go_slice");
+        gopanic("shallowcopy_slice: could not allocate new go_slice");
 
     dst->cap = src->cap;
     dst->arr_data = src->arr_data;
@@ -512,7 +515,7 @@ go_slice* new_slice(int64_t type[]) {
 void new_deep_backing_array(go_array* a, int64_t type[]) {
     int64_t i;
     switch (a->array_type) {
-        case UNKNOWN_GT: panic("new_deep_backing_array: cannot allocate unknown type");
+        case UNKNOWN_GT: gopanic("new_deep_backing_array: cannot allocate unknown type");
         case INT1_GT:
         case INT2_GT:
         case INT4_GT:
@@ -599,4 +602,10 @@ go_struct* new_struct(int64_t type[]) {
         gConsumed += 1 + num_basic_fields;
 
     return s;
+}
+
+int main(int argc, char **argv) {
+    init();
+    gocode_main();
+    return 0;
 }

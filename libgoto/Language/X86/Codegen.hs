@@ -62,6 +62,10 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
         <*> mapM genFunc main
 
     pure $
+        text "BITS 64" $+$
+        text "default rel" $+$
+        vcat (map ((text "extern" <+>) . text) externs) $+$
+        text "global init, gocode_main" $+$
         text "section .data" $+$ nest indentLevel (
             vcat (
                 map (uncurry genStr) (M.assocs $ strs)
@@ -104,3 +108,10 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
         genStr :: GlobalId -> String -> Doc
         genStr (Gid.GlobalId { gidOrigName = name }) s
             = text (stringFromSymbol name ++ ": asciiz") <+> text (show s)
+
+        externs :: [String]
+        externs = ["goprint", "from_cstr", "index_slice", "index_array",
+            "slice_slice", "slice_array", "golen_slice", "golen_array",
+            "goappend_slice", "concat_strings", "gocopy", "gocap", "gopanic",
+            "gomake", "deepcopy_struct", "deepcopy_array", "shallowcopy_slice",
+            "new_array", "new_slice", "new_struct"]

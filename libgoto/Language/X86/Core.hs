@@ -601,7 +601,7 @@ instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
                 ImmF i -> P.double i
             Register d -> case pretty <$> d of
                 Direct reg -> pretty reg
-                Indirect off -> prettyBrackets True (offsetp off)
+                Indirect off -> text "QWORD" <+> prettyBrackets True (offsetp off)
             Label i -> text "l" <> P.int i
             Internal d -> case text <$> d of
                 Direct s -> s
@@ -615,7 +615,7 @@ instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
                 then text "+" <+> P.int (fromIntegral d)
                 else text "-" <+> P.int (negate $ fromIntegral d)
 
-        opretty2 o1 o2 = opretty o1 <+> opretty o2
+        opretty2 o1 o2 = opretty o1 <+> text "," <+> opretty o2
 
         mnep :: Pretty reg => String -> Operand reg Int -> Doc
         mnep t o = text t <+> opretty o

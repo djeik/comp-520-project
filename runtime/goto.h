@@ -92,9 +92,9 @@ int64_t gocopy(go_slice* src, go_slice* dst);
 
 int64_t gocap(go_slice* s);
 
-void panic(char* message);
+void gopanic(char* message);
 
-go_slice* make(int64_t type[]);
+go_slice* gomake(int64_t type[]);
 
 /* Functions for deep-copying managed objects. */
 go_struct* deepcopy_struct(go_struct* src);

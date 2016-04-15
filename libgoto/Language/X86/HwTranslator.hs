@@ -243,7 +243,7 @@ getLiveScratch
     -> [SizedHardwareRegister]
 getLiveScratch i = map fst . filter (\(h, l) ->
     h `elem` scratchRegisters -- The register must be scratch.
-    && i >= _start l && i <= _end l) -- Its lifetime must encompass the ip.
+    && i >= _start l && i < _end l) -- Its lifetime must encompass the ip.
 
 
 -- | Calculates the total offset required for spills, and verifies which safe
