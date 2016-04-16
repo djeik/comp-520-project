@@ -7,7 +7,7 @@ ARCH = macho64
 $(GOTO):
 	cabal build
 
-%.asm: %.go $(GOTO)
+%.asm: %.go
 	$(GOTO) pretty < $< > $@
 
 %.o: %.asm
