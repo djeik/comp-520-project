@@ -105,11 +105,7 @@ createLifetimes = iterM phi where
         Call v -> checkLifetime v
         Add v1 v2 -> checkLifetime2 v1 v2
         Sub v1 v2 -> checkLifetime2 v1 v2
-        Mul _ v1 v2 mv3 -> do
-            checkLifetime2 v1 v2
-            case mv3 of
-                Nothing -> pure ()
-                Just v -> checkLifetime v
+        Mul _ v1 v2 -> checkLifetime2 v1 v2
         Xor v1 v2 -> checkLifetime2 v1 v2
         Inc v -> checkLifetime v
         Dec v -> checkLifetime v

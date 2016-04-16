@@ -19,6 +19,8 @@ import Language.X86.Virtual
 import qualified Data.Map as M
 import Data.Maybe ( fromMaybe )
 
+import Debug.Trace
+
 data CodegenError
     = CodegenInvariantViolation String
     | HardwareTranslationError HardwareTranslationError
@@ -36,15 +38,15 @@ allocateRegisters
     :: VirtualAsm Int ()
     -> Either HardwareTranslationError (HardwareAsm Int ())
 allocateRegisters v
-    = runHardwareTranslation
-    $ translate pairingMap hwlifetimes v
+    = runHardwareTranslation $ do
+        pairingsWithOffsets <- computeAllocState pairings
+        translate (M.fromList pairingsWithOffsets) hwlifetimes v
     where
         hwlifetimes = foldr f [] pairings
         f (virt, Reg szhwreg _) xs = (szhwreg, lifetimeMap M.! virt) : xs
         f (_, _) xs = xs
         lifetimeMap = computeLifetimes v
-        pairings = allocate lifetimeMap
-        pairingMap = M.fromList pairings
+        pairings = let x = allocate lifetimeMap in trace (show x) x
 
 -- | Compile a type-annotated Vigil program into a full text file that can be
 -- assembled by nasm.

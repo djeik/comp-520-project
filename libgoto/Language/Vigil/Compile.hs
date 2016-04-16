@@ -418,7 +418,7 @@ compileExpr (Ann ty e) = case e of
                 t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ do
                     mov t r1
-                    mul Signed t r2 Nothing
+                    imul t r2
                 pure t
 
             Divide -> do

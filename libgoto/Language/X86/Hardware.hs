@@ -33,6 +33,8 @@ module Language.X86.Hardware
 import Language.X86.Core
 import Language.X86.Virtual
 
+import qualified Data.Set as S
+
 import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.State
@@ -63,7 +65,7 @@ data HardwareTranslationState label
     = HardwareTranslationState
         { _currentSpillOffset :: Int
         -- ^ At which offset should we put the next spilled variable.
-        , _safeRegistersUsed :: [SizedHardwareRegister]
+        , _safeRegistersUsed :: S.Set SizedHardwareRegister
         -- ^ A list of the safe registers that have been allocated.
         , _ip :: Int
         -- ^ The current _virtual_ program point we are at.
@@ -76,7 +78,7 @@ initialHardwareTranslationState :: HardwareTranslationState label
 initialHardwareTranslationState
     = HardwareTranslationState
         { _currentSpillOffset = 0
-        , _safeRegistersUsed = []
+        , _safeRegistersUsed = S.empty
         , _ip = 0
         , _latestSavedRegisters = []
         }

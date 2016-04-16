@@ -32,6 +32,7 @@ import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Trans.Free
 
+import qualified Data.Set as S
 import qualified Data.Map.Strict as M
 
 type Alg f a = f a -> a
@@ -62,8 +63,7 @@ translate vToH live = iterM phi . ($> pure ()) where
                 -- safe registers that are in use throughout this function.
                 Save -> do
                     off <- gets _currentSpillOffset
-                    pregs <- gets _safeRegistersUsed
-
+                    pregs <- S.elems <$> gets _safeRegistersUsed
                     let stkoff = (negate off `div` 16) * 16
                     let s = sub rsp (Immediate $ ImmI $ fromIntegral $ stkoff)
 
@@ -78,7 +78,7 @@ translate vToH live = iterM phi . ($> pure ()) where
                 -- space on the stack.
                 Load -> do
                     off <- gets _currentSpillOffset
-                    pregs <- gets _safeRegistersUsed
+                    pregs <- S.elems <$> gets _safeRegistersUsed
 
                     -- Obviously, this popping needs to be done in reverse.
                     loadCode <- forM (reverse pregs) $ \(SizedRegister _ reg) -> case reg of
@@ -139,7 +139,7 @@ translate vToH live = iterM phi . ($> pure ()) where
         Call v -> v !~> call
         Add v1 v2 -> (v1, v2) ?~> add
         Sub v1 v2 -> (v1, v2) ?~> sub
-        Mul s v1 v2 mv3 -> error "Definition of Mul will change" s v1 v2 mv3
+        Mul _ v1 v2 -> (v1, v2) ?~> imul
         Xor v1 v2 -> (v1, v2) ?~> xor
         Inc v -> v !~> inc
         Dec v -> v !~> dec
@@ -288,11 +288,11 @@ computeAllocState = foldl (\acc (v, h) -> do
             let space = storageSize $ getVRegSize v
             off <- gets _currentSpillOffset
             modify $ \s -> s { _currentSpillOffset = off - space}
-            pure $ (v, Mem space):acc'
+            pure $ (v, Mem off):acc'
 
         Reg r _ -> do
             when (r `elem` safeRegisters)
-                $ modify $ \s -> s { _safeRegistersUsed = r:(_safeRegistersUsed s) }
+                $ modify $ \s -> s { _safeRegistersUsed = S.insert r $ _safeRegistersUsed s }
             pure $ (v, h):acc'
     ) (pure [])
 

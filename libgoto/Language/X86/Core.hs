@@ -31,7 +31,7 @@ module Language.X86.Core
 , sub
 , bwand
 , bwor
-, mul
+, imul
 , idiv
 , xor
 , inc
@@ -90,7 +90,6 @@ import Language.Common.Storage
 import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Trans.Free
-import Data.Maybe ( fromMaybe )
 import Data.Int
 import Data.Word
 
@@ -143,8 +142,8 @@ data Instruction val
     -- ^ Addition; 'add'.
     | Sub val val
     -- ^ Subtraction; 'sub'.
-    | Mul Signedness val val (Maybe val)
-    -- ^ Multiplication; 'mul'.
+    | Mul Signedness val val
+    -- ^ Multiplication; 'imul'.
     | Xor val val
     -- ^ Bitwise exclusive OR; 'xor'.
     | Inc val
@@ -515,12 +514,11 @@ sub :: Monad m => Instr2 reg label m ()
 sub x y = liftF . Emit (Sub x y) $ ()
 
 -- | 'Emit' 'Mul'
-mul :: Monad m => Signedness
+imul :: Monad m =>
+       Operand reg label
     -> Operand reg label
-    -> Operand reg label
-    -> Maybe (Operand reg label)
     -> AsmT reg label m ()
-mul s x y z = liftF . Emit (Mul s x y z) $ ()
+imul x y = liftF . Emit (Mul Signed x y) $ ()
 
 xor :: Monad m => Instr2 reg label m ()
 xor x y = liftF . Emit (Xor x y) $ ()
@@ -642,9 +640,9 @@ instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
             Mov o1 o2 -> mnep2 "mov" o1 o2
             Add o1 o2 -> mnep2 "add" o1 o2
             Sub o1 o2 -> mnep2 "sub" o1 o2
-            Mul sign o1 o2 m ->
+            Mul sign o1 o2 ->
                 let mnemonic = case sign of Signed -> "imul" ; Unsigned -> "mul"
-                in mnep2 mnemonic o1 o2 <+> fromMaybe empty (fmap opretty m)
+                in mnep2 mnemonic o1 o2
             Xor o1 o2 -> mnep2 "xor" o1 o2
             Inc o -> mnep "inc" o
             Dec o -> mnep "dec" o
