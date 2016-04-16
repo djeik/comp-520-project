@@ -752,8 +752,8 @@ compileRef r = case r of
         -- For the first slice of the chain, we need to know if we're slicing
         -- an array or a slice.
         let meth = case gidTy i of
-                Fix (ArrayType _ _) -> "_slice_array"
-                Fix (SliceType _) -> "_slice_slice"
+                Fix (ArrayType _ _) -> "slice_array"
+                Fix (SliceType _) -> "slice_slice"
                 _ -> error "Unsliceable type"
 
         i' <- lookupIdent i (Indirect . Offset 0)
@@ -761,7 +761,7 @@ compileRef r = case r of
         foldl'
             (\cur idxs -> do
                 o' <- cur
-                compileSliceExpr o' idxs "_slice_slice"
+                compileSliceExpr o' idxs "slice_slice"
             )
             (pure o)
             (tail slis)
