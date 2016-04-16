@@ -556,7 +556,7 @@ go_struct* new_struct(int64_t type[]) {
 
     int64_t i = 0;
     int64_t old_consumed;
-    int64_t num_basic_fields; // Number of basic fields encountered in this struct.
+    int64_t num_basic_fields = 0; // Number of basic fields encountered in this struct.
     void* dfield;
     for (; i < s->num_fields; i++) {
         s->types[i] = type[inner_consumption];
