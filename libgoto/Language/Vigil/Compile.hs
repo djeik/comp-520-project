@@ -672,9 +672,16 @@ wrapFunction v = do
 -- | Computes an integer representation of a type
 serializeType :: Type -> Int
 serializeType t = case unFix t of
-    IntType _ -> 1
-    FloatType _ -> 2
-    StringType -> 3
+    IntType s -> case s of
+        I1 -> 1
+        I2 -> 2
+        I4 -> 3
+        I8 -> 4
+    FloatType _ -> 5
+    StringType -> 6
+    ArrayType _ -> 7
+    SliceType _ -> 8
+    StructType _ -> 9
     _ -> 0
 
 -- | Computes how many bytes of padding are needed to reach an alignment goal.
