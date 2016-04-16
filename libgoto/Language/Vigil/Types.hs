@@ -13,6 +13,7 @@ AST.
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Language.Vigil.Types
@@ -96,7 +97,7 @@ data TypeF subTy
     = IntType IStorage
     | FloatType FStorage
     | StructType
-        { structFields :: [subTy]
+        { structFields :: [(String, subTy)]
         }
     | ArrayType Int subTy
     | SliceType subTy
@@ -118,7 +119,9 @@ instance Pretty Type where
     pretty (Fix t') = case t' of
         IntType n -> text "int" <> pretty n
         FloatType n -> text "float" <> pretty n
-        StructType fs -> text "struct_{" <> hcat (map pretty fs) <> text "}"
+        StructType fs -> text "struct_{"
+            <> hcat (punctuate comma (map (\(i, ty) -> text (i ++ ": ") <> pretty ty) fs))
+            <> text "}"
         ArrayType i t -> text "[" <> text (show i) <> text "]" <> pretty t
         SliceType t -> text "[]" <> pretty t
         FuncType ps r -> text "func"
@@ -161,7 +164,7 @@ intType = Fix . IntType
 floatType :: FStorage -> Type
 floatType = Fix . FloatType
 
-structType :: [Type] -> Type
+structType :: [(String, Type)] -> Type
 structType = Fix . StructType
 
 arrayType :: Int -> Type -> Type
@@ -210,9 +213,11 @@ reinterpretType = cata f where
         G.Array i m -> (arrayType i) <$> m
         G.Slice m -> sliceType <$> m
         G.Struct { G.structTypeFields = fields } ->
-            structType <$> sequence (snd <$> fields)
-            --structType . sum . map storageSize <$> sequence (snd <$> fields)
+            let p = map (\(i, e) -> (G.stringFromSymbol $ bare i,) <$> e) fields in
+            structType <$> sequence p
         G.BuiltinType b -> pure $ builtinType b
+
+        --(\i e -> (G.stringFromSymbol $ bare i , e))
 
 -- | Convert a GoLite global identifier into a Vigil global identifier, with
 -- the possibility of failure.

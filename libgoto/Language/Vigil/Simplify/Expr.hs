@@ -21,7 +21,6 @@ module Language.Vigil.Simplify.Expr
 , typeFromVal
 ) where
 
-import Language.GoLite.Syntax.SrcAnn ( SrcAnn )
 import Language.GoLite.Syntax.Types as G
 import Language.GoLite.Types as T
 import Language.Vigil.Simplify.Core
@@ -151,27 +150,29 @@ simplifyExpr = annCata phi where
         G.Selector e id' -> do
             a' <- reinterpretTypeEx $ fst a
             e' <- e
-            id'' <- case fst a of
-                Fix (Struct fs) -> getFieldIEx (G.unIdent $ bare id') fs
-                _ -> throwError $ InvariantViolation "Selector with non-struct selectee"
 
             case e' of
-                ((Result e''):es) -> case e'' of
-                    -- If we already have a select ref (e.g. stru.foo.bar),
-                    -- we just extend it with the new identifier
-                    SimpleRef (Ann _ (SelectRef i is)) ->
-                        pure $ (Result $ SimpleRef $ Ann a' $ SelectRef i
-                            (is ++ [id''])):es
-                    -- An ident val: replace by a select ref
-                    SimpleVal (IdentVal i) ->
-                        pure $ (Result $ SimpleRef $ Ann a' $ SelectRef i [id'']):es
-                    -- Anything else: create a temp, select into it.
-                    _ -> do
-                        t <- makeTemp (typeFromSimple e'')
-                        pure $ (Result $ SimpleRef $ Ann a' $ SelectRef
-                            t [id''])
-                            :(Temp (t, e''))
-                            :es
+                ((Result e''):es) -> do
+                    id'' <- case typeFromSimple e'' of
+                        Fix (V.StructType fs) -> getFieldIEx (G.unIdent $ bare id') fs
+                        _ -> throwError $ InvariantViolation "Selector with non-struct selectee"
+
+                    case e'' of
+                        -- If we already have a select ref (e.g. stru.foo.bar),
+                        -- we just extend it with the new identifier
+                        SimpleRef (Ann _ (SelectRef i is)) ->
+                            pure $ (Result $ SimpleRef $ Ann a' $ SelectRef i
+                                (is ++ [id''])):es
+                        -- An ident val: replace by a select ref
+                        SimpleVal (IdentVal i) ->
+                            pure $ (Result $ SimpleRef $ Ann a' $ SelectRef i [id'']):es
+                        -- Anything else: create a temp, select into it.
+                        _ -> do
+                            t <- makeTemp (typeFromSimple e'')
+                            pure $ (Result $ SimpleRef $ Ann a' $ SelectRef
+                                t [id''])
+                                :(Temp (t, e''))
+                                :es
                 _ -> throwError $ InvariantViolation "Selector: unexpected non-result"
 
         G.Index eIn eBy' -> do
@@ -319,12 +320,12 @@ simplifyExpr = annCata phi where
             throwError $ InvariantViolation "Type assertions are not supported."
 
 
-    getFieldIEx :: String -> [(SrcAnn Symbol (), f)] -> Simplify Int
+    getFieldIEx :: String -> [(String, f)] -> Simplify Int
     getFieldIEx = getFieldIEx' 0 where
-        getFieldIEx' :: Int -> String -> [(SrcAnn Symbol (), f)] -> Simplify Int
+        getFieldIEx' :: Int -> String -> [(String, f)] -> Simplify Int
         getFieldIEx' _ _ [] = throwError $ InvariantViolation "Could not find struct field"
         getFieldIEx' n s (x:xs) =
-            if stringFromSymbol (bare $ fst x) == s then pure n else getFieldIEx' (n + 1) s xs
+            if fst x == s then pure n else getFieldIEx' (n + 1) s xs
 
     reinterpretTypeEx :: T.Type ->  Simplify V.Type
     reinterpretTypeEx t = case reinterpretType t of

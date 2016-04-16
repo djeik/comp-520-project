@@ -878,7 +878,7 @@ deepSerializeType = cata f where
         StringType -> [7, 1, serializeType $ Fix $ IntType I1]
         ArrayType n tyn -> 7:n:tyn
         SliceType tyn -> 8:tyn
-        StructType fields -> 9:(concat fields)
+        StructType fields -> 9:(concat $ map snd fields)
         _ -> undefined
 
 -- | Computes an integer representation of a type
