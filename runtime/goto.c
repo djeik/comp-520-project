@@ -649,7 +649,7 @@ go_struct* new_struct(int64_t type[]) {
 }
 
 int main(int argc, char **argv) {
-    init();
+    gocode_init();
     gocode_main();
     return 0;
 }

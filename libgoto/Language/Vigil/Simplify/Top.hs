@@ -114,7 +114,7 @@ simplifyPackage (Package _ decls) = do
     nis <- gets newDeclarations
     let nvs = map (swap . fmap V.VarDecl . swap) nis
     let fInit = V.FunDecl
-                { _funDeclName = artificialGlobalId (-1) "_init" (funcType [] voidType)
+                { _funDeclName = artificialGlobalId (-1) "_gocode_init" (funcType [] voidType)
                 , _funDeclArgs = []
                 , _funDeclVars = (map fst nvs)
                 , _funDeclBody = concat $ map snd vs'
