@@ -102,7 +102,7 @@ simplifyPackage (Package _ decls) = do
             ( ( Just $ V.VarDecl g
               , [Fix $ V.Assign
                   (Ann (gidTy g) $ ValRef $ IdentVal g)
-                  (Ann stringType $ V.InternalCall "_from_cstr" [IdentValD gi])]
+                  (Ann stringType $ V.InternalCall "from_cstr" [IdentValD gi])]
               )
             , (gi, str)
             )
@@ -114,7 +114,7 @@ simplifyPackage (Package _ decls) = do
     nis <- gets newDeclarations
     let nvs = map (swap . fmap V.VarDecl . swap) nis
     let fInit = V.FunDecl
-                { _funDeclName = artificialGlobalId (-1) "_gocode_init" (funcType [] voidType)
+                { _funDeclName = artificialGlobalId (-1) "gocode_init" (funcType [] voidType)
                 , _funDeclArgs = []
                 , _funDeclVars = (map fst nvs)
                 , _funDeclBody = concat $ map snd vs'
