@@ -30,6 +30,7 @@ import Language.Vigil.Syntax.TyAnn as V
 import Language.Vigil.Types as V
 
 import Language.Common.Pretty
+import Language.Common.Misc ( unFix )
 
 -- | The final result of a simplified expression
 data SimpleExprResult
@@ -276,10 +277,10 @@ simplifyExpr = annCata phi where
                         T.AppendType -> "goappend_slice"
                         T.CapType -> "gocap"
                         T.CopyType -> "gocopy"
-                        T.LenType -> case typeFromVal $ head tyPs of
-                            ArrayType _ _ -> "golen_array"
-                            StringType -> "golen_array"
-                            SliceType _ -> "golen_slice"
+                        T.LenType -> case unFix $ typeFromVal $ head tyPs of
+                            V.ArrayType _ _ -> "golen_array"
+                            V.StringType -> "golen_array"
+                            V.SliceType _ -> "golen_slice"
                         T.MakeType -> "gomake")
                     _ -> V.Call i
 
