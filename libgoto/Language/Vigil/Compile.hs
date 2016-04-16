@@ -215,11 +215,22 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
 
             CondExprStmt cond -> void $ compileCondExpr cond
 
-            Assign (Ann _ ref) expr -> do
+            Assign (Ann ty ref) expr -> do
                 r <- compileRef ref
                 o <- compileExpr expr
-                -- this is absolutely wrong
-                asm $ mov r o
+
+                let copy s = do
+                        mov rdi o
+                        call (External $ Direct s)
+                        mov r rax
+
+                asm $ case unFix ty of
+                    IntType s -> mov r o
+                    FloatType _ -> undefined -- TODO
+                    StringType -> copy "_deepcopy_array"
+                    ArrayType _ _ -> copy "_deepcopy_array"
+                    SliceType _ -> copy "_shallowcopy_slice"
+                    StructType _ -> copy "_deepcopy_struct"
 
             Initialize i -> do
                 i' <- lookupIdent i Direct
