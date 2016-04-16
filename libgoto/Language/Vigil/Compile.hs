@@ -510,9 +510,20 @@ compileExpr (Ann ty e) = case e of
 
     Cond c -> do
         j <- compileCondExpr c
-        vreg <- Register . Direct <$> freshVirtualRegister IntegerMode Low8
-        asm $ setc j vreg
-        pure vreg
+        t <- Register . Direct <$> freshVirtualRegister IntegerMode Low8
+
+        asm $ do
+            mov rax (Immediate $ ImmI 0)
+            setc j
+                $ Register
+                $ Direct
+                $ SizedRegister Low8
+                $ FixedHardwareRegister
+                $ IntegerHwRegister
+                $ Rax
+            mov t rax
+
+        pure t
 
     T.Call i vs -> do
         f <- lookupIdent i Direct
