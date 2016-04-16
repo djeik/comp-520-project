@@ -111,7 +111,7 @@ translate vToH live = iterM phi . ($> pure ()) where
                     pure $ do
                         sequence_ ss
                         when (length sr `mod` 2 /= 0) $ do
-                            push rax -- add a dummy push for 16 byte alignment
+                            sub rsp (Immediate (ImmI 8))
                         next
 
                 -- Mirror: pop in reverse the registers we had saved before.
@@ -123,7 +123,7 @@ translate vToH live = iterM phi . ($> pure ()) where
                     pure $ do
                         when (length sr `mod` 2 /= 0) $ do
                             -- remove the dummy push for 16 byte alignment
-                            pop rax
+                            add rsp (Immediate (ImmI 8))
                         sequence_ ss
                         next
 
