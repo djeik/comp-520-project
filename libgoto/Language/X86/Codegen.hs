@@ -94,7 +94,7 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
         genFunc func@(FunDecl { _funDeclName = gid }) = do
             hwasm <- HardwareTranslationError <*$> allocateRegisters (runCompiler func)
             pure $
-                text ('_' : stringFromSymbol (gidOrigName gid)) <> text ":"
+                text (stringFromSymbol (gidOrigName gid)) <> text ":"
                 $+$ nest indentLevel (
                     pretty hwasm
                 )

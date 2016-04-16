@@ -109,7 +109,7 @@ simplifyPackage (Package _ decls) = do
     nis <- gets newDeclarations
     let nvs = map V.VarDecl nis
     let fInit = V.FunDecl
-                { _funDeclName = artificialGlobalId (-1) "init" (funcType [] voidType)
+                { _funDeclName = artificialGlobalId (-1) "_init" (funcType [] voidType)
                 , _funDeclArgs = []
                 , _funDeclVars = nvs
                 , _funDeclBody = concat $ map snd vs'

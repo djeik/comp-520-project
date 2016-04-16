@@ -68,7 +68,7 @@ nextGid (Ann a (Ident name)) ty orig = do
     pure Gid.GlobalId
         { gidTy = ty
         , gidNum = n
-        , gidOrigName = Ann a (symbolFromString $ "gocode_" ++ name)
+        , gidOrigName = Ann a (symbolFromString $ "_gocode_" ++ name)
         , gidOrigin = orig
         }
 
