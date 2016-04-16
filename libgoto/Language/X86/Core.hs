@@ -604,11 +604,11 @@ instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
                 Indirect off -> text "QWORD" <+> prettyBrackets True (offsetp off)
             Label i -> text "l" <> P.int i
             Internal d -> case text <$> d of
-                Direct s -> s
-                Indirect off -> prettyBrackets True (offsetp off)
+                Direct s -> text "QWORD" <+> s
+                Indirect off -> text "QWORD" <+> prettyBrackets True (offsetp off)
             External d -> case text <$> d of
                 Direct s -> s
-                Indirect off -> prettyBrackets True (offsetp off)
+                Indirect off -> text "QWORD" <+> prettyBrackets True (offsetp off)
 
         offsetp off = case off of
             Offset d r -> r <+> if d >= 0

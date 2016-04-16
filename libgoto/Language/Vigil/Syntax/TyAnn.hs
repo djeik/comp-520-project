@@ -62,6 +62,7 @@ valType :: TyAnnVal -> Type
 valType v = case v of
     IdentVal gid -> gidTy gid
     Literal (Ann ty _) -> ty
+    IdentValD gid -> gidTy gid
 
 type TyAnnLiteral = TyAnn Literal ()
 

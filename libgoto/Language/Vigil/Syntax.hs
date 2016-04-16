@@ -307,11 +307,10 @@ instance
                 pretty bn)) bds)
         ValRef v -> pretty v
 
-
-
 -- | A Vigil value is either an identifier or a literal.
 data Val ident lit
     = IdentVal ident
+    | IdentValD ident
     | Literal lit
     deriving (Eq, Functor, Ord, Read, Show)
 
@@ -319,6 +318,7 @@ instance (Pretty ident, Pretty lit) => Pretty (Val ident lit) where
     pretty v = case v of
         IdentVal i -> pretty i
         Literal l -> pretty l
+        IdentValD i -> prettyBrackets True (pretty i)
 
 -- | Arithmetic/integral binary operators.
 data BinaryOp a

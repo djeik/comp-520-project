@@ -50,8 +50,11 @@ data CompilerEnv label
     deriving (Eq, Ord, Read, Show)
 
 -- | Looks up how to access the given data.
-lookupIdent :: GlobalId -> Compiler label (VirtualOperand label)
-lookupIdent gid = do
+lookupIdent
+    :: GlobalId
+    -> (String -> Directness String)
+    -> Compiler label (VirtualOperand label)
+lookupIdent gid dir = do
     imap <- asks _identMap
     pure $ case M.lookup gid imap of
         -- if it's not in the ident map for the function, then we need to
@@ -64,7 +67,7 @@ lookupIdent gid = do
             -- internal reference
             FuncType {} -> Internal $ Direct $ stringFromSymbol $ gidOrigName gid
             _ ->
-                Internal $ Indirect $ Offset 0 $ stringFromSymbol $ gidOrigName gid
+                Internal $ dir $ stringFromSymbol $ gidOrigName gid
         Just o -> o
 
 -- | Emit raw assembly.
@@ -225,7 +228,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 asm $ withScratch $ do
                     mov rdi (Immediate $ ImmI $ fromIntegral sty)
                     mov rsi o
-                    call (External . Direct $ "goprint")
+                    call (External . Direct $ "_goprint")
 
             ReturnStmt (Just (Ann _ ref)) -> do
                 r <- compileRef ref
@@ -455,7 +458,7 @@ compileExpr (Ann ty e) = case e of
         pure vreg
 
     T.Call i vs -> do
-        f <- compileIdent i
+        f <- lookupIdent i Direct
 
         asm $ scratch Save
         prepareCall vs
@@ -584,8 +587,9 @@ compileVal
     :: TyAnnVal
     -> Compiler label (VirtualOperand label)
 compileVal val = case val of
-    IdentVal ident -> compileIdent ident
+    IdentVal ident -> lookupIdent ident (Indirect . Offset 0)
     Literal lit -> compileLiteral lit
+    IdentValD ident -> lookupIdent ident Direct
 
 compileLiteral
     :: TyAnnLiteral
@@ -600,7 +604,7 @@ compileRef
     -> Compiler label (VirtualOperand label)
 compileRef r = case r of
     ArrayRef i vs -> do
-        i' <- compileIdent i
+        i' <- lookupIdent i (Indirect . Offset 0)
         foldl'
             (\m v -> do
                 o <- m
@@ -645,11 +649,6 @@ prepareCall vals = mapM_ (uncurry assign) (reverse $ zip rams' vals) where
         ( IntegerHwRegister <$> [Rdi, Rsi, Rdx, Rcx, R8, R9]
         , hwxmm <$> [0..7]
         )
-
-compileIdent
-    :: GlobalId
-    -> Compiler label (VirtualOperand label)
-compileIdent = lookupIdent
 
 -- | Wraps some code with the function prologue and epilogue.
 wrapFunction :: Compiler label () -> Compiler label ()
