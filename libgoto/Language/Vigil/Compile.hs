@@ -655,9 +655,18 @@ compileLiteral
     :: TyAnnLiteral
     -> Compiler label (VirtualOperand label)
 compileLiteral (Ann _ lit) = case lit of
-    IntLit n -> pure $ Immediate (ImmI $ fromIntegral n)
-    FloatLit n -> pure $ Immediate (ImmF n)
-    RuneLit n -> pure $ Immediate (ImmI $ fromIntegral $ fromEnum n)
+    IntLit n -> do
+        t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+        asm $ mov t $ Immediate (ImmI $ fromIntegral n)
+        pure t
+    FloatLit n -> do
+        t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
+        asm $ mov t $ Immediate (ImmF n)
+        pure t
+    RuneLit n -> do
+        t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+        asm $ mov t (Immediate (ImmI $ fromIntegral $ fromEnum n))
+        pure t
 
 compileRef
     :: Ref BasicIdent (Ident ()) TyAnnVal ()
