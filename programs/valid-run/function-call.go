@@ -1,3 +1,7 @@
+// hello from main
+// Hello from other function
+//.
+
 package test
 
 func other_function() {
