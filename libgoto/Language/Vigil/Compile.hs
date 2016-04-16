@@ -227,10 +227,10 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 asm $ case unFix ty of
                     IntType _ -> mov r o
                     FloatType _ -> undefined -- TODO
-                    StringType -> copy "_deepcopy_array"
-                    ArrayType _ _ -> copy "_deepcopy_array"
-                    SliceType _ -> copy "_shallowcopy_slice"
-                    StructType _ -> copy "_deepcopy_struct"
+                    StringType -> copy "deepcopy_array"
+                    ArrayType _ _ -> copy "deepcopy_array"
+                    SliceType _ -> copy "shallowcopy_slice"
+                    StructType _ -> copy "deepcopy_struct"
 
             Initialize i -> do
                 i' <- lookupIdent i Direct
@@ -243,10 +243,10 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                         asm $ case unFix $ gidTy i of
                                 IntType _ -> mov i' $ Immediate $ ImmI 0
                                 FloatType _ -> undefined -- TODO
-                                StringType -> cEx "_new_array"
-                                ArrayType _ _ -> cEx "_new_array"
-                                SliceType _ -> cEx "_new_slice"
-                                StructType _ -> cEx "_new_struct"
+                                StringType -> cEx "new_array"
+                                ArrayType _ _ -> cEx "new_array"
+                                SliceType _ -> cEx "new_slice"
+                                StructType _ -> cEx "new_struct"
 
             PrintStmt vs -> forM_ vs $ \(Ann ty v) -> do
                 o <- compileRef v
@@ -255,7 +255,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 asm $ withScratch $ do
                     mov rdi (Immediate $ ImmI $ fromIntegral sty)
                     mov rsi o
-                    call (External . Direct $ "_goprint")
+                    call (External . Direct $ "goprint")
 
             ReturnStmt (Just (Ann _ ref)) -> do
                 r <- compileRef ref
@@ -723,7 +723,7 @@ compileRef r = case r of
                 asm $ do
                     mov rdi o
                     mov rsi o'
-                    call (External . Direct $ "_index_array")
+                    call (External . Direct $ "index_array")
                     mov (Register . Direct $ v1) rax
                 pure $ Register $ Direct v1
             )
@@ -740,7 +740,7 @@ compileRef r = case r of
                 asm $ do
                     mov rdi o
                     mov rsi (Immediate $ ImmI $ fromIntegral n)
-                    call (External . Direct $ "_struct_field")
+                    call (External . Direct $ "struct_field")
                     mov (Register . Direct $ v) rax
                 pure $ Register $ Direct v
             )
