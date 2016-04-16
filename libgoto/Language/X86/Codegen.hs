@@ -33,12 +33,11 @@ f <*$> e = case e of
 infixl 3 <*$>
 
 allocateRegisters
-    :: Int
-    -> VirtualAsm Int ()
+    :: VirtualAsm Int ()
     -> Either HardwareTranslationError (HardwareAsm Int ())
-allocateRegisters stkSz v
+allocateRegisters v
     = runHardwareTranslation
-    $ translate pairingMap hwlifetimes stkSz v
+    $ translate pairingMap hwlifetimes v
     where
         hwlifetimes = foldr f [] pairings
         f (virt, Reg szhwreg _) xs = (szhwreg, lifetimeMap M.! virt) : xs
@@ -93,7 +92,7 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
 
         genFunc :: TyAnnFunDecl -> Either CodegenError Doc
         genFunc func@(FunDecl { _funDeclName = gid }) = do
-            hwasm <- HardwareTranslationError <*$> allocateRegisters 0 (runCompiler func)
+            hwasm <- HardwareTranslationError <*$> allocateRegisters (runCompiler func)
             pure $
                 text ('_' : stringFromSymbol (gidOrigName gid)) <> text ":"
                 $+$ nest indentLevel (

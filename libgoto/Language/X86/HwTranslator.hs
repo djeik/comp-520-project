@@ -39,10 +39,9 @@ type Alg f a = f a -> a
 translate
     :: M.Map SizedVirtualRegister HardwareLocation
     -> [(SizedHardwareRegister, LifetimeSpan)]
-    -> Int
     -> VirtualAsm Int ()
     -> HardwareTranslation Int (HardwareAsm Int ())
-translate vToH live stkSz = iterM phi . ($> pure ()) where
+translate vToH live = iterM phi . ($> pure ()) where
     phi :: Alg
             (AsmF Int (Operand SizedVirtualRegister Int))
             (HardwareTranslation Int (HardwareAsm Int ()))
@@ -65,7 +64,8 @@ translate vToH live stkSz = iterM phi . ($> pure ()) where
                     off <- gets _currentSpillOffset
                     pregs <- gets _safeRegistersUsed
 
-                    let s = sub rsp (Immediate $ ImmI $ fromIntegral $ -(off - stkSz))
+                    let stkoff = (negate off `div` 16) * 16
+                    let s = sub rsp (Immediate $ ImmI $ fromIntegral $ stkoff)
 
                     saveCode <- forM pregs $ \(SizedRegister _ reg) -> case reg of
                         FloatingHwRegister _ -> throwError $ InvariantViolation
@@ -86,7 +86,8 @@ translate vToH live stkSz = iterM phi . ($> pure ()) where
                             "No floating register is safe"
                         IntegerHwRegister r -> pure $ pop $ fixedIntReg64 r
 
-                    let a' = add rsp (Immediate $ ImmI $ fromIntegral $ -(off - stkSz))
+                    let stkoff = (negate off `div` 16) * 16
+                    let a' = add rsp (Immediate $ ImmI $ fromIntegral $ stkoff)
 
                     pure $ sequence_ loadCode >> a'
 
@@ -104,17 +105,27 @@ translate vToH live stkSz = iterM phi . ($> pure ()) where
 
                     modify $ \s -> s { _latestSavedRegisters = sr }
 
-                    ss <- forM sr (\r -> pure $ push $ Register $ Direct r)
+                    let ss = map (push . Register . Direct) sr
                     next <- n
 
-                    pure $ sequence_ ss >> next
+                    pure $ do
+                        sequence_ ss
+                        when (length sr `mod` 2 /= 0) $ do
+                            push rax -- add a dummy push for 16 byte alignment
+                        next
 
                 -- Mirror: pop in reverse the registers we had saved before.
                 Load -> do
                     sr <- gets _latestSavedRegisters
                     let ss = map (pop . Register . Direct) (reverse sr)
                     next <- n
-                    pure $ sequence_ ss >> next
+
+                    pure $ do
+                        when (length sr `mod` 2 /= 0) $ do
+                            -- remove the dummy push for 16 byte alignment
+                            pop rax
+                        sequence_ ss
+                        next
 
         Emit i n -> do
             s <- translateInst i
