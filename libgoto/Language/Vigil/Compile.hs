@@ -766,13 +766,6 @@ compileRef r = case r of
             (pure o)
             (tail slis)
 
-        -- asm $ mov rax i'
-        undefined
-        -- Check the type of the ident. Is it a slice array?
-        -- Do something about potentially missing values...
-        -- Call slice_xx in the first case,
-        -- then fold over the tail of the list, calling slice_slice
-
     ValRef val -> compileVal val
 
 -- | Compiles a slice expression from an operand which contains the thing to
@@ -879,7 +872,7 @@ deepSerializeType = cata f where
         ArrayType n tyn -> 7:n:tyn
         SliceType tyn -> 8:tyn
         StructType fields -> 9:(concat $ map snd fields)
-        _ -> undefined
+        _ -> error "Type cannot be deep-serialized"
 
 -- | Computes an integer representation of a type
 serializeType :: Type -> Int
