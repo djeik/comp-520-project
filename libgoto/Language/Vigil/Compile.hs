@@ -514,7 +514,7 @@ compileExpr (Ann ty e) = case e of
 
         asm $ do
             mov rax (Immediate $ ImmI 0)
-            setc j
+            setc (invertFlag j)
                 $ Register
                 $ Direct
                 $ SizedRegister Low8
@@ -573,7 +573,7 @@ compileCondExpr e = case e of
     CondRef (Ann _ ref) -> do
         r <- compileRef ref
         asm $ test r r
-        pure OnEqual
+        pure OnEqual -- jump if false, so zero
 
     BinCond v1 op v2 -> do
         let simpleCompare j = do
@@ -636,7 +636,9 @@ compileCondExpr e = case e of
         LogicalNot -> do
             o <- compileVal v
             asm $ test o o
-            pure OnEqual
+            -- need jump to fail if v is false, i.e. the bitwise and works out
+            -- to zero, so the jump must succeed if the bitwise and is nonzero
+            pure OnNotEqual
 
 -- | Computes the register class for a given Vigil type.
 registerClass :: Type -> RegisterAccessMode

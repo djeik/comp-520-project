@@ -61,6 +61,7 @@ module Language.X86.Core
   -- ** Jumps
 , FlagCondition(..)
 , JumpDistance(..)
+, invertFlag
   -- ** Operands
 , Operand(..)
 , Directness(..)
@@ -270,6 +271,27 @@ data FlagCondition
     -- ^ Jump if parity odd, @PF = 0@.
     | OnCounterZero
     -- ^ Jump on @CX@ (@ECX@) equal to zero.
+
+-- | Inverses a flag condition.
+--
+-- Flag conditions with no intuitive inverse (e.g. 'OnCounterZero') are their
+-- own inverse.
+invertFlag :: FlagCondition -> FlagCondition
+invertFlag c = case c of
+    Unconditionally -> Unconditionally
+    OnOverflow -> OnNoOverflow
+    OnNoOverflow -> OnOverflow
+    OnSign -> OnNoSign
+    OnNoSign -> OnSign
+    OnEqual -> OnNotEqual
+    OnNotEqual -> OnEqual
+    OnBelow sign -> OnNotBelow sign
+    OnNotBelow sign -> OnBelow sign
+    OnBelowOrEqual sign -> OnAbove sign
+    OnAbove sign -> OnBelowOrEqual sign
+    OnParityEven -> OnParityOdd
+    OnParityOdd -> OnParityEven
+    OnCounterZero -> OnCounterZero
 
 -- | Indicates whether an instruction operates on signed or unsigned data.
 data Signedness
