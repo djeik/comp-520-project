@@ -703,6 +703,7 @@ compileRef
 compileRef r = case r of
     ArrayRef i vs -> do
         i' <- lookupIdent i (Indirect . Offset 0)
+        asm $ mov rax i'
         foldl'
             (\m v -> do
                 o <- m
@@ -711,11 +712,11 @@ compileRef r = case r of
                 asm $ do
                     mov rdi o
                     mov rsi o'
-                    call (External . Direct $ "_array_index")
+                    call (External . Direct $ "_index_array")
                     mov (Register . Direct $ v1) rax
-                pure $ Register $ Indirect $ Offset 0 v1
+                pure $ Register $ Direct v1
             )
-            (pure i')
+            (pure rax)
             vs
 
     ValRef val -> compileVal val
