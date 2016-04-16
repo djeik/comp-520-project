@@ -17,7 +17,7 @@ OUT="${IN%.*}"
 test -e "$1" || eval "echo \"usage: $0 [FILE]\" ; exit 1"
 
 # build the runtime, if necessary
-make -C runtime
+make -C runtime > /dev/null
 
 # generate the assembly
 $GOTO pretty < "$IN" > "$ASM_FILE"
