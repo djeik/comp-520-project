@@ -64,8 +64,8 @@ codegen simSt (Program { _globals = globals, _funcs = funcs, _main = main }) = d
     pure $
         text "BITS 64" $+$
         text "default rel" $+$
-        vcat (map ((text "extern" <+>) . text . ('_':)) externs) $+$
-        text "global _gocode_init, _gocode_main" $+$
+        vcat (map ((text "extern" <+>) . text) externs) $+$
+        text "global gocode_init, gocode_main" $+$
         text "section .data" $+$ nest indentLevel (
             vcat (
                 map (uncurry genStr) (M.assocs $ strings simSt)
