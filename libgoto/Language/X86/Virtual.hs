@@ -9,6 +9,7 @@ Stability   : experimental
 Monad that represents an abstract form of x86 with labels.
 -}
 
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Language.X86.Virtual
@@ -48,12 +49,18 @@ data VirtualRegister
     | FixedHardwareRegister HardwareRegister
     deriving (Eq, Ord, Read, Show)
 
-instance Pretty VirtualRegister where
-    pretty vreg = case vreg of
+instance Pretty (SizedRegister VirtualRegister) where
+    pretty (SizedRegister size r) = case r of
         VirtualRegister ram i ->
-            let rp = text $ case ram of IntegerMode -> "i" ; FloatingMode -> "f"
-            in text "v" <> rp <> P.int i
-        FixedHardwareRegister r -> pretty r
+            let rp = text $ case ram of IntegerMode -> "i" ; FloatingMode -> "f" in
+            let rs = text $ case size of
+                    Low8 -> "l1"
+                    High8 -> "h1"
+                    Extended16 -> "2"
+                    Extended32 -> "4"
+                    Extended64 -> "8"
+            in text "v" <> rp <> P.int i <> rs
+        FixedHardwareRegister reg -> pretty (SizedRegister size reg)
 
 -- | An operand in virtual-register assembly code uses sized virtual registers.
 type VirtualOperand = Operand SizedVirtualRegister

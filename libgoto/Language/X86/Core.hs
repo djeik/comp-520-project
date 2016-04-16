@@ -400,9 +400,103 @@ data RegisterAccessMode
 data SizedRegister reg = SizedRegister RegisterSize reg
     deriving (Eq, Ord, Read, Show)
 
-instance Pretty reg => Pretty (SizedRegister reg) where
-    pretty r = case r of
-        SizedRegister _ reg -> pretty reg
+instance Pretty (SizedRegister HardwareRegister) where
+    pretty (SizedRegister size reg) = text $ case size of
+        Low8 -> case reg of
+            IntegerHwRegister r -> case r of
+                Rax -> "al"
+                Rbx -> "bl"
+                Rcx -> "cl"
+                Rdx -> "dl"
+                Rbp -> error "rbp has no 8-bit form"
+                Rsi -> error "rsi has no 8-bit form"
+                Rdi -> error "Rdi has no 8-bit form"
+                Rsp -> error "Rsp has no 8-bit form"
+                R8 -> error "R8 has no 8-bit form"
+                R9 -> error "R9 has no 8-bit form"
+                R10 -> error "R10 has no 8-bit form"
+                R11 -> error "R11 has no 8-bit form"
+                R12 -> error "R12 has no 8-bit form"
+                R13 -> error "R13 has no 8-bit form"
+                R14 -> error "R14 has no 8-bit form"
+                R15 -> error "R15 has no 8-bit form"
+            FloatingHwRegister r -> error (show r ++ " has no 8-bit form")
+        High8 -> case reg of
+            IntegerHwRegister r -> case r of
+                Rax -> "ah"
+                Rbx -> "bh"
+                Rcx -> "ch"
+                Rdx -> "dh"
+                Rbp -> error "rbp has no 8-bit form"
+                Rsi -> error "rsi has no 8-bit form"
+                Rdi -> error "Rdi has no 8-bit form"
+                Rsp -> error "Rsp has no 8-bit form"
+                R8 -> error "R8 has no 8-bit form"
+                R9 -> error "R9 has no 8-bit form"
+                R10 -> error "R10 has no 8-bit form"
+                R11 -> error "R11 has no 8-bit form"
+                R12 -> error "R12 has no 8-bit form"
+                R13 -> error "R13 has no 8-bit form"
+                R14 -> error "R14 has no 8-bit form"
+                R15 -> error "R15 has no 8-bit form"
+            FloatingHwRegister r -> error (show r ++ " has no 8-bit form")
+        Extended16 -> case reg of
+            IntegerHwRegister r -> case r of
+                Rax -> "ax"
+                Rbx -> "bx"
+                Rcx -> "cx"
+                Rdx -> "dx"
+                Rbp -> "bp"
+                Rsi -> "si"
+                Rdi -> "di"
+                Rsp -> "sp"
+                R8 -> error "R8 has no 16-bit form"
+                R9 -> error "R9 has no 16-bit form"
+                R10 -> error "R10 has no 16-bit form"
+                R11 -> error "R11 has no 16-bit form"
+                R12 -> error "R12 has no 16-bit form"
+                R13 -> error "R13 has no 16-bit form"
+                R14 -> error "R14 has no 16-bit form"
+                R15 -> error "R15 has no 16-bit form"
+            FloatingHwRegister r -> error (show r ++ " has no 16-bit form")
+        Extended32 -> case reg of
+            IntegerHwRegister r -> case r of
+                Rax -> "eax"
+                Rbx -> "ebx"
+                Rcx -> "ecx"
+                Rdx -> "edx"
+                Rbp -> "ebp"
+                Rsi -> "esi"
+                Rdi -> "edi"
+                Rsp -> "esp"
+                R8 -> error "R8 has no 32-bit form"
+                R9 -> error "R9 has no 32-bit form"
+                R10 -> error "R10 has no 32-bit form"
+                R11 -> error "R11 has no 32-bit form"
+                R12 -> error "R12 has no 32-bit form"
+                R13 -> error "R13 has no 32-bit form"
+                R14 -> error "R14 has no 32-bit form"
+                R15 -> error "R15 has no 32-bit form"
+            FloatingHwRegister (FloatingRegister n) -> "xmm" ++ show n
+        Extended64 -> case reg of
+            IntegerHwRegister r -> case r of
+                Rax -> "rax"
+                Rbx -> "rbx"
+                Rcx -> "rcx"
+                Rdx -> "rdx"
+                Rbp -> "rbp"
+                Rsi -> "rsi"
+                Rdi -> "rdi"
+                Rsp -> "rsp"
+                R8 -> "r8"
+                R9 -> "r9"
+                R10 -> "r10"
+                R11 -> "r11"
+                R12 -> "r12"
+                R13 -> "r13"
+                R14 -> "r14"
+                R15 -> "r15"
+            FloatingHwRegister (FloatingRegister n) -> "xmm" ++ show n
 
 -- | An operand to an instruction.
 data Operand reg label
@@ -604,87 +698,102 @@ instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
             Scratch _ m -> m
             Prologue _ m -> m
 
-        opretty :: Pretty reg => Operand reg Int -> Doc
-        opretty op = case op of
+        opretty :: Pretty reg => Doc -> Operand reg Int -> Doc
+        opretty size op = case op of
             Immediate imm -> case imm of
                 ImmI i -> P.int (fromIntegral i)
                 ImmF i -> P.double i
             Register d -> case pretty <$> d of
                 Direct reg -> pretty reg
-                Indirect off -> text "QWORD" <+> prettyBrackets True (offsetp off)
+                Indirect off -> size <+> prettyBrackets True (offsetp off)
             Label i -> text "l" <> P.int i
             Internal d -> case text <$> d of
-                Direct s -> text "QWORD" <+> s
-                Indirect off -> text "QWORD" <+> prettyBrackets True (offsetp off)
+                Direct s -> size <+> s
+                Indirect off -> size <+> prettyBrackets True (offsetp off)
             External d -> case text <$> d of
                 Direct s -> s
-                Indirect off -> text "QWORD" <+> prettyBrackets True (offsetp off)
+                Indirect off -> size <+> prettyBrackets True (offsetp off)
 
         offsetp off = case off of
             Offset d r -> r <+> if d >= 0
                 then text "+" <+> P.int (fromIntegral d)
                 else text "-" <+> P.int (negate $ fromIntegral d)
 
-        opretty2 o1 o2 = opretty o1 <+> text "," <+> opretty o2
+        opretty2 s1 o1 s2 o2 = opretty s1 o1 <> text "," <+> opretty s2 o2
 
-        mnep :: Pretty reg => String -> Operand reg Int -> Doc
-        mnep t o = text t <+> opretty o
-        mnep2 t o1 o2 = text t <+> opretty2 o1 o2
+        mnep :: Pretty reg => String -> Doc -> Operand reg Int -> Doc
+        mnep t s o = text t <+> opretty s o
+
+        mnep2
+            :: Pretty reg
+            => String
+            -> Doc -> Operand reg Int
+            -> Doc -> Operand reg Int
+            -> Doc
+        mnep2 t s1 o1 s2 o2 = text t <+> opretty2 s1 o1 s2 o2
+
+        prettyCond :: FlagCondition -> Doc
+        prettyCond cond = text $ case cond of
+            Unconditionally -> error "prettyCond: unconditionally unsupported"
+            OnOverflow -> "o"
+            OnNoOverflow -> "no"
+            OnSign -> "s"
+            OnNoSign -> "ns"
+            OnEqual -> "e"
+            OnNotEqual -> "ne"
+            OnBelow sign -> case sign of
+                Signed -> "l"
+                Unsigned -> "b"
+            OnNotBelow sign -> case sign of
+                Signed -> "nl"
+                Unsigned -> "nb"
+            OnBelowOrEqual sign -> case sign of
+                Signed -> "le"
+                Unsigned -> "be"
+            OnAbove sign -> case sign of
+                Signed -> "g"
+                Unsigned -> "a"
+            OnParityEven -> "pe"
+            OnParityOdd -> "po"
+            OnCounterZero -> "cxz"
+
+        qword = text "QWORD"
 
         prettyInstr :: Instruction (Operand reg Int) -> Doc
         prettyInstr instr = case instr of
             Ret -> text "ret"
-            Call o -> mnep "call" o
-            And o1 o2 -> mnep2 "and" o1 o2
-            Or o1 o2 -> mnep2 "or" o1 o2
-            Mov o1 o2 -> mnep2 "mov" o1 o2
-            Add o1 o2 -> mnep2 "add" o1 o2
-            Sub o1 o2 -> mnep2 "sub" o1 o2
+            Call o -> mnep "call" empty o
+            And o1 o2 -> mnep2 "and" qword o1 qword o2
+            Or o1 o2 -> mnep2 "or" qword o1 qword o2
+            Mov o1 o2 -> mnep2 "mov" qword o1 qword o2
+            Add o1 o2 -> mnep2 "add" qword o1 qword o2
+            Sub o1 o2 -> mnep2 "sub" qword o1 qword o2
             Mul sign o1 o2 ->
-                let mnemonic = case sign of Signed -> "imul" ; Unsigned -> "mul"
-                in mnep2 mnemonic o1 o2
-            Xor o1 o2 -> mnep2 "xor" o1 o2
-            Inc o -> mnep "inc" o
-            Dec o -> mnep "dec" o
-            Push o -> mnep "push" o
-            Pop o -> mnep "pop" o
+                let mnemonic = case sign of Signed -> "imul" ; Unsigned -> "mul" in
+                mnep2 mnemonic qword o1 qword o2
+            Xor o1 o2 -> mnep2 "xor" qword o1 qword o2
+            Inc o -> mnep "inc" qword o
+            Dec o -> mnep "dec" qword o
+            Push o -> mnep "push" qword o
+            Pop o -> mnep "pop" qword o
             Nop -> text "nop"
             Syscall -> text "syscall"
-            Int o -> mnep "int" o
-            Cmp o1 o2 -> mnep2 "cmp" o1 o2
-            Test o1 o2 -> mnep2 "test" o1 o2
-            Sal o1 o2 -> mnep2 "sal" o1 o2
-            Sar o1 o2 -> mnep2 "sar" o1 o2
-            Jump cond o -> (<+> opretty o) . text $ case cond of
-                Unconditionally -> "jmp"
-                OnOverflow -> "jo"
-                OnNoOverflow -> "jno"
-                OnSign -> "js"
-                OnNoSign -> "jns"
-                OnEqual -> "je"
-                OnNotEqual -> "jne"
-                OnBelow sign -> case sign of
-                    Signed -> "jl"
-                    Unsigned -> "jb"
-                OnNotBelow sign -> case sign of
-                    Signed -> "jnl"
-                    Unsigned -> "jnb"
-                OnBelowOrEqual sign -> case sign of
-                    Signed -> "jle"
-                    Unsigned -> "jbe"
-                OnAbove sign -> case sign of
-                    Signed -> "jg"
-                    Unsigned -> "ja"
-                OnParityEven -> "jpe"
-                OnParityOdd -> "jpo"
-                OnCounterZero -> "jcxz"
-            Setc cond o -> (<+> opretty o) . text $ case cond of
-                _ -> error "fuck you"
-            Neg1 o -> mnep "not" o
-            Neg2 o -> mnep "neg" o
+            Int o -> mnep "int" qword o
+            Cmp o1 o2 -> mnep2 "cmp" qword o1 qword o2
+            Test o1 o2 -> mnep2 "test" qword o1 qword o2
+            Sal o1 o2 -> mnep2 "sal" qword o1 qword o2
+            Sar o1 o2 -> mnep2 "sar" qword o1 qword o2
+            Jump cond o -> (<+> opretty empty o) $ case cond of
+                Unconditionally -> text "jump"
+                _ -> text "j" <> prettyCond cond
+            Setc cond o -> (<+> opretty empty o) $ case cond of
+                Unconditionally -> error "can't set byte unconditionally"
+                _ -> text "set" <> prettyCond cond
+            Neg1 o -> mnep "not" qword o
+            Neg2 o -> mnep "neg" qword o
             Cvt t1 t2 o1 o2 ->
-                text "cvt" <> pretty t1 <> pretty t2 <+> opretty2 o1 o2
-            Div sign _ _ o -> (<+> opretty o) . text $ case sign of
+                text "cvt" <> pretty t1 <> pretty t2 <+> opretty2 qword o1 qword o2
+            Div sign _ _ o -> (<+> opretty qword o) . text $ case sign of
                 Signed -> "idiv"
                 Unsigned -> "div"
             Cqo _ _ -> text "cqo"
