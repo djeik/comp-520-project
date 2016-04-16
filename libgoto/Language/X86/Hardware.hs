@@ -69,6 +69,8 @@ data HardwareTranslationState label
         -- ^ A list of the safe registers that have been allocated.
         , _ip :: Int
         -- ^ The current _virtual_ program point we are at.
+        , _lc :: Int
+        -- ^ Label currently at which we are
         , _latestSavedRegisters :: [SizedHardwareRegister]
         -- ^ Indicates, in order, which are the registers that were saved before
         -- the last call.
@@ -80,6 +82,7 @@ initialHardwareTranslationState
         { _currentSpillOffset = 0
         , _safeRegistersUsed = S.empty
         , _ip = 0
+        , _lc = 0
         , _latestSavedRegisters = []
         }
 

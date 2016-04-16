@@ -19,8 +19,6 @@ import Language.X86.Virtual
 import qualified Data.Map as M
 import Data.Maybe ( fromMaybe )
 
-import Debug.Trace
-
 data CodegenError
     = CodegenInvariantViolation String
     | HardwareTranslationError HardwareTranslationError
@@ -46,7 +44,7 @@ allocateRegisters v
         f (virt, Reg szhwreg _) xs = (szhwreg, lifetimeMap M.! virt) : xs
         f (_, _) xs = xs
         lifetimeMap = computeLifetimes v
-        pairings = let x = allocate lifetimeMap in trace (show x) x
+        pairings = allocate lifetimeMap
 
 -- | Compile a type-annotated Vigil program into a full text file that can be
 -- assembled by nasm.

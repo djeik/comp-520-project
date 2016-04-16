@@ -32,6 +32,8 @@ import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Trans.Free
 
+import Debug.Trace
+
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
 
@@ -48,7 +50,10 @@ translate vToH live = iterM phi . ($> pure ()) where
             (HardwareTranslation Int (HardwareAsm Int ()))
     phi a = case a of
         -- Pass through newLabel
-        NewLabel f -> f =<< gets _ip
+        NewLabel f -> do
+            l <- gets _lc
+            modify $ \s -> s { _lc = _lc s + 1 }
+            f l
 
         -- Pass through setLabel
         SetLabel l m -> do
@@ -187,7 +192,7 @@ translate vToH live = iterM phi . ($> pure ()) where
     (v1, v2) ?~> fInst = do
         v1' <- translateOp v1
         v2' <- translateOp v2
-        case (v1, v2) of
+        case (v1', v2') of
             (Register (Indirect _), Register (Indirect _)) -> do
                 pure $ do
                     mov rax v2'

@@ -656,7 +656,7 @@ instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
             Sal o1 o2 -> mnep2 "sal" o1 o2
             Sar o1 o2 -> mnep2 "sar" o1 o2
             Jump cond o -> (<+> opretty o) . text $ case cond of
-                Unconditionally -> "jump"
+                Unconditionally -> "jmp"
                 OnOverflow -> "jo"
                 OnNoOverflow -> "jno"
                 OnSign -> "js"
