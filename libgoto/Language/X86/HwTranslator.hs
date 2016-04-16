@@ -32,8 +32,6 @@ import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Trans.Free
 
-import Debug.Trace
-
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
 
