@@ -14,7 +14,7 @@ import Control.Monad ( forM_, when )
 import Data.List ( sortBy )
 import Data.Ord ( comparing )
 import Options.Applicative
-import System.Exit ( exitFailure )
+import System.Exit ( exitSuccess, exitFailure )
 
 import System.IO
 import System.FilePath ( (-<.>) )
@@ -42,6 +42,7 @@ data Goto
         -- ^ Whether or not to dump the top frame of the symtab on scope exits
         , ppType :: Bool
         -- ^ Whether or not to pretty-print types
+        , dumpVigil :: Bool
         }
     deriving (Eq, Show)
 
@@ -72,18 +73,6 @@ cmdParser
                 ) $
                 briefDesc <>
                 progDesc "Pretty-prints the input."
-            ) <>
-            command "round-trip" (
-                info (
-                    RoundTrip <$> fmap parseInputFile (
-                        strArgument (
-                            metavar "[FILE]" <>
-                            value "-"
-                        )
-                    )
-                ) $
-                briefDesc <>
-                progDesc "Checks the pretty-print invariant."
             )
         ) <*>
         ( switch
@@ -100,6 +89,11 @@ cmdParser
         ( switch
             ( long "pptype"
               <> help "When specified, pretty-print types in addition to program"
+            )
+        ) <*>
+        ( switch
+            ( long "dump-vigil"
+                <> help "causes the compiler to dump the vigil code and quit"
             )
         )
     ) $
@@ -130,7 +124,10 @@ goto g =
                                                 (_nextGid s + 1)
                                                 (V.simplifyPackage p) of
                                             Left critical -> print critical
-                                            Right (strings, prog) ->
+                                            Right (strings, prog) -> do
+                                                when (dumpVigil g) $ do
+                                                    putStrLn $ renderGoLite $ pretty prog
+                                                    exitSuccess
                                                 case codegen strings prog of
                                                     Right d ->
                                                         putStrLn .
