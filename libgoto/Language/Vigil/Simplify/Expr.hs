@@ -21,6 +21,7 @@ module Language.Vigil.Simplify.Expr
 , typeFromVal
 ) where
 
+import Language.GoLite.Syntax.SrcAnn ( SrcAnn )
 import Language.GoLite.Syntax.Types as G
 import Language.GoLite.Types as T
 import Language.Vigil.Simplify.Core
@@ -150,7 +151,10 @@ simplifyExpr = annCata phi where
         G.Selector e id' -> do
             a' <- reinterpretTypeEx $ fst a
             e' <- e
-            let id'' = V.Ident $ G.unIdent $ bare id'
+            id'' <- case fst a of
+                Fix (Struct fs) -> getFieldIEx (G.unIdent $ bare id') fs
+                _ -> throwError $ InvariantViolation "Selector with non-struct selectee"
+
             case e' of
                 ((Result e''):es) -> case e'' of
                     -- If we already have a select ref (e.g. stru.foo.bar),
@@ -313,6 +317,14 @@ simplifyExpr = annCata phi where
 
         G.TypeAssertion _ _ ->
             throwError $ InvariantViolation "Type assertions are not supported."
+
+
+    getFieldIEx :: String -> [(SrcAnn Symbol (), f)] -> Simplify Int
+    getFieldIEx = getFieldIEx' 0 where
+        getFieldIEx' :: Int -> String -> [(SrcAnn Symbol (), f)] -> Simplify Int
+        getFieldIEx' _ _ [] = throwError $ InvariantViolation "Could not find struct field"
+        getFieldIEx' n s (x:xs) =
+            if stringFromSymbol (bare $ fst x) == s then pure n else getFieldIEx' (n + 1) s xs
 
     reinterpretTypeEx :: T.Type ->  Simplify V.Type
     reinterpretTypeEx t = case reinterpretType t of

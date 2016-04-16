@@ -730,6 +730,32 @@ compileRef r = case r of
             (pure rax)
             vs
 
+    SelectRef i sels -> do
+        i' <- lookupIdent i (Indirect . Offset 0)
+        asm $ mov rax i'
+        foldl'
+            (\acc n -> do
+                o <- acc
+                v <- freshVirtualRegister IntegerMode Extended64
+                asm $ do
+                    mov rdi o
+                    mov rsi (Immediate $ ImmI $ fromIntegral n)
+                    call (External . Direct $ "_struct_field")
+                    mov (Register . Direct $ v) rax
+                pure $ Register $ Direct v
+            )
+            (pure rax)
+            sels
+
+    SliceRef i slis -> do
+        i' <- lookupIdent i (Indirect . Offset 0)
+        -- asm $ mov rax i'
+        undefined
+        -- Check the type of the ident. Is it a slice array?
+        -- Do something about potentially missing values...
+        -- Call slice_xx in the first case,
+        -- then fold over the tail of the list, calling slice_slice
+
     ValRef val -> compileVal val
 
 prepareCall :: [TyAnnVal] -> Compiler label ()

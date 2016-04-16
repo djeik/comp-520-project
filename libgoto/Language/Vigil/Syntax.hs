@@ -290,7 +290,7 @@ instance
 -- selector / slice operations.
 data Ref ident selIdent val a
     = ArrayRef ident [val]
-    | SelectRef ident [selIdent]
+    | SelectRef ident [Int]
     | SliceRef ident [(Maybe val, Maybe val, Maybe val)]
     | ValRef val
     deriving (Eq, Functor, Ord, Read, Show)
