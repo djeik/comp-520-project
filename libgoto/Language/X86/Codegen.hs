@@ -106,7 +106,10 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
 
         genStr :: GlobalId -> String -> Doc
         genStr (Gid.GlobalId { gidOrigName = name }) s
-            = text (stringFromSymbol name ++ ": db") <+> text (show s) <> text ", 0"
+            = text (stringFromSymbol name ++ ": db") <+> text chars where
+                chars = concatMap ((++ ", ") . show . toC) s ++ " 0"
+                toC c = if c' > 255 then fromEnum '?' else c' where
+                    c' = fromEnum c
 
         externs :: [String]
         externs = ["goprint", "from_cstr", "index_slice", "index_array",
