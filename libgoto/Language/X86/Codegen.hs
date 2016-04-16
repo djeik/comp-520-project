@@ -107,7 +107,7 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
 
         genStr :: GlobalId -> String -> Doc
         genStr (Gid.GlobalId { gidOrigName = name }) s
-            = text (stringFromSymbol name ++ ": asciiz") <+> text (show s)
+            = text (stringFromSymbol name ++ ": db") <+> text (show s) <> text ", 0"
 
         externs :: [String]
         externs = ["goprint", "from_cstr", "index_slice", "index_array",
