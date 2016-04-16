@@ -77,8 +77,24 @@ go_array* from_cstr(char* s);
 void* index_slice(go_slice* s, int64_t i);
 void* index_array(go_array* a, int64_t i);
 
-go_slice* slice_slice(go_slice* s, int64_t low, int64_t high, int64_t bound);
-go_slice* slice_array(go_array* a, int64_t low, int64_t high, int64_t bound);
+
+/* Indicates the validity of the parameters to slice_*. It's that or having
+six different functions... */
+enum SLI_MODE {
+    NONE = 0, // No indices supplied
+    JUST_LOW , // Only the low index supplied
+    JUST_HIGH, // Only the high index supplied
+    LOW_HIGH, // Both low and high supplied
+    HIGH_BOUND, // High and bound supplied
+    ALL // All indices supplied
+};
+typedef enum SLI_MODE SLI_MODE;
+
+go_slice* slice_slice(go_slice* s, SLI_MODE mode, int64_t low, int64_t high, int64_t bound);
+go_slice* slice_array(go_array* a, SLI_MODE mode, int64_t low, int64_t high, int64_t bound);
+
+go_slice* perform_slice(go_array* a, int64_t low, int64_t high, int64_t bound);
+void set_slice_mode(SLI_MODE mode, int64_t* low, int64_t* high, int64_t* bound, int64_t len);
 
 int64_t golen_slice(go_slice* s);
 int64_t golen_array(go_array* a);

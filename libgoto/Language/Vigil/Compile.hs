@@ -225,7 +225,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                         mov r rax
 
                 asm $ case unFix ty of
-                    IntType s -> mov r o
+                    IntType _ -> mov r o
                     FloatType _ -> undefined -- TODO
                     StringType -> copy "_deepcopy_array"
                     ArrayType _ _ -> copy "_deepcopy_array"
@@ -241,7 +241,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                         mov i' rax in
 
                         asm $ case unFix $ gidTy i of
-                                IntType s -> mov i' $ Immediate $ ImmI 0
+                                IntType _ -> mov i' $ Immediate $ ImmI 0
                                 FloatType _ -> undefined -- TODO
                                 StringType -> cEx "_new_array"
                                 ArrayType _ _ -> cEx "_new_array"
@@ -748,7 +748,24 @@ compileRef r = case r of
             sels
 
     SliceRef i slis -> do
+
+        -- For the first slice of the chain, we need to know if we're slicing
+        -- an array or a slice.
+        let meth = case gidTy i of
+                Fix (ArrayType _ _) -> "_slice_array"
+                Fix (SliceType _) -> "_slice_slice"
+                _ -> error "Unsliceable type"
+
         i' <- lookupIdent i (Indirect . Offset 0)
+        o <- compileSliceExpr i' (head slis) meth
+        foldl'
+            (\cur idxs -> do
+                o' <- cur
+                compileSliceExpr o' idxs "_slice_slice"
+            )
+            (pure o)
+            (tail slis)
+
         -- asm $ mov rax i'
         undefined
         -- Check the type of the ident. Is it a slice array?
@@ -757,6 +774,57 @@ compileRef r = case r of
         -- then fold over the tail of the list, calling slice_slice
 
     ValRef val -> compileVal val
+
+-- | Compiles a slice expression from an operand which contains the thing to
+-- slice, the indices of the slice (as vals), a string indicating the slice
+-- function to call (which depends on the type of the operand).
+--
+-- The result is a virtual register containing the new slice.
+compileSliceExpr
+    :: Operand SizedVirtualRegister label
+     -> (Maybe TyAnnVal, Maybe TyAnnVal, Maybe TyAnnVal)
+     -> String
+     -> Compiler label (Operand SizedVirtualRegister label1)
+compileSliceExpr o idxs func = do
+    let (m, l, h, b) = unMaybeSliceTriple idxs
+    l' <- compileVal l
+    h' <- compileVal h
+    b' <- compileVal b
+
+    v <- freshVirtualRegister IntegerMode Extended64
+    asm $ do
+        mov rdi o
+        mov rsi $ Immediate $ ImmI $ fromIntegral m
+        mov rdx l'
+        mov rcx h'
+        mov r8 b'
+        call (External . Direct $ func)
+        mov (Register . Direct $ v) rax
+    pure $ Register $ Direct v
+
+-- | Transform a slice triple-maybe-index into something that we can use to call
+-- _slice_* functions from the runtime. The quadruple returned has the mode and
+-- either the given indices or default values.
+unMaybeSliceTriple
+    :: (Maybe TyAnnVal, Maybe TyAnnVal, Maybe TyAnnVal)
+    -> (Int, TyAnnVal, TyAnnVal, TyAnnVal)
+unMaybeSliceTriple v@(ml, mh, mb) =
+    (mode v, valOrDef ml, valOrDef mh, valOrDef mb)
+    where
+        valOrDef :: Maybe TyAnnVal -> TyAnnVal
+        valOrDef mv = case mv of
+            Nothing -> Literal $ Ann (intType I8) $ IntLit 0
+            Just v' -> v'
+        mode ms = case ms of
+            (Nothing, Nothing, Nothing) -> 0
+            (Just _, Nothing, Nothing) -> 1
+            (Nothing , Just _, Nothing) -> 2
+            (Just _, Just _, Nothing) -> 3
+            (Nothing, Just _, Just _) -> 4
+            (Just _, Just _, Just _) -> 5
+            _ -> error "Impossible combination of slice indices"
+
+
 
 prepareCall :: [TyAnnVal] -> Compiler label ()
 prepareCall vals = mapM_ (uncurry assign) (reverse $ zip rams' vals) where

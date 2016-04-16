@@ -100,18 +100,36 @@ void* index_array(go_array* a, int64_t i) {
 }
 
 /* Slice into a slice. */
-go_slice* slice_slice(go_slice* s, int64_t low, int64_t high, int64_t bound) {
-    return slice_array(&(s->arr_data), low, high, bound);
+go_slice* slice_slice(go_slice* s, SLI_MODE mode, int64_t low, int64_t high, int64_t bound) {
+    if (!s)
+        gopanic("slice_slice: null argument");
+
+    // Set the indices to default values depending on the mode
+    set_slice_mode(mode, &low, &high, &bound, s->arr_data.len);
+
+    /* Go spec: "For slices, the upper index bound is the slice capacity cap(a)
+    rather than the length" */
+    if (0 > low || low > high || high > bound || bound > s->cap)
+        gopanic("slice out of bounds");
+
+    return perform_slice(&(s->arr_data), low, high, bound);
 }
 
 /* Slice into an array. */
-go_slice* slice_array(go_array* a, int64_t low, int64_t high, int64_t bound) {
+go_slice* slice_array(go_array* a, SLI_MODE mode, int64_t low, int64_t high, int64_t bound) {
     if(!a)
         gopanic("slice_array: null argument");
+
+    // Set the indices to default values depending on the mode
+    set_slice_mode(mode, &low, &high, &bound, a->len);
 
     if (0 > low || low > high || high > bound || bound > a->len)
         gopanic("slice out of bounds");
 
+    return perform_slice(a, low, high, bound);
+}
+
+go_slice* perform_slice(go_array* a, int64_t low, int64_t high, int64_t bound) {
     go_slice* sli = malloc(sizeof(go_slice));
     if (!sli)
         gopanic("slice_array: could not allocate go_slice");
@@ -120,9 +138,34 @@ go_slice* slice_array(go_array* a, int64_t low, int64_t high, int64_t bound) {
     sli->arr_data.len = high - low;
     sli->arr_data.elem_size = a->elem_size;
     sli->arr_data.array_type = a->array_type;
-    sli->arr_data.backing = a->backing;
+    sli->arr_data.backing = POINT_ARRAY(a, low);
 
     return sli;
+}
+
+void set_slice_mode(SLI_MODE mode, int64_t* low, int64_t* high, int64_t* bound, int64_t len) {
+    switch (mode) {
+        case NONE:
+            *low = 0; // Fallthrough
+        case JUST_LOW:
+            *high = *bound = len;
+            break;
+
+        case JUST_HIGH:
+            *low = 0;
+            *bound = *high;
+            break;
+
+        case LOW_HIGH:
+            *bound = len;
+            break;
+
+        case HIGH_BOUND:
+            *low = 0;
+            break;
+
+        case ALL: break;
+    }
 }
 
 /* Length of a slice. */
