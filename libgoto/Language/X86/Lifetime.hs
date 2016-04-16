@@ -94,30 +94,32 @@ createLifetimes = iterM phi where
         Scratch _ n -> n
         Prologue _ n -> n
 
+    checkLifetime2 v1 v2 = checkLifetime v1 >> checkLifetime v2
+    checkLifetime3 v1 v2 v3 = checkLifetime2 v1 v2 >> checkLifetime v3
+
     checkLifetimeForInst i = case i of
         Ret -> pure ()
         Nop -> pure ()
         Syscall -> pure ()
-        Mov v1 v2 -> (checkLifetime v1) >>= (const $ checkLifetime v2)
+        Mov v1 v2 -> checkLifetime2 v1 v2
         Call v -> checkLifetime v
-        Add v1 v2 -> (checkLifetime v1) >>= (const $ checkLifetime v2)
-        Sub v1 v2 -> (checkLifetime v1) >>= (const $ checkLifetime v2)
+        Add v1 v2 -> checkLifetime2 v1 v2
+        Sub v1 v2 -> checkLifetime2 v1 v2
         Mul _ v1 v2 mv3 -> do
-            checkLifetime v1
-            checkLifetime v2
+            checkLifetime2 v1 v2
             case mv3 of
                 Nothing -> pure ()
                 Just v -> checkLifetime v
-        Xor v1 v2 -> (checkLifetime v1) >>= (const $ checkLifetime v2)
+        Xor v1 v2 -> checkLifetime2 v1 v2
         Inc v -> checkLifetime v
         Dec v -> checkLifetime v
         Push v -> checkLifetime v
         Pop v -> checkLifetime v
         Int v -> checkLifetime v
-        Cmp v1 v2 -> (checkLifetime v1) >>= (const $ checkLifetime v2)
-        Test v1 v2 -> (checkLifetime v1) >>= (const $ checkLifetime v2)
-        Sal v1 v2 -> (checkLifetime v1) >>= (const $ checkLifetime v2)
-        Sar v1 v2 -> (checkLifetime v1) >>= (const $ checkLifetime v2)
+        Cmp v1 v2 -> checkLifetime2 v1 v2
+        Test v1 v2 -> checkLifetime2 v1 v2
+        Sal v1 v2 -> checkLifetime2 v1 v2
+        Sar v1 v2 -> checkLifetime2 v1 v2
         Jump _ v -> case v of
             Label l -> checkLifetimeForJump l
             _ -> error "unimplemented: error when encountering a jump to something not a label"
@@ -127,7 +129,11 @@ createLifetimes = iterM phi where
         Neg1 v -> checkLifetime v
         Neg2 v -> checkLifetime v
         Setc _ v -> checkLifetime v
-        _ -> error "unimplemented: checkLifetimeForInst"
+        And v1 v2 -> checkLifetime2 v1 v2
+        Or v1 v2 -> checkLifetime2 v1 v2
+        Cvt _ _ v1 v2 -> checkLifetime2 v1 v2
+        Div _ v1 v2 v3 -> checkLifetime3 v1 v2 v3
+        Cqo v1 v2 -> checkLifetime2 v1 v2
 
     -- In the case of a jump, we do some basic control flow analysis to ensure
     -- that the ranges are still correct.

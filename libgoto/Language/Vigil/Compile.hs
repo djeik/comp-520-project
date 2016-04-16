@@ -425,10 +425,67 @@ compileExpr (Ann ty e) = case e of
                 t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ do
                     mov rax r1 -- low 64 bits of dividend
+                    mov t r2
                     cqo rdx rax -- sign extend rax into rdx
-                    idiv rdx rax r2 -- perform the division
+                    idiv rdx rax t -- perform the division
                     mov t rax
                 pure t
+
+            Modulo -> do
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                asm $ do
+                    xor rdx rdx
+                    mov rax r1
+                    mov t r2
+                    cqo rdx rax
+                    idiv rdx rax t
+                    mov t rdx
+                pure t
+
+            ShiftLeft -> do
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                asm $ do
+                    mov t r1
+                    sal t r2
+                pure t
+
+            ShiftRight -> do
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                asm $ do
+                    mov t r1
+                    sar t r2
+                pure t
+
+            BitwiseAnd -> do
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                asm $ do
+                    mov t r1
+                    bwand t r2
+                pure t
+
+            BitwiseOr -> do
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                asm $ do
+                    mov t r1
+                    bwor t r2
+                pure t
+
+            BitwiseAndNot -> do
+                t1 <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                t2 <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                asm $ do
+                    mov t1 r1
+                    mov t2 r2
+                    neg1 t2
+                    bwand t1 t2
+                pure t1
+
+            BitwiseXor -> do
+                t1 <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                asm $ do
+                    mov t1 r1
+                    xor t1 r2
+                pure t1
 
     Unary op v -> case op of
         Positive -> do

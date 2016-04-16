@@ -156,7 +156,11 @@ translate vToH live = iterM phi . ($> pure ()) where
         Setc cond v -> v !~> (setc cond)
         Neg1 v -> v !~> neg1
         Neg2 v -> v !~> neg2
-        _ -> error "unimplemented: translateInst"
+        And v1 v2 -> (v1, v2) ?~> bwand
+        Or v1 v2 -> (v1, v2) ?~> bwor
+        Cvt s1 s2 v1 v2 -> (v1, v2) ?~> cvt s1 s2
+        Div _ v1 v2 v3 -> (v1, v2, v3) &~> idiv
+        Cqo v1 v2 -> (v1, v2) ?~> cqo
 
 
     -- Translates an operand from virtual to hardware, and synthesizes the
@@ -189,6 +193,18 @@ translate vToH live = iterM phi . ($> pure ()) where
                     mov rax v2'
                     fInst v1' rax
             _ -> pure $ fInst v1' v2'
+
+    (&~>)
+        :: (VirtualOperand Int, VirtualOperand Int, VirtualOperand Int)
+        -> (HardwareOperand Int -> HardwareOperand Int -> HardwareOperand Int -> HardwareAsm Int ())
+        -> HardwareTranslation Int (HardwareAsm Int ())
+    (v1, v2, v3) &~> fInst = do
+        (v1', v2', v3') <- (,,) <$> translateOp v1 <*> translateOp v2 <*> translateOp v3
+        case (v1, v2, v3) of
+            (Register (Indirect _), Register (Indirect _), Register (Indirect _)) ->
+                throwError $ InvariantViolation "triple indirection is impossible"
+            _ -> pure ()
+        pure $ fInst v1' v2' v3'
 
     translateOp
         :: VirtualOperand label

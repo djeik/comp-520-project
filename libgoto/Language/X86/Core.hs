@@ -29,6 +29,8 @@ module Language.X86.Core
 , mov
 , add
 , sub
+, bwand
+, bwor
 , mul
 , idiv
 , xor
@@ -133,6 +135,10 @@ data Instruction val
     -- ^ Call a function; 'call'.
     | Mov val val
     -- ^ Move data; 'mov'.
+    | And val val
+    -- ^ Bitwise and; 'and'.
+    | Or val val
+    -- ^ Bitwise or; 'or'.
     | Add val val
     -- ^ Addition; 'add'.
     | Sub val val
@@ -174,7 +180,7 @@ data Instruction val
     | Cvt SseType SseType val val
     -- ^ Convert integers into floats and vice versa
     | Div Signedness val val val
-    -- ^ Signed division
+    -- ^ Signed or unsigned division; 'idiv'.
     | Cqo val val
 
 data SseType
@@ -573,6 +579,12 @@ idiv x y z = liftF . Emit (Div Signed x y z) $ ()
 cqo :: Monad m => Instr2 reg label m ()
 cqo x y = liftF . Emit (Cqo x y) $ ()
 
+bwand :: Monad m => Instr2 reg label m ()
+bwand x y = liftF . Emit (And x y) $ ()
+
+bwor :: Monad m => Instr2 reg label m ()
+bwor x y = liftF . Emit (Or x y) $ ()
+
 -- Pretty printers --
 
 instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
@@ -625,6 +637,8 @@ instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
         prettyInstr instr = case instr of
             Ret -> text "ret"
             Call o -> mnep "call" o
+            And o1 o2 -> mnep2 "and" o1 o2
+            Or o1 o2 -> mnep2 "or" o1 o2
             Mov o1 o2 -> mnep2 "mov" o1 o2
             Add o1 o2 -> mnep2 "add" o1 o2
             Sub o1 o2 -> mnep2 "sub" o1 o2
