@@ -806,7 +806,7 @@ instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
             Sal o1 o2 -> mnep2 "sal" qword o1 qword o2
             Sar o1 o2 -> mnep2 "sar" qword o1 qword o2
             Jump cond o -> (<+> opretty empty o) $ case cond of
-                Unconditionally -> text "jump"
+                Unconditionally -> text "jmp"
                 _ -> text "j" <> prettyCond cond
             Setc cond o -> (<+> opretty empty o) $ case cond of
                 Unconditionally -> error "can't set byte unconditionally"
