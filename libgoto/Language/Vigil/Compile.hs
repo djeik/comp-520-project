@@ -466,13 +466,16 @@ compileExpr (Ann ty e) = case e of
         asm $ scratch Load
 
         case unFix ty of
-            IntType _ -> do
-                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
-                asm $ mov t rax
-                pure t
+            VoidType -> pure rax
+
             FloatType _ -> do
                 t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
                 asm $ mov t (xmm 0)
+                pure t
+
+            _ -> do
+                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+                asm $ mov t rax
                 pure t
 
     InternalCall name vs -> do
