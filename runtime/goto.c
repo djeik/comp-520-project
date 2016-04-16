@@ -57,6 +57,7 @@ void goprint(GOTYPE ty, void* par) {
         case ARRAY_GT: gopanic("Cannot print array types");
         case SLICE_GT: gopanic("Cannot print slice types");
         case STRUCT_GT: gopanic("Cannot print struct types");
+        default: gopanic("Unhandled goprint type");
     }
 }
 
