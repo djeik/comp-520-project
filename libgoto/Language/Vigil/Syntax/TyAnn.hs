@@ -26,7 +26,7 @@ type TyAnnFunDecl
     = FunDecl BasicIdent BasicVarDecl TyAnnStatement
 
 type TyAnnStatementF
-    = StatementF TyAnnExpr TyAnnCondExpr TyAnnRef
+    = StatementF TyAnnExpr TyAnnCondExpr TyAnnRef BasicIdent
 
 type TyAnnStatement
     = Fix TyAnnStatementF

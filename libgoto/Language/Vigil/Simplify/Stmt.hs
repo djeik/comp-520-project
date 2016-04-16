@@ -217,15 +217,14 @@ simplifyStmt = annCata phi where
     declareMany is es = case es of
         -- If there are no expressions, we just record the declarations, and
         -- don't generate anything.
-        [] -> do
-            forM is $ \i -> do
+        [] -> catMaybes <$> (forM is $ \i -> do
                 m <- reinterpretGlobalIdEx i
                 case m of
-                    Nothing -> pure ()
+                    Nothing -> pure Nothing
                     Just i' -> do
                         modify $ \s ->
-                            s {newDeclarations = i':(newDeclarations s) }
-            pure []
+                            s {newDeclarations = (i', False):(newDeclarations s) }
+                        pure $ Just $ Fix $ V.Initialize i')
         -- If there are expressions, we perform some initialization as well.
         _ -> do
             fmap concat $ forM (zip is es) $ \(i, e) -> do
@@ -239,7 +238,7 @@ simplifyStmt = annCata phi where
 makeTempAndDeclare :: V.Type -> Simplify V.BasicIdent
 makeTempAndDeclare ty = do
     t <- makeTemp ty
-    modify (\s -> s {newDeclarations = t:(newDeclarations s) })
+    modify (\s -> s {newDeclarations = (t, True):(newDeclarations s) })
     pure t
 
 -- | Replaces a Maybe list value by Just its contents or an empty list if it's
@@ -272,7 +271,7 @@ declareAndInit i e = do
     case m of
         Nothing -> pure $ s' ++ [Fix $ V.ExprStmt e']
         Just i' -> do
-            modify $ \s -> s {newDeclarations = i':(newDeclarations s) }
+            modify $ \s -> s {newDeclarations = (i', True):(newDeclarations s) }
             pure $ s' ++ [Fix $ V.Assign (Ann (gidTy i') $ ValRef $ IdentVal i') e']
 
 -- | Realizes a simplified expression stack and all its temporaries, taking the
@@ -381,7 +380,7 @@ realizeTemps rs' = do
         Result r -> do
             stmts <- forM (reverse $ tail rs') (\ser -> case ser of
                 Temp (i, c) -> do
-                    modify (\s -> s {newDeclarations = i:(newDeclarations s) })
+                    modify (\s -> s {newDeclarations = (i, True):(newDeclarations s) })
                     -- Build the expression to assign
                     let cTy = typeFromSimple c
                     let tex = case c of
@@ -401,7 +400,7 @@ realizeTemps rs' = do
 -- structure that provides the short-circuiting behavior.
 realizeShortCircuit :: SimpleExprResult -> Simplify (SimpleConstituent, [TyAnnStatement])
 realizeShortCircuit (ShortCircuit t op ls rs) = do
-    modify (\s -> s {newDeclarations = t:(newDeclarations s) })
+    modify (\s -> s {newDeclarations = (t, True):(newDeclarations s) })
 
     (le, ls') <- realizeToCondExpr ls
     (re, rs') <- realizeToCondExpr rs

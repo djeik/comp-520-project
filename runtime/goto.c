@@ -476,7 +476,7 @@ go_array* new_array(int64_t type[]) {
     a->elem_size = storage_size(a->array_type);
     a->backing = malloc(a->len * a->elem_size);
 
-    new_deep_backing_array(a, type + 2);
+    new_deep_backing_array(a, type);
 
     if (consumed_was_0)
         gConsumed = 0;
@@ -528,17 +528,17 @@ void new_deep_backing_array(go_array* a, int64_t type[]) {
         case STRING_GT:
         case ARRAY_GT:
             for (i = 0; i < a->len; i++)
-                INDEX_ARRAY(a, i, go_array) = new_array(type);
+                INDEX_ARRAY(a, i, go_array) = new_array(type + 2);
             break;
 
         case SLICE_GT:
             for (i = 0; i < a->len; i++)
-                INDEX_ARRAY(a, i, go_slice) = new_slice(type);
+                INDEX_ARRAY(a, i, go_slice) = new_slice(type + 2);
             break;
 
         case STRUCT_GT:
             for (i = 0; i < a->len; i++)
-                INDEX_ARRAY(a, i, go_struct) = new_struct(type);
+                INDEX_ARRAY(a, i, go_struct) = new_struct(type + 2);
             break;
     }
 }

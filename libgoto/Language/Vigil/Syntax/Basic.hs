@@ -27,7 +27,7 @@ type BasicFunDecl
 
 -- | 'StatementF' without annotations.
 type BasicStatementF
-    = StatementF BasicExpr BasicCondExpr BasicRef
+    = StatementF BasicExpr BasicCondExpr BasicRef BasicIdent
 
 -- | 'Statement' without annotations.
 type BasicStatement

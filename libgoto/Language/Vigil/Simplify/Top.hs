@@ -27,7 +27,9 @@ import Language.Vigil.Syntax.TyAnn
 import Language.Vigil.Types
 
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Maybe ( catMaybes )
+import Data.Tuple ( swap )
 
 -- | Simplifies a GoLite package into a Vigil program.
 --
@@ -49,7 +51,11 @@ simplifyPackage (Package _ decls) = do
                 Just i' -> Just $ V.VarDecl i'
 
         nis' <- gets newDeclarations
-        let nvs' = map V.VarDecl nis'
+        let nvs' = map (swap . fmap V.VarDecl . swap) nis'
+
+        -- Look at the
+        forM_ nvs' (\(V.VarDecl i, b) ->
+            when (not b) $ modify $ \s -> s { inis = S.insert i $ inis s })
 
         m <- reinterpretGlobalIdEx i
         case m of
@@ -57,18 +63,17 @@ simplifyPackage (Package _ decls) = do
             Just i' -> pure $ Just $ V.FunDecl
                 { _funDeclName = i'
                 , _funDeclArgs = ps'
-                , _funDeclVars = nvs'
+                , _funDeclVars = map fst nvs'
                 , _funDeclBody = concat bod'
                 }
     vs <- forM globs' $ \(G.TopLevelDecl (G.VarDecl (G.VarDeclBody is _ es))) -> do
         case es of
-            -- TODO: in the case of no initialization, perhaps provide a
-            -- default one now?
             [] -> forM is $ \i -> do
                 m <- reinterpretGlobalIdEx i
                 case m of
                     Nothing -> pure (Nothing, [])
-                    Just i' -> pure (Just $ V.VarDecl i', [])
+                    -- Come up with an initializer right here
+                    Just i' -> pure (Just $ V.VarDecl i', [Fix $ V.Initialize i'])
 
             _ -> forM (zip is es) $ \(i, e) -> do
                 m <- reinterpretGlobalIdEx i
@@ -107,11 +112,11 @@ simplifyPackage (Package _ decls) = do
     -- vs: pairs of declarations and their initializing statements
     let vs' = concat vs ++ vs2
     nis <- gets newDeclarations
-    let nvs = map V.VarDecl nis
+    let nvs = map (swap . fmap V.VarDecl . swap) nis
     let fInit = V.FunDecl
                 { _funDeclName = artificialGlobalId (-1) "_init" (funcType [] voidType)
                 , _funDeclArgs = []
-                , _funDeclVars = nvs
+                , _funDeclVars = (map fst nvs)
                 , _funDeclBody = concat $ map snd vs'
                 }
 

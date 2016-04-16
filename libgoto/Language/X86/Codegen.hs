@@ -6,7 +6,7 @@ import qualified Language.Common.GlobalId as Gid
 import Language.Common.Pretty as P
 import Language.GoLite.Types ( stringFromSymbol )
 import Language.Vigil.Compile
-import Language.Vigil.Simplify ( StringLitMap )
+import Language.Vigil.Simplify ( SimplifyState(..) )
 import Language.Vigil.Syntax
 import Language.Vigil.Syntax.TyAnn
 import Language.Vigil.Types
@@ -17,6 +17,7 @@ import Language.X86.Lifetime
 import Language.X86.Virtual
 
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Maybe ( fromMaybe )
 
 data CodegenError
@@ -48,8 +49,8 @@ allocateRegisters v
 
 -- | Compile a type-annotated Vigil program into a full text file that can be
 -- assembled by nasm.
-codegen :: StringLitMap -> TyAnnProgram -> Either (Doc, CodegenError) Doc
-codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
+codegen :: SimplifyState -> TyAnnProgram -> Either (Doc, CodegenError) Doc
+codegen simSt (Program { _globals = globals, _funcs = funcs, _main = main }) = do
 
     let vfuncs
             = vcat (genVirtualFunc <$> funcs)
@@ -67,7 +68,11 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
         text "global _init, _gocode_main" $+$
         text "section .data" $+$ nest indentLevel (
             vcat (
-                map (uncurry genStr) (M.assocs $ strs)
+                map (uncurry genStr) (M.assocs $ strings simSt)
+            )
+            $+$
+            vcat (
+                map genTy $ S.elems $ inis simSt
             )
         ) $+$
         text "section .bss" $+$ nest indentLevel (
@@ -110,6 +115,11 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
                 chars = concatMap ((++ ", ") . show . toC) s ++ " 0"
                 toC c = if c' > 255 then fromEnum '?' else c' where
                     c' = fromEnum c
+
+        genTy :: GlobalId -> Doc
+        genTy (Gid.GlobalId { gidTy = ty, gidOrigName = name })
+            = text (stringFromSymbol name ++ "_ini: dq") <+>
+                (hcat $ punctuate comma $ map P.int $ tail $ deepSerializeType ty)
 
         externs :: [String]
         externs = ["goprint", "from_cstr", "index_slice", "index_array",

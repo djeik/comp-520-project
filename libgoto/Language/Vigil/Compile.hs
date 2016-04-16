@@ -221,6 +221,22 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 -- this is absolutely wrong
                 asm $ mov r o
 
+            Initialize i -> do
+                i' <- lookupIdent i Direct
+                let diRef = mov rdi (Internal $ Direct (stringFromSymbol (gidOrigName i) ++ "_ini"))
+                let cEx s = do
+                        diRef
+                        call (External $ Direct s)
+                        mov i' rax in
+
+                        asm $ case unFix $ gidTy i of
+                                IntType s -> mov i' $ Immediate $ ImmI 0
+                                FloatType _ -> undefined -- TODO
+                                StringType -> cEx "_new_array"
+                                ArrayType _ _ -> cEx "_new_array"
+                                SliceType _ -> cEx "_new_slice"
+                                StructType _ -> cEx "_new_struct"
+
             PrintStmt vs -> forM_ vs $ \(Ann ty v) -> do
                 o <- compileRef v
                 let sty = serializeType ty
@@ -648,7 +664,7 @@ registerClass (Fix ty) = case ty of
     FloatType _ -> FloatingMode
     -- heap-allocated complex data
     StructType {} -> IntegerMode
-    ArrayType _ -> IntegerMode
+    ArrayType _ _ -> IntegerMode
     StringType -> IntegerMode
     -- impossible situations
     FuncType {} -> IntegerMode
@@ -748,6 +764,17 @@ wrapFunction v = do
         pop rbp
         ret
 
+deepSerializeType :: Type -> [Int]
+deepSerializeType = cata f where
+    f ty = case ty of
+        IntType s -> [serializeType $ Fix $ IntType s]
+        FloatType s -> [serializeType $ Fix $ FloatType s]
+        StringType -> [7, 1, serializeType $ Fix $ IntType I1]
+        ArrayType n tyn -> 7:n:tyn
+        SliceType tyn -> 8:tyn
+        StructType fields -> 9:(concat fields)
+        _ -> undefined
+
 -- | Computes an integer representation of a type
 serializeType :: Type -> Int
 serializeType t = case unFix t of
@@ -758,7 +785,7 @@ serializeType t = case unFix t of
         I8 -> 4
     FloatType _ -> 5
     StringType -> 6
-    ArrayType _ -> 7
+    ArrayType _ _ -> 7
     SliceType _ -> 8
     StructType _ -> 9
     _ -> 0

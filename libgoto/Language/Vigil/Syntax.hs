@@ -117,10 +117,12 @@ instance
         text "}"
 
 -- | Vigil statements.
-data StatementF expr cond ref f
+data StatementF expr cond ref ident f
     = ExprStmt expr
     | CondExprStmt cond
     -- ^ Expressions are allowed as statements.
+    | Initialize ident
+    -- ^
     | Assign ref expr
     -- ^ Simple assignments (i.e. not assign-ops) are allowed, but only from an
     -- expression to a ref.
@@ -153,14 +155,17 @@ instance
     ( Pretty expr
     , Pretty cond
     , Pretty ref
-    ) => Pretty (Fix (StatementF expr cond ref)) where
+    , Pretty ident
+    ) => Pretty (Fix (StatementF expr cond ref ident)) where
     pretty = cata f where
         f ::
             ( Pretty expr
             , Pretty cond
             , Pretty ref
-            ) => StatementF expr cond ref Doc -> Doc
+            , Pretty ident
+            ) => StatementF expr cond ref ident Doc -> Doc
         f e' = case e' of
+            Initialize i -> text "initialize " <+> pretty i
             ExprStmt e -> pretty e
             CondExprStmt c -> pretty c
             Assign r e -> pretty r <+> text "=" <+> pretty e

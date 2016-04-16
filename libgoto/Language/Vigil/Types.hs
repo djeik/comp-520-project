@@ -96,9 +96,9 @@ data TypeF subTy
     = IntType IStorage
     | FloatType FStorage
     | StructType
-        { structSize :: Int
+        { structFields :: [subTy]
         }
-    | ArrayType subTy
+    | ArrayType Int subTy
     | SliceType subTy
     | FuncType
         { funcArgs :: [subTy]
@@ -118,8 +118,8 @@ instance Pretty Type where
     pretty (Fix t') = case t' of
         IntType n -> text "int" <> pretty n
         FloatType n -> text "float" <> pretty n
-        StructType fs -> text "struct_" <> pretty fs
-        ArrayType t -> text "[0]" <> pretty t
+        StructType fs -> text "struct_{" <> hcat (map pretty fs) <> text "}"
+        ArrayType i t -> text "[" <> text (show i) <> text "]" <> pretty t
         SliceType t -> text "[]" <> pretty t
         FuncType ps r -> text "func"
             <+> prettyParens True (hcat $ punctuate comma (map pretty ps))
@@ -134,7 +134,7 @@ instance StorageSize (TypeF a) where
         IntType s -> storageSize s
         FloatType s -> storageSize s
         StructType {} -> storageSize ptrStorage
-        ArrayType _ -> storageSize ptrStorage
+        ArrayType _ _ -> storageSize ptrStorage
         SliceType _ -> storageSize ptrStorage
         FuncType {} -> storageSize ptrStorage
         StringType -> storageSize ptrStorage
@@ -161,11 +161,11 @@ intType = Fix . IntType
 floatType :: FStorage -> Type
 floatType = Fix . FloatType
 
-structType :: Int -> Type
+structType :: [Type] -> Type
 structType = Fix . StructType
 
-arrayType :: Type -> Type
-arrayType = Fix . ArrayType
+arrayType :: Int -> Type -> Type
+arrayType n = Fix . (ArrayType n)
 
 sliceType :: Type -> Type
 sliceType = Fix . SliceType
@@ -207,10 +207,11 @@ reinterpretType = cata f where
             args' <- sequence (snd <$> args)
             ret' <- ret
             pure $ funcType args' ret'
-        G.Array _ m -> arrayType <$> m
+        G.Array i m -> (arrayType i) <$> m
         G.Slice m -> sliceType <$> m
         G.Struct { G.structTypeFields = fields } ->
-            structType . sum . map storageSize <$> sequence (snd <$> fields)
+            structType <$> sequence (snd <$> fields)
+            --structType . sum . map storageSize <$> sequence (snd <$> fields)
         G.BuiltinType b -> pure $ builtinType b
 
 -- | Convert a GoLite global identifier into a Vigil global identifier, with
