@@ -616,7 +616,7 @@ compileRef r = case r of
                 asm $ do
                     mov rdi o
                     mov rsi o'
-                    call (External . Direct $ "array_index")
+                    call (External . Direct $ "_array_index")
                     mov (Register . Direct $ v1) rax
                 pure $ Register $ Indirect $ Offset 0 v1
             )

@@ -97,7 +97,7 @@ simplifyPackage (Package _ decls) = do
             ( ( Just $ V.VarDecl g
               , [Fix $ V.Assign
                   (Ann (gidTy g) $ ValRef $ IdentVal g)
-                  (Ann stringType $ V.InternalCall "from_cstr" [IdentVal gi])]
+                  (Ann stringType $ V.InternalCall "_from_cstr" [IdentValD gi])]
               )
             , (gi, str)
             )

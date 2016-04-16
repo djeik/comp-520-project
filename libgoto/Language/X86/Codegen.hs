@@ -64,8 +64,8 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
     pure $
         text "BITS 64" $+$
         text "default rel" $+$
-        vcat (map ((text "extern" <+>) . text) externs) $+$
-        text "global init, gocode_main" $+$
+        vcat (map ((text "extern" <+>) . text . ('_':)) externs) $+$
+        text "global _init, _gocode_main" $+$
         text "section .data" $+$ nest indentLevel (
             vcat (
                 map (uncurry genStr) (M.assocs $ strs)
@@ -95,7 +95,7 @@ codegen strs (Program { _globals = globals, _funcs = funcs, _main = main }) = do
         genFunc func@(FunDecl { _funDeclName = gid }) = do
             hwasm <- HardwareTranslationError <*$> allocateRegisters 0 (runCompiler func)
             pure $
-                text (stringFromSymbol (gidOrigName gid)) <> text ":"
+                text ('_' : stringFromSymbol (gidOrigName gid)) <> text ":"
                 $+$ nest indentLevel (
                     pretty hwasm
                 )
