@@ -65,9 +65,10 @@ translate vToH live = iterM phi . ($> pure ()) where
                 -- Function prologue: make space on the stack for spills, push
                 -- safe registers that are in use throughout this function.
                 Save -> do
-                    off <- gets _currentSpillOffset
+                    off <- negate <$> gets _currentSpillOffset
                     pregs <- S.elems <$> gets _safeRegistersUsed
-                    let stkoff = (negate off `div` 16) * 16
+                    let np = length pregs
+                    let stkoff = alignmentPadding (negate off + np * 8) 16 - np * 8
                     let s = sub rsp (Immediate $ ImmI $ fromIntegral $ stkoff)
 
                     saveCode <- forM pregs $ \(SizedRegister _ reg) -> case reg of
@@ -82,6 +83,9 @@ translate vToH live = iterM phi . ($> pure ()) where
                 Load -> do
                     off <- gets _currentSpillOffset
                     pregs <- S.elems <$> gets _safeRegistersUsed
+                    let np = length pregs
+                    let stkoff = alignmentPadding (negate off + np * 8) 16 - np * 8
+                    let a' = add rsp (Immediate $ ImmI $ fromIntegral $ stkoff)
 
                     -- Obviously, this popping needs to be done in reverse.
                     loadCode <- forM (reverse pregs) $ \(SizedRegister _ reg) -> case reg of
@@ -89,8 +93,6 @@ translate vToH live = iterM phi . ($> pure ()) where
                             "No floating register is safe"
                         IntegerHwRegister r -> pure $ pop $ fixedIntReg64 r
 
-                    let stkoff = (negate off `div` 16) * 16
-                    let a' = add rsp (Immediate $ ImmI $ fromIntegral $ stkoff)
 
                     pure $ sequence_ loadCode >> a'
 
@@ -301,3 +303,11 @@ computeAllocState = foldl (\acc (v, h) -> do
 
 getVRegSize :: SizedVirtualRegister -> RegisterSize
 getVRegSize (SizedRegister sz _) = sz
+
+-- | Computes how many bytes of padding are needed to reach an alignment goal.
+alignmentPadding
+    :: Int -- ^ Current size
+    -> Int -- ^ Alignment goal
+    -> Int -- ^ Number of padding bytes required
+alignmentPadding sz g = g - (sz `div` g)
+{-# INLINE alignmentPadding #-}

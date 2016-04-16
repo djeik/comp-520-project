@@ -760,11 +760,3 @@ serializeType t = case unFix t of
     SliceType _ -> 8
     StructType _ -> 9
     _ -> 0
-
--- | Computes how many bytes of padding are needed to reach an alignment goal.
-alignmentPadding
-    :: Int -- ^ Current size
-    -> Int -- ^ Alignment goal
-    -> Int -- ^ Number of padding bytes required
-alignmentPadding sz g = g - (sz `div` g)
-{-# INLINE alignmentPadding #-}
