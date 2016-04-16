@@ -693,7 +693,7 @@ typecheckExpr xkcd = fixConversions xkcd >>= cata f where
 
             mapM_ (traverse checkIndex) [lo, hi, bound]
 
-            pure (ty', T.Slice e' lo hi bound)
+            pure (Fix $ Ty.Slice ty', T.Slice e' lo hi bound)
 
         TypeAssertion me ty -> do
             e' <- me
