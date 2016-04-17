@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for f in $(find programs/valid-run -type f -name '*.go') ; do
+for f in $(find programs/benchmark programs/valid-run programs/valid-type -type f -name '*.go') ; do
     EXE=${f%.*}
     if [ -x "$EXE" ] ; then
         rm -v "$EXE"
