@@ -130,6 +130,13 @@ createLifetimes = iterM phi where
         Cvt _ _ v1 v2 -> checkLifetime2 v1 v2
         Div _ v1 v2 v3 -> checkLifetime3 v1 v2 v3
         Cqo v1 v2 -> checkLifetime2 v1 v2
+        AddSse _ v1 v2 -> checkLifetime2 v1 v2
+        SubSse _ v1 v2 -> checkLifetime2 v1 v2
+        MulSse _ v1 v2 -> checkLifetime2 v1 v2
+        DivSse _ v1 v2 -> checkLifetime2 v1 v2
+        Pxor v1 v2 -> checkLifetime2 v1 v2
+        Movq v1 v2 -> checkLifetime2 v1 v2
+        CmpSse _ _ v1 v2 -> checkLifetime2 v1 v2
 
     -- In the case of a jump, we do some basic control flow analysis to ensure
     -- that the ranges are still correct.

@@ -275,14 +275,14 @@ simplifyExpr = annCata phi where
 
             let inner = case gidTy i of
                     Fix (V.BuiltinType gTy) -> V.InternalCall (case gTy of
-                        T.AppendType -> "goappend_slice"
-                        T.CapType -> "gocap"
-                        T.CopyType -> "gocopy"
+                        T.AppendType -> mangleFuncName "goappend_slice"
+                        T.CapType -> mangleFuncName "gocap"
+                        T.CopyType -> mangleFuncName "gocopy"
                         T.LenType -> case unFix $ typeFromVal $ head tyPs of
-                            V.ArrayType _ _ -> "golen_array"
-                            V.StringType -> "golen_array"
-                            V.SliceType _ -> "golen_slice"
-                        T.MakeType -> "gomake")
+                            V.ArrayType _ _ -> mangleFuncName "golen_array"
+                            V.StringType -> mangleFuncName "golen_array"
+                            V.SliceType _ -> mangleFuncName "golen_slice"
+                        T.MakeType -> mangleFuncName "gomake")
                     _ -> V.Call i
 
             pure $ (Result $ SimpleExpr $ Ann a' $ inner tyPs):(es ++ es')

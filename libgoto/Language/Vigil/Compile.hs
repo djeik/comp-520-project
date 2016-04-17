@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Language.Vigil.Compile where
 
@@ -22,6 +23,8 @@ import Control.Monad.State
 import Data.Functor.Foldable ( cata )
 import qualified Data.Map as M
 import Data.List ( foldl' )
+
+import Debug.Trace ( trace )
 
 newtype Compiler label a
     = Compiler
@@ -44,7 +47,7 @@ instance MonadVirtualRegisterAllocator (Compiler label) where
 -- | The read-only environment of the function compiler.
 data CompilerEnv label
     = CompilerEnv
-        { _identMap :: M.Map GlobalId (VirtualOperand label)
+        { _identMap :: M.Map GlobalId (RegisterAccessMode, VirtualOperand label)
         -- ^ Precomputed map that assigns each GlobalId used by the function to
         -- a virtual operand that represents that data.
         }
@@ -54,7 +57,7 @@ data CompilerEnv label
 lookupIdent
     :: GlobalId
     -> (String -> Directness String)
-    -> Compiler label (VirtualOperand label)
+    -> Compiler label (RegisterAccessMode, VirtualOperand label)
 lookupIdent gid dir = do
     imap <- asks _identMap
     pure $ case M.lookup gid imap of
@@ -63,12 +66,20 @@ lookupIdent gid dir = do
         Nothing -> case unFix $ gidTy gid of
             -- if it's a builtin, then we have to create an external reference,
             -- which will eventually be linked to the runtime.
-            BuiltinType _ -> External . Direct . stringFromSymbol $ gidOrigName gid
+            BuiltinType _ ->
+                ( IntegerMode
+                , External . Direct . stringFromSymbol $ gidOrigName gid
+                )
             -- anything else is something on the top level, so we generate an
             -- internal reference
-            FuncType {} -> Internal $ Direct $ stringFromSymbol $ gidOrigName gid
+            FuncType {} ->
+                ( IntegerMode
+                , Internal $ Direct $ stringFromSymbol $ gidOrigName gid
+                )
             _ ->
-                Internal $ dir $ stringFromSymbol $ gidOrigName gid
+                ( IntegerMode
+                , Internal $ dir $ stringFromSymbol $ gidOrigName gid
+                )
         Just o -> o
 
 -- | Emit raw assembly.
@@ -87,7 +98,7 @@ data CompilerEnvAllocState label
         { stkOffset :: Displacement
         , intregs :: [IntegerRegister]
         , floatregs :: [Int]
-        , identMap :: M.Map GlobalId (VirtualOperand label)
+        , identMap :: M.Map GlobalId (RegisterAccessMode, VirtualOperand label)
         }
     deriving (Eq, Ord, Read, Show)
 
@@ -98,7 +109,7 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
     = CompilerEnv <$> is where
         is :: VirtualRegisterAllocatorT
             (VirtualAsm label)
-            (M.Map GlobalId (VirtualOperand label))
+            (M.Map GlobalId (RegisterAccessMode, VirtualOperand label))
         is = identMap <$> execStateT go initial
 
         go :: StateT
@@ -108,36 +119,37 @@ makeCompilerEnv (FunDecl { _funDeclArgs = args, _funDeclVars = vars })
         go = do
             forM_ vars $ \(VarDecl gid) -> do
                 v <- case unFix $ gidTy gid of
-                    FloatType _ -> Register . Direct
+                    FloatType _ -> (FloatingMode,) . Register . Direct
                         <$> lift (freshVirtualRegister FloatingMode Extended64)
-                    _ -> Register . Direct
+                    _ -> (IntegerMode,) . Register . Direct
                         <$> lift (freshVirtualRegister IntegerMode Extended64)
 
                 record gid v
 
             forM_ args $ \(VarDecl gid) -> do
                 case unFix $ gidTy gid of
-                    FloatType _ -> paramRegAssign nextfreg xmm' gid
-                    _ -> paramRegAssign nextireg rXx gid
+                    FloatType _ -> paramRegAssign nextfreg FloatingMode xmm' gid
+                    _ -> paramRegAssign nextireg IntegerMode rXx gid
 
         paramRegAssign
             :: StateT
                 (CompilerEnvAllocState label)
                 (VirtualRegisterAllocatorT (VirtualAsm label))
                 (Maybe a)
+            -> RegisterAccessMode
             -> (a -> SizedVirtualRegister)
             -> GlobalId
             -> StateT
                 (CompilerEnvAllocState label)
                 (VirtualRegisterAllocatorT (VirtualAsm label))
                 ()
-        paramRegAssign regAllocator boxer gid = do
+        paramRegAssign regAllocator ram boxer gid = do
             m <- regAllocator
             case m of
-                Just reg -> record gid (Register . Direct $ boxer reg)
+                Just reg -> record gid (ram, Register . Direct $ boxer reg)
                 Nothing -> do
                     offset <- nextparam (8 :: Displacement)
-                    record gid (Register $ Indirect (Offset offset $ rXx Rbp))
+                    record gid (ram, Register $ Indirect (Offset offset $ rXx Rbp))
 
         fixhw64 = SizedRegister Extended64 . FixedHardwareRegister
 
@@ -217,15 +229,15 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
             CondExprStmt cond -> void $ compileCondExpr cond
 
             Assign (Ann ty ref) expr -> do
-                r <- compileRef ref
-                o <- compileExpr expr
+                (ramR, r) <- compileRef ref
+                (ramE, o) <- compileExpr expr
 
                 let copy s = do
                         mov rdi o
                         call (External $ Direct s)
                         mov r rax
 
-                asm $ case unFix ty of
+                asm $ case let t = unFix ty in trace (show t) t of
                     IntType _ -> mov r o
                     FloatType _ -> undefined -- TODO
                     StringType -> copy (mangleFuncName "deepcopy_array")
@@ -234,23 +246,28 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                     StructType _ _ -> copy (mangleFuncName "deepcopy_struct")
 
             Initialize i -> do
-                i' <- lookupIdent i Direct
                 let diRef = mov rdi (Internal $ Direct (stringFromSymbol (gidOrigName i) ++ "_ini"))
-                let cEx s = do
+                let directI = lookupIdent i Direct
+                let indirectI = lookupIdent i (Indirect . Offset 0)
+                let cEx s i' = do
                         diRef
                         call (External $ Direct s)
-                        mov i' rax in
+                        mov i' rax
 
-                        asm $ case unFix $ gidTy i of
-                                IntType _ -> mov i' $ Immediate $ ImmI 0
-                                FloatType _ -> undefined -- TODO
-                                StringType -> cEx (mangleFuncName "new_array")
-                                ArrayType _ _ -> cEx (mangleFuncName "new_array")
-                                SliceType _ -> cEx (mangleFuncName "new_slice")
-                                StructType _ _ -> cEx (mangleFuncName "new_struct")
+                case unFix (gidTy i) of
+                    IntType _ -> do
+                        (ram, i') <- indirectI
+                        asm $ mov i' (Immediate $ ImmI 0)
+                    FloatType _ -> undefined -- TODO
+                    StringType ->
+                        asm . cEx (mangleFuncName "new_array") . snd =<< directI
+                    ArrayType _ _ ->
+                        asm . cEx (mangleFuncName "new_array") . snd =<< directI
+                    SliceType _ ->
+                        asm . cEx (mangleFuncName "new_slice") . snd =<< directI
 
             PrintStmt vs -> forM_ vs $ \(Ann ty v) -> do
-                o <- compileRef v
+                (ram, o) <- compileRef v
                 let sty = serializeType ty
 
                 asm $ withScratch $ do
@@ -259,7 +276,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                     call (External . Direct $ mangleFuncName "goprint")
 
             ReturnStmt (Just (Ann _ ref)) -> do
-                r <- compileRef ref
+                (ram, r) <- compileRef ref
                 asm $ mov rax r
 
             ReturnStmt Nothing -> do
@@ -289,7 +306,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                     -- same.
                     case mg of
                         Just expr -> do
-                            g <- compileExpr expr
+                            (ramG, g) <- compileExpr expr
 
                             forM_ cs $ \(hd, bd) -> do
                                 postCaseBody <- asm newLabel
@@ -305,7 +322,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                                     -- continue/break can appear in these
                                     -- weird contexts
                                     mapM_ ($ none) ec
-                                    e' <- compileExpr e
+                                    (ramE', e') <- compileExpr e
                                     asm $ do
                                         cmp e' g
                                         jump OnEqual (Label preCaseBody)
@@ -336,7 +353,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
 
                                 forM_ hd $ \(e, ec) -> do
                                     mapM_ ($ none) ec
-                                    e' <- compileExpr e
+                                    (ramE, e') <- compileExpr e
                                     asm $ do
                                         test e' e'
                                         jump OnNotEqual (Label preCaseBody)
@@ -392,62 +409,95 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
 
 -- | Generates code to compute the integer absolute value of the given
 -- 'VirutalOperand' in place.
-integerAbs :: VirtualOperand label -> Compiler label ()
+integerAbs :: VirtualOperand label -> Compiler label (VirtualOperand label)
 integerAbs o = do
     t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
+    s <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
     asm $ do
         mov t o
+        mov s o
         sar t (Immediate $ ImmI 31)
-        xor o t
-        sub o t
+        xor s t
+        sub s t
+    pure s
+
+floatingAbs :: VirtualOperand label -> Compiler label (VirtualOperand label)
+floatingAbs o = undefined
 
 -- | Generates the code to evaluate an expression. The computed
--- 'VirtualOperand' contains the result of the expression.
+-- 'VirtualOperand' contains the result of the expression and can be accessed
+-- via the returned mode.
 compileExpr
     :: TyAnnExpr
-    -> Compiler label (VirtualOperand label)
+    -> Compiler label (RegisterAccessMode, VirtualOperand label)
 compileExpr (Ann ty e) = case e of
     Conversion dstTy (Ann srcTy ref) -> do
-        o <- compileRef ref
+        (ram, o) <- compileRef ref
         case (unFix dstTy, unFix srcTy) of
-            (IntType _, IntType _) -> pure o
-            (FloatType _, FloatType _) -> pure o
+            (IntType _, IntType _) -> pure (IntegerMode, o)
+            (FloatType _, FloatType _) -> pure (FloatingMode, o)
             (FloatType _, IntType _) -> do
                 t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
                 asm $ cvt ScalarDouble SingleInteger t o
-                pure t
+                pure (FloatingMode, t)
             (IntType _, FloatType _) -> do
                 t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ cvt SingleInteger ScalarDouble t o
-                pure t
-            _ -> error "wtf?"
+                pure (IntegerMode, t)
+            _ -> error "Impossible conversion"
 
 
     Binary v1 op v2 -> do
-        (r1, r2) <- (,) <$> compileVal v1 <*> compileVal v2
+        ((ram1, r1), (ram2, r2)) <- (,) <$> compileVal v1 <*> compileVal v2
 
-        case op of
-            -- TODO need to implement for floats
-            Plus -> do
-                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
-                asm $ do
-                    mov t r1
-                    add t r2
-                pure t
+        (ram1,) <$> case op of
+            Plus -> case ram1 of
+                IntegerMode -> do
+                    t <- Register . Direct
+                        <$> freshVirtualRegister IntegerMode Extended64
+                    asm $ do
+                        mov t r1
+                        add t r2
+                    pure t
+                FloatingMode -> do
+                    t <- Register . Direct
+                        <$> freshVirtualRegister FloatingMode Extended64
+                    asm $ do
+                        mov t r1
+                        addsse ScalarDouble t r2
+                    pure t
 
-            Minus -> do
-                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
-                asm $ do
-                    mov t r1
-                    sub t r2
-                pure t
+            Minus -> case ram1 of
+                IntegerMode -> do
+                    t <- Register . Direct
+                        <$> freshVirtualRegister IntegerMode Extended64
+                    asm $ do
+                        mov t r1
+                        sub t r2
+                    pure t
+                FloatingMode -> do
+                    t <- Register . Direct
+                        <$> freshVirtualRegister FloatingMode Extended64
+                    asm $ do
+                        mov t r1
+                        subsse ScalarDouble t r2
+                    pure t
 
-            Times -> do
-                t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
-                asm $ do
-                    mov t r1
-                    imul t r2
-                pure t
+            Times -> case ram1 of
+                IntegerMode -> do
+                    t <- Register . Direct
+                        <$> freshVirtualRegister IntegerMode Extended64
+                    asm $ do
+                        mov t r1
+                        imul t r2
+                    pure t
+                FloatingMode -> do
+                    t <- Register . Direct
+                        <$> freshVirtualRegister FloatingMode Extended64
+                    asm $ do
+                        mov t r1
+                        mulsse ScalarDouble t r2
+                    pure t
 
             Divide -> do
                 t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
@@ -519,20 +569,43 @@ compileExpr (Ann ty e) = case e of
         Positive -> do
             -- compute the integer absolute value
             -- http://stackoverflow.com/questions/2639173/x86-assembly-abs-implementation
-            o <- compileVal v
-            integerAbs o
-            pure o
+            (ram, o) <- compileVal v
+            case ram of
+                IntegerMode -> (IntegerMode,) <$> integerAbs o
+                FloatingMode -> (FloatingMode,) <$> floatingAbs o
 
         Negative -> do
-            o <- compileVal v
-            integerAbs o
-            asm $ neg2 o
-            pure o
+            (ram, o) <- compileVal v
+
+            case ram of
+                IntegerMode -> do
+                    t <- Register . Direct
+                        <$> freshVirtualRegister IntegerMode Extended64
+
+                    asm $ do
+                        mov t o
+                        neg2 t
+
+                    pure (IntegerMode, t)
+
+                FloatingMode -> do
+                    t <- Register . Direct
+                        <$> freshVirtualRegister FloatingMode Extended64
+
+                    asm $ do
+                        mov t o
+                        pxor t t
+
+                    pure (FloatingMode, t)
 
         BitwiseNot -> do
-            o <- compileVal v
-            asm $ neg1 o
-            pure o
+            (ram, o) <- compileVal v
+
+            case ram of
+                FloatingMode -> error "invariant violation: bitwise operation on float"
+                IntegerMode -> do
+                    asm $ neg1 o
+                    pure (IntegerMode, o)
 
     Ref (Ann _ r) -> compileRef r
 
@@ -551,10 +624,11 @@ compileExpr (Ann ty e) = case e of
                 $ Rax
             mov t rax
 
-        pure t
+        pure (IntegerMode, t)
 
     T.Call i vs -> do
-        f <- lookupIdent i Direct
+        -- for functions, the access mode will always be integer
+        (ram, f) <- lookupIdent i Direct
 
         asm $ scratch Save
         prepareCall vs
@@ -562,17 +636,17 @@ compileExpr (Ann ty e) = case e of
         asm $ scratch Load
 
         case unFix ty of
-            VoidType -> pure rax
+            VoidType -> pure (IntegerMode, rax)
 
             FloatType _ -> do
                 t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
-                asm $ mov t (xmm 0)
-                pure t
+                asm $ movq t (xmm 0)
+                pure (FloatingMode, t)
 
             _ -> do
                 t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ mov t rax
-                pure t
+                pure (FloatingMode, t)
 
     InternalCall name vs -> do
         asm $ scratch Save
@@ -583,13 +657,13 @@ compileExpr (Ann ty e) = case e of
         case unFix ty of
             FloatType _ -> do
                 t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
-                asm $ mov t (xmm 0)
-                pure t
+                asm $ movq t (xmm 0)
+                pure (FloatingMode, t)
 
             _ -> do
                 t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
                 asm $ mov t rax
-                pure t
+                pure (IntegerMode, t)
 
 -- | Compiles a conditional expression. These translate to comparisons in x86,
 -- which set flags, so the only thing that a called would need to know is which
@@ -599,23 +673,38 @@ compileCondExpr
     -> Compiler label FlagCondition
 compileCondExpr e = case e of
     CondRef (Ann _ ref) -> do
-        r <- compileRef ref
-        asm $ test r r
-        pure OnEqual -- jump if false, so zero
+        (ram, r) <- compileRef ref
+
+        -- this will always be a boolean, so integer
+        case ram of
+            FloatingMode -> error "boolean cannot be floating"
+            IntegerMode -> do
+                asm $ test r r
+                pure OnEqual -- jump if false, so zero
 
     BinCond v1 op v2 -> do
-        let simpleCompare j = do
-                (o1, o2) <- (,) <$> compileVal v1 <*> compileVal v2
-                asm $ cmp o1 o2
-                pure j
+        let simpleCompare j ssep ram o1 o2 = case ram of
+                IntegerMode -> asm (cmp o1 o2) *> pure j
+                FloatingMode -> do
+                    t <- Register . Direct
+                        <$> freshVirtualRegister FloatingMode Extended64
+                    asm $ do
+                        movq t o1
+                        cmpsse SseEqual ScalarDouble t o2
+                        movq rax t
+                        test rax rax
+                    pure OnEqual
 
         -- don't compile v2 just yet so we can respect short-circuiting
         case op of
+            -- both branches of a logical or must be booleans (i.e. integers)
+            -- at this stage, so we can disregard handling floats
             LogicalOr -> do
                 true <- asm newLabel
 
                 -- compile the first operand
-                o1 <- compileVal v1
+                (ram1, o1) <- compileVal v1
+                when (ram1 == FloatingMode) $ error "boolean cannot be floating"
 
                 asm $ do
                     -- if it's true, jump over the second operand
@@ -623,7 +712,9 @@ compileCondExpr e = case e of
                     jump OnNotEqual (Label true)
 
                 -- compile the second operand
-                o2 <- compileVal v2
+                (ram2, o2) <- compileVal v2
+                when (ram2 == FloatingMode) $ error "boolean cannot be floating"
+
                 asm $ do
                     -- set the flags for whether it's true
                     test o2 o2
@@ -637,13 +728,16 @@ compileCondExpr e = case e of
             LogicalAnd -> do
                 false <- asm newLabel
 
-                o1 <- compileVal v1
+                (ram1, o1) <- compileVal v1
+                when (ram1 == FloatingMode) $ error "boolean cannot be floating"
 
                 asm $ do
                     test o1 o1
                     jump OnEqual (Label false)
 
-                o2 <- compileVal v2
+                (ram2, o2) <- compileVal v2
+                when (ram2 == FloatingMode) $ error "boolean cannot be floating"
+
                 asm $ do
                     test o2 o2
 
@@ -653,16 +747,30 @@ compileCondExpr e = case e of
                 -- on ZF = 0, i.e. OnEqual.
                 pure OnEqual
 
-            Equal -> simpleCompare OnNotEqual
-            NotEqual -> simpleCompare OnEqual
-            LessThan -> simpleCompare (OnNotBelow Signed)
-            LessThanEqual -> simpleCompare (OnAbove Signed)
-            GreaterThan -> simpleCompare (OnBelowOrEqual Signed)
-            GreaterThanEqual -> simpleCompare (OnBelow Signed)
+            Equal -> do
+                ((ram1, o1), (ram2, o2)) <- (,) <$> compileVal v1 <*> compileVal v2
+                simpleCompare OnNotEqual SseEqual ram1 o1 o2
+            NotEqual -> do
+                ((ram1, o1), (ram2, o2)) <- (,) <$> compileVal v1 <*> compileVal v2
+                simpleCompare OnEqual SseNotEqual ram1 o1 o2
+            LessThan -> do
+                ((ram1, o1), (ram2, o2)) <- (,) <$> compileVal v1 <*> compileVal v2
+                simpleCompare (OnNotBelow Signed) SseLessThan ram1 o1 o2
+            LessThanEqual -> do
+                ((ram1, o1), (ram2, o2)) <- (,) <$> compileVal v1 <*> compileVal v2
+                simpleCompare (OnAbove Signed) SseLessThanOrEqual ram1 o1 o2
+            GreaterThan -> do
+                ((ram1, o1), (ram2, o2)) <- (,) <$> compileVal v1 <*> compileVal v2
+                invertFlag
+                    <$> simpleCompare (OnAbove Signed) SseLessThanOrEqual ram1 o1 o2
+            GreaterThanEqual -> do
+                ((ram1, o1), (ram2, o2)) <- (,) <$> compileVal v1 <*> compileVal v2
+                invertFlag
+                    <$> simpleCompare (OnNotBelow Signed) SseLessThan ram1 o1 o2
 
     UnCond op v -> case op of
         LogicalNot -> do
-            o <- compileVal v
+            (ram, o) <- compileVal v
             asm $ test o o
             -- need jump to fail if v is false, i.e. the bitwise and works out
             -- to zero, so the jump must succeed if the bitwise and is nonzero
@@ -686,66 +794,71 @@ registerClass (Fix ty) = case ty of
 
 compileVal
     :: TyAnnVal
-    -> Compiler label (VirtualOperand label)
+    -> Compiler label (RegisterAccessMode, VirtualOperand label)
 compileVal val = case val of
     IdentVal ident -> lookupIdent ident (Indirect . Offset 0)
     Literal lit -> compileLiteral lit
     IdentValD ident -> lookupIdent ident Direct
 
+-- | Compile a literal.
+-- The strategy used is to move the literal (as an immediate) into a fresh
+-- virtual register and to return the register. The determined mode of the
+-- register is also returned so callers may determine whether to use integer or
+-- floating point instructions.
 compileLiteral
     :: TyAnnLiteral
-    -> Compiler label (VirtualOperand label)
+    -> Compiler label (RegisterAccessMode, VirtualOperand label)
 compileLiteral (Ann _ lit) = case lit of
     IntLit n -> do
         t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
         asm $ mov t $ Immediate (ImmI $ fromIntegral n)
-        pure t
+        pure (IntegerMode, t)
     FloatLit n -> do
         t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
         asm $ mov t $ Immediate (ImmF n)
-        pure t
+        pure (FloatingMode, t)
     RuneLit n -> do
         t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
         asm $ mov t (Immediate (ImmI $ fromIntegral $ fromEnum n))
-        pure t
+        pure (IntegerMode, t)
 
 compileRef
     :: Ref BasicIdent (Ident ()) TyAnnVal ()
-    -> Compiler label (VirtualOperand label)
+    -> Compiler label (RegisterAccessMode, VirtualOperand label)
 compileRef r = case r of
     ArrayRef i vs -> do
-        i' <- lookupIdent i (Indirect . Offset 0)
+        (ram, i') <- lookupIdent i (Indirect . Offset 0)
         asm $ mov rax i'
-        foldl'
-            (\m v -> do
-                o <- m
-                o' <- compileVal v
-                v1 <- freshVirtualRegister IntegerMode Extended64
-                asm $ do
-                    mov rdi o
-                    mov rsi o'
-                    call (External . Direct $ "index_array")
-                    mov (Register . Direct $ v1) rax
-                pure $ Register $ Direct v1
-            )
-            (pure rax)
-            vs
+        forM_ vs $ \v -> do
+            (ramV, o') <- compileVal v -- ramV will always be IntegerMode
+            -- compilVal will never write to rax, so it's safe to use rax to
+            -- stoew the array pointer
+            asm $ do
+                mov rdi rax
+                mov rsi o'
+                call (External . Direct $ mangleFuncName "index_array")
+
+        t <- freshVirtualRegister IntegerMode Extended64
+
+        -- TODO check ultimate elem type for float
+        asm $ mov (Register $ Direct t) rax
+        pure (IntegerMode, (Register $ Indirect $ Offset 0 t))
 
     SelectRef i sels -> do
-        i' <- lookupIdent i (Indirect . Offset 0)
+        (ram, i') <- lookupIdent i (Indirect . Offset 0)
         asm $ mov rax i'
         foldl'
             (\acc n -> do
-                o <- acc
+                (ramO, o) <- acc
                 v <- freshVirtualRegister IntegerMode Extended64
                 asm $ do
                     mov rdi o
                     mov rsi (Immediate $ ImmI $ fromIntegral n)
                     call (External . Direct $ "struct_field")
                     mov (Register . Direct $ v) rax
-                pure $ Register $ Direct v
+                pure $ (IntegerMode, Register $ Direct v)
             )
-            (pure rax)
+            (pure (IntegerMode, rax))
             sels
 
     SliceRef i slis -> do
@@ -757,9 +870,11 @@ compileRef r = case r of
                 Fix (SliceType _) -> "slice_slice"
                 _ -> error "Unsliceable type"
 
-        i' <- lookupIdent i (Indirect . Offset 0)
+        -- slices are pointers, so this will always be integermode
+        (ram, i') <- lookupIdent i (Indirect . Offset 0)
+
         o <- compileSliceExpr i' (head slis) meth
-        foldl'
+        (IntegerMode,) <$> foldl'
             (\cur idxs -> do
                 o' <- cur
                 compileSliceExpr o' idxs "slice_slice"
@@ -781,9 +896,9 @@ compileSliceExpr
      -> Compiler label (Operand SizedVirtualRegister label1)
 compileSliceExpr o idxs func = do
     let (m, l, h, b) = unMaybeSliceTriple idxs
-    l' <- compileVal l
-    h' <- compileVal h
-    b' <- compileVal b
+    (ramL, l') <- compileVal l
+    (ramH, h') <- compileVal h
+    (ramB, b') <- compileVal b
 
     v <- freshVirtualRegister IntegerMode Extended64
     asm $ do
@@ -824,8 +939,8 @@ prepareCall :: [TyAnnVal] -> Compiler label ()
 prepareCall vals = mapM_ (uncurry assign) (reverse $ zip rams' vals) where
     assign m v = do
         case m of
-            Nothing -> compileVal v >>= asm . push
-            Just r -> compileVal v >>= asm . mov (ihw r)
+            Nothing -> compileVal v >>= asm . push . snd
+            Just r -> compileVal v >>= asm . mov (ihw r) . snd
 
     ihw = Register . Direct . SizedRegister Extended64 . FixedHardwareRegister
 

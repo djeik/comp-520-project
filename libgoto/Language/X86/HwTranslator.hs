@@ -166,6 +166,13 @@ translate vToH live = iterM phi . ($> pure ()) where
         Cvt s1 s2 v1 v2 -> (v1, v2) ?~> cvt s1 s2
         Div _ v1 v2 v3 -> (v1, v2, v3) &~> idiv
         Cqo v1 v2 -> (v1, v2) ?~> cqo
+        AddSse s v1 v2 -> (v1, v2) ?~> addsse s
+        SubSse s v1 v2 -> (v1, v2) ?~> subsse s
+        MulSse s v1 v2 -> (v1, v2) ?~> mulsse s
+        DivSse s v1 v2 -> (v1, v2) ?~> divsse s
+        Pxor v1 v2 -> (v1, v2) ?~> pxor
+        Movq v1 v2 -> (v1, v2) ?~> movq
+        CmpSse s t v1 v2 -> (v1, v2) ?~> cmpsse s t
 
 
     -- Translates an operand from virtual to hardware, and synthesizes the

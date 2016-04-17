@@ -27,12 +27,17 @@ module Language.X86.Core
 , ret
 , call
 , mov
+, movq
 , add
 , sub
-, bwand
-, bwor
 , imul
 , idiv
+, addsse
+, subsse
+, mulsse
+, divsse
+, bwand
+, bwor
 , xor
 , inc
 , dec
@@ -49,8 +54,10 @@ module Language.X86.Core
 , setc
 , neg1
 , neg2
+, pxor
 , cvt
 , cqo
+, cmpsse
   -- *** Miscellaneous operations
 , scratch
 , withScratch
@@ -76,6 +83,7 @@ module Language.X86.Core
 , RegisterSize(..)
 , SizedRegister(..)
 , SseType(..)
+, SsePredicate(..)
 , registerIndex
 , hwxmm
   -- * Misc
@@ -141,6 +149,14 @@ data Instruction val
     -- ^ Bitwise or; 'or'.
     | Add val val
     -- ^ Addition; 'add'.
+    | AddSse SseType val val
+    -- ^ Floating point addition; 'sseadd'.
+    | SubSse SseType val val
+    -- ^ Floating point subtraction; 'ssesub'.
+    | MulSse SseType val val
+    -- ^ Floating point multiplication; 'ssemul'.
+    | DivSse SseType val val
+    -- ^ Floating point division; 'ssediv'.
     | Sub val val
     -- ^ Subtraction; 'sub'.
     | Mul Signedness val val
@@ -182,23 +198,38 @@ data Instruction val
     | Div Signedness val val val
     -- ^ Signed or unsigned division; 'idiv'.
     | Cqo val val
+    -- ^ Extend rax into rdx. Any other combination of operands is invalid.
+    | Pxor val val
+    -- ^ Packed xor
+    | Movq val val
+    -- ^ Move quadwords; 'movq'.
+    | CmpSse SsePredicate SseType val val
 
+-- | An interpretation of a 128-bit value's contents.
 data SseType
     = PackedSingle
+    -- ^ Four packed single-precision floats.
     | PackedDouble
+    -- ^ Two packed double-precision floats.
     | ScalarSingle
+    -- ^ One scalar single-precision float.
     | ScalarDouble
+    -- ^ One scalar double-precision float.
     | SingleInteger
+    -- ^ One scalar 32-bit integer.
     | PackedInteger
+    -- ^ Four packed single-precision integers.
 
-instance Pretty SseType where
-    pretty t = text $ case t of
-        PackedSingle -> "ps"
-        PackedDouble -> "pd"
-        ScalarSingle -> "ss"
-        ScalarDouble -> "sd"
-        SingleInteger -> "si"
-        PackedInteger -> "pi"
+-- | A comparison predicate for SSE data.
+data SsePredicate
+    = SseEqual
+    | SseLessThan
+    | SseLessThanOrEqual
+    | SseUnordered
+    | SseNotEqual
+    | SseNotLessThan
+    | SseNotLessThanOrEqual
+    | SseOrdered
 
 -- | Variants of jumps.
 --
@@ -422,6 +453,385 @@ data RegisterAccessMode
 data SizedRegister reg = SizedRegister RegisterSize reg
     deriving (Eq, Ord, Read, Show)
 
+-- | An operand to an instruction.
+data Operand reg label
+    = Immediate Immediate
+    -- ^ A constant value.
+    | Register (Directness reg)
+    | Label label
+    -- ^ A internal label to a location within the current function.
+    | Internal (Directness String)
+    -- ^ An internal reference, e.g. to another compiled Go function.
+    | External (Directness String)
+    -- ^ An external reference, e.g. to a C function.
+    deriving (Eq, Ord, Read, Show)
+
+-- | Whether access to a memory location is direct or indirect.
+data Directness a
+    = Direct a
+    -- ^ Direct access to data.
+    | Indirect (Offset a)
+    -- ^ Indirect access to data, with an offset.
+    deriving (Eq, Functor, Ord, Read, Show)
+
+data Offset reg
+    = Offset Displacement reg
+    -- ^ A register indirection with a displacement.
+    --
+    -- More space-efficient code can be generated if the displacement is small.
+    deriving (Eq, Functor, Ord, Read, Show)
+
+-- | A multiplier on on an index.
+data Scale
+    = ScaleByte
+    | ScaleShort
+    | ScaleWord
+    | ScaleDword
+    deriving (Eq, Ord, Read, Show)
+
+type Displacement = Int64
+
+data Immediate
+    = ImmF Double
+    | ImmI Word64
+    deriving (Eq, Ord, Read, Show)
+
+-- | Nullary instruction.
+type Instr0 reg label m a = AsmT reg label m a
+
+-- | Unary instruction.
+type Instr1 reg label m a = Operand reg label -> Instr0 reg label m a
+
+-- | Binary instruction.
+type Instr2 reg label m a = Operand reg label -> Instr1 reg label m a
+
+-- | Ternary instruction.
+type Instr3 reg label m a = Operand reg label -> Instr2 reg label m a
+
+prologue :: Monad m => ScratchFlow -> AsmT reg label m ()
+prologue flow = liftF . Prologue flow $ ()
+
+withPrologue :: Monad m => AsmT reg label m a -> AsmT reg label m a
+withPrologue m = do
+    prologue Save
+    x <- m
+    prologue Load
+    pure x
+
+scratch :: Monad m => ScratchFlow -> AsmT reg label m ()
+scratch flow = liftF . Scratch flow $ ()
+
+withScratch :: Monad m => AsmT reg label m a -> AsmT reg label m a
+withScratch m = do
+    scratch Save
+    x <- m
+    scratch Load
+    pure x
+
+-- | 'NewLabel'
+newLabel :: Monad m => AsmT reg label m label
+newLabel = liftF . NewLabel $ id
+
+-- | 'SetLabel'
+setLabel :: Monad m => label -> AsmT reg label m ()
+setLabel l = liftF . SetLabel l $ ()
+
+-- | Defines a new label and immediately sets it to the value obtained from
+-- 'here'.
+newLabelHere :: Monad m => AsmT reg label m label
+newLabelHere = do
+    l <- newLabel
+    setLabel l
+    pure l
+
+-- | 'Emit' 'Ret'
+ret :: Monad m => Instr0 reg label m ()
+ret = liftF . Emit Ret $ ()
+
+call :: Monad m => Instr1 reg label m ()
+call f = liftF . Emit (Call f) $ ()
+
+-- | 'Emit' 'Mov'
+mov :: Monad m => Instr2 reg label m ()
+mov x y = liftF . Emit (Mov x y) $ ()
+
+-- | 'Emit' 'Add'
+add :: Monad m => Instr2 reg label m ()
+add x y = liftF . Emit (Add x y) $ ()
+
+-- | 'Emit' 'Sub'
+sub :: Monad m => Instr2 reg label m ()
+sub x y = liftF . Emit (Sub x y) $ ()
+
+-- | 'Emit' 'Mul'
+imul :: Monad m =>
+       Operand reg label
+    -> Operand reg label
+    -> AsmT reg label m ()
+imul x y = liftF . Emit (Mul Signed x y) $ ()
+
+-- | 'Emit' 'Xor'
+xor :: Monad m => Instr2 reg label m ()
+xor x y = liftF . Emit (Xor x y) $ ()
+
+-- | 'Emit' 'Inc'
+inc :: Monad m => Instr1 reg label m ()
+inc v = liftF . Emit (Inc v) $ ()
+
+-- | 'Emit' 'Dec'
+dec :: Monad m => Instr1 reg label m ()
+dec v = liftF . Emit (Dec v) $ ()
+
+-- | 'Emit' 'Push'
+push :: Monad m => Instr1 reg label m ()
+push v = liftF . Emit (Push v) $ ()
+
+-- | 'Emit' 'Pop'
+pop :: Monad m => Instr1 reg label m ()
+pop v = liftF . Emit (Pop v) $ ()
+
+-- | 'Emit' 'Nop'
+nop :: Monad m => Instr0 reg label m ()
+nop = liftF . Emit Nop $ ()
+
+-- | 'Emit' 'Syscall'
+syscall :: Monad m => Instr0 reg label m ()
+syscall = liftF . Emit Syscall $ ()
+
+-- | 'Emit' 'Int'
+int :: Monad m => Instr1 reg label m ()
+int v = liftF . Emit (Int v) $ ()
+
+-- | 'Emit' 'Cmp'
+cmp :: Monad m => Instr2 reg label m ()
+cmp x y = liftF . Emit (Cmp x y) $ ()
+
+-- | 'Emit' 'Test'
+test :: Monad m => Instr2 reg label m ()
+test x y = liftF . Emit (Test x y) $ ()
+
+-- | 'Emit' 'Sal'
+sal :: Monad m => Instr2 reg label m ()
+sal x y = liftF . Emit (Sal x y) $ ()
+
+-- | 'Emit' 'Sar'
+sar :: Monad m => Instr2 reg label m ()
+sar x y = liftF . Emit (Sar x y) $ ()
+
+-- | 'Emit 'Jump'
+jump :: Monad m => FlagCondition -> Instr1 reg label m ()
+jump v x = liftF . Emit (Jump v x) $ ()
+
+-- | 'Emit' 'Setc'
+setc :: Monad m => FlagCondition -> Instr1 reg label m ()
+setc v x = liftF . Emit (Setc v x) $ ()
+
+-- | 'Emit' 'Neg1'
+neg1 :: Monad m => Instr1 reg label m ()
+neg1 v = liftF . Emit (Neg1 v) $ ()
+
+-- | 'Emit' 'Neg2'
+neg2 :: Monad m => Instr1 reg label m ()
+neg2 v = liftF . Emit (Neg2 v) $ ()
+
+-- | 'Emit' 'Cvt'
+cvt :: Monad m => SseType -> SseType -> Instr2 reg label m ()
+cvt s1 s2 x y = liftF . Emit (Cvt s1 s2 x y) $ ()
+
+-- | 'Emit' 'Div'
+idiv :: Monad m => Instr3 reg label m ()
+idiv x y z = liftF . Emit (Div Signed x y z) $ ()
+
+-- | 'Emit' 'Cqo'
+cqo :: Monad m => Instr2 reg label m ()
+cqo x y = liftF . Emit (Cqo x y) $ ()
+
+-- | 'Emit' 'And'
+bwand :: Monad m => Instr2 reg label m ()
+bwand x y = liftF . Emit (And x y) $ ()
+
+-- | 'Emit' 'Or'
+bwor :: Monad m => Instr2 reg label m ()
+bwor x y = liftF . Emit (Or x y) $ ()
+
+-- | 'Emit' 'AddSse'
+addsse :: Monad m => SseType -> Instr2 reg label m ()
+addsse s x y = liftF . Emit (AddSse s x y) $ ()
+
+-- | 'Emit' 'SubSse'
+subsse :: Monad m => SseType -> Instr2 reg label m ()
+subsse s x y = liftF . Emit (SubSse s x y) $ ()
+
+-- | 'Emit' 'MulSse'
+mulsse :: Monad m => SseType -> Instr2 reg label m ()
+mulsse s x y = liftF . Emit (MulSse s x y) $ ()
+
+-- | 'Emit' 'DivSse'
+divsse :: Monad m => SseType -> Instr2 reg label m ()
+divsse s x y = liftF . Emit (DivSse s x y) $ ()
+
+-- | 'Emit' 'Pxor'
+pxor :: Monad m => Instr2 reg label m ()
+pxor x y = liftF . Emit (Pxor x y) $ ()
+
+-- | 'Emit' 'Movq'
+movq :: Monad m => Instr2 reg label m ()
+movq x y = liftF . Emit (Movq x y) $ ()
+
+cmpsse :: Monad m => SsePredicate -> SseType -> Instr2 reg label m ()
+cmpsse s t x y = liftF . Emit (CmpSse s t x y) $ ()
+
+-- Pretty printers --
+
+instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
+    pretty = flip evalState initial . iter f . ($> pure empty) where
+        initial :: Int
+        initial = 0
+
+        nextNum :: State Int Int
+        nextNum = do
+            n <- get
+            put $ n + 1
+            pure n
+
+        f :: AsmF Int (Operand reg Int) (State Int Doc) -> (State Int Doc)
+        f a = case a of
+            Emit instr next -> ($+$) <$> pure (prettyInstr instr) <*> next
+            NewLabel lf -> lf =<< nextNum
+            SetLabel i m -> ($+$) <$> pure (text "l" <> P.int i <> text ":") <*> m
+            Scratch _ m -> m
+            Prologue _ m -> m
+
+        prettySseCmp :: SsePredicate -> SseType -> Doc
+        prettySseCmp p t = text "cmp" <> pretty p <> pretty t
+
+        opretty :: Pretty reg => Doc -> Operand reg Int -> Doc
+        opretty size op = case op of
+            Immediate imm -> case imm of
+                ImmI i -> P.int (fromIntegral i)
+                ImmF i -> P.double i
+            Register d -> case pretty <$> d of
+                Direct reg -> pretty reg
+                Indirect off -> size <+> prettyBrackets True (offsetp off)
+            Label i -> text "l" <> P.int i
+            Internal d -> case text <$> d of
+                Direct s -> size <+> s
+                Indirect off -> size <+> prettyBrackets True (offsetp off)
+            External d -> case text <$> d of
+                Direct s -> s
+                Indirect off -> size <+> prettyBrackets True (offsetp off)
+
+        offsetp off = case off of
+            Offset d r -> r <+> if d >= 0
+                then text "+" <+> P.int (fromIntegral d)
+                else text "-" <+> P.int (negate $ fromIntegral d)
+
+        opretty2 s1 o1 s2 o2 = opretty s1 o1 <> text "," <+> opretty s2 o2
+
+        mnep :: Pretty reg => Doc -> Doc -> Operand reg Int -> Doc
+        mnep t s o = t <+> opretty s o
+
+        mnep2
+            :: Pretty reg
+            => Doc
+            -> Doc -> Operand reg Int
+            -> Doc -> Operand reg Int
+            -> Doc
+        mnep2 t s1 o1 s2 o2 = t <+> opretty2 s1 o1 s2 o2
+
+        prettyCond :: FlagCondition -> Doc
+        prettyCond cond = text $ case cond of
+            Unconditionally -> error "prettyCond: unconditionally unsupported"
+            OnOverflow -> "o"
+            OnNoOverflow -> "no"
+            OnSign -> "s"
+            OnNoSign -> "ns"
+            OnEqual -> "e"
+            OnNotEqual -> "ne"
+            OnBelow sign -> case sign of
+                Signed -> "l"
+                Unsigned -> "b"
+            OnNotBelow sign -> case sign of
+                Signed -> "nl"
+                Unsigned -> "nb"
+            OnBelowOrEqual sign -> case sign of
+                Signed -> "le"
+                Unsigned -> "be"
+            OnAbove sign -> case sign of
+                Signed -> "g"
+                Unsigned -> "a"
+            OnParityEven -> "pe"
+            OnParityOdd -> "po"
+            OnCounterZero -> "cxz"
+
+        qword = text "QWORD"
+
+        prettyInstr :: Instruction (Operand reg Int) -> Doc
+        prettyInstr instr = case instr of
+            Ret -> text "ret"
+            Call o -> mnep (text "call") empty o
+            And o1 o2 -> mnep2 (text "and") qword o1 qword o2
+            Or o1 o2 -> mnep2 (text "or") qword o1 qword o2
+            Mov o1 o2 -> mnep2 (text "mov") qword o1 qword o2
+            Movq o1 o2 -> mnep2 (text "movq") qword o1 qword o2
+            Add o1 o2 -> mnep2 (text "add") qword o1 qword o2
+            AddSse st o1 o2 -> mnep2 (text "add" <> pretty st) qword o1 qword o2
+            Sub o1 o2 -> mnep2 (text "sub") qword o1 qword o2
+            SubSse st o1 o2 -> mnep2 (text "sub" <> pretty st) qword o1 qword o2
+            Mul sign o1 o2 ->
+                let mnemonic = case sign of Signed -> "imul" ; Unsigned -> "mul" in
+                mnep2 (text mnemonic) qword o1 qword o2
+            MulSse st o1 o2 -> mnep2 (text "mul" <> pretty st) qword o1 qword o2
+            Div sign _ _ o -> (<+> opretty qword o) . text $ case sign of
+                Signed -> "idiv"
+                Unsigned -> "div"
+            DivSse st o1 o2 -> mnep2 (text "div" <> pretty st) qword o1 qword o2
+            Xor o1 o2 -> mnep2 (text "xor") qword o1 qword o2
+            Inc o -> mnep (text "inc") qword o
+            Dec o -> mnep (text "dec") qword o
+            Push o -> mnep (text "push") qword o
+            Pop o -> mnep (text "pop") qword o
+            Nop -> text "nop"
+            Syscall -> text "syscall"
+            Int o -> mnep (text "int") qword o
+            Cmp o1 o2 -> mnep2 (text "cmp") qword o1 qword o2
+            CmpSse p s o1 o2 -> mnep2 (prettySseCmp p s) qword o1 qword o2
+            Test o1 o2 -> mnep2 (text "test") qword o1 qword o2
+            Sal o1 o2 -> mnep2 (text "sal") qword o1 qword o2
+            Sar o1 o2 -> mnep2 (text "sar") qword o1 qword o2
+            Jump cond o -> (<+> opretty empty o) $ case cond of
+                Unconditionally -> text "jmp"
+                _ -> text "j" <> prettyCond cond
+            Setc cond o -> (<+> opretty empty o) $ case cond of
+                Unconditionally -> error "can't set byte unconditionally"
+                _ -> text "set" <> prettyCond cond
+            Neg1 o -> mnep (text "not") qword o
+            Neg2 o -> mnep (text "neg") qword o
+            Cvt t1 t2 o1 o2 ->
+                text "cvt" <> pretty t1 <> pretty t2 <+> opretty2 qword o1 qword o2
+            Cqo _ _ -> text "cqo"
+            Pxor o1 o2 -> mnep2 (text "pxor") qword o1 qword o2
+
+instance Pretty SseType where
+    pretty t = text $ case t of
+        PackedSingle -> "ps"
+        PackedDouble -> "pd"
+        ScalarSingle -> "ss"
+        ScalarDouble -> "sd"
+        SingleInteger -> "si"
+        PackedInteger -> "pi"
+
+instance Pretty SsePredicate where
+    pretty p = text $ case p of
+        SseEqual -> "eq"
+        SseLessThan -> "lt"
+        SseLessThanOrEqual -> "le"
+        SseUnordered -> "unord"
+        SseNotEqual -> "neq"
+        SseNotLessThan -> "nlt"
+        SseNotLessThanOrEqual -> "nle"
+        SseOrdered -> "ord"
+
 instance Pretty (SizedRegister HardwareRegister) where
     pretty (SizedRegister size reg) = text $ case size of
         Low8 -> case reg of
@@ -519,303 +929,3 @@ instance Pretty (SizedRegister HardwareRegister) where
                 R14 -> "r14"
                 R15 -> "r15"
             FloatingHwRegister (FloatingRegister n) -> "xmm" ++ show n
-
--- | An operand to an instruction.
-data Operand reg label
-    = Immediate Immediate
-    -- ^ A constant value.
-    | Register (Directness reg)
-    | Label label
-    -- ^ A internal label to a location within the current function.
-    | Internal (Directness String)
-    -- ^ An internal reference, e.g. to another compiled Go function.
-    | External (Directness String)
-    -- ^ An external reference, e.g. to a C function.
-    deriving (Eq, Ord, Read, Show)
-
--- | Whether access to a memory location is direct or indirect.
-data Directness a
-    = Direct a
-    -- ^ Direct access to data.
-    | Indirect (Offset a)
-    -- ^ Indirect access to data, with an offset.
-    deriving (Eq, Functor, Ord, Read, Show)
-
-data Offset reg
-    = Offset Displacement reg
-    -- ^ A register indirection with a displacement.
-    --
-    -- More space-efficient code can be generated if the displacement is small.
-    deriving (Eq, Functor, Ord, Read, Show)
-
--- | A multiplier on on an index.
-data Scale
-    = ScaleByte
-    | ScaleShort
-    | ScaleWord
-    | ScaleDword
-    deriving (Eq, Ord, Read, Show)
-
-type Displacement = Int64
-data Immediate
-    = ImmF Double
-    | ImmI Word64
-    deriving (Eq, Ord, Read, Show)
-
--- | Nullary instruction.
-type Instr0 reg label m a = AsmT reg label m a
-
--- | Unary instruction.
-type Instr1 reg label m a = Operand reg label -> Instr0 reg label m a
-
--- | Binary instruction.
-type Instr2 reg label m a = Operand reg label -> Instr1 reg label m a
-
--- | Ternary instruction.
-type Instr3 reg label m a = Operand reg label -> Instr2 reg label m a
-
-prologue :: Monad m => ScratchFlow -> AsmT reg label m ()
-prologue flow = liftF . Prologue flow $ ()
-
-withPrologue :: Monad m => AsmT reg label m a -> AsmT reg label m a
-withPrologue m = do
-    prologue Save
-    x <- m
-    prologue Load
-    pure x
-
-scratch :: Monad m => ScratchFlow -> AsmT reg label m ()
-scratch flow = liftF . Scratch flow $ ()
-
-withScratch :: Monad m => AsmT reg label m a -> AsmT reg label m a
-withScratch m = do
-    scratch Save
-    x <- m
-    scratch Load
-    pure x
-
--- | 'NewLabel'
-newLabel :: Monad m => AsmT reg label m label
-newLabel = liftF . NewLabel $ id
-
--- | 'SetLabel'
-setLabel :: Monad m => label -> AsmT reg label m ()
-setLabel l = liftF . SetLabel l $ ()
-
--- | Defines a new label and immediately sets it to the value obtained from
--- 'here'.
-newLabelHere :: Monad m => AsmT reg label m label
-newLabelHere = do
-    l <- newLabel
-    setLabel l
-    pure l
-
--- | 'Emit' 'Ret'
-ret :: Monad m => Instr0 reg label m ()
-ret = liftF . Emit Ret $ ()
-
-call :: Monad m => Instr1 reg label m ()
-call f = liftF . Emit (Call f) $ ()
-
--- | 'Emit' 'Mov'
-mov :: Monad m => Instr2 reg label m ()
-mov x y = liftF . Emit (Mov x y) $ ()
-
--- | 'Emit' 'Add'
-add :: Monad m => Instr2 reg label m ()
-add x y = liftF . Emit (Add x y) $ ()
-
--- | 'Emit' 'Sub'
-sub :: Monad m => Instr2 reg label m ()
-sub x y = liftF . Emit (Sub x y) $ ()
-
--- | 'Emit' 'Mul'
-imul :: Monad m =>
-       Operand reg label
-    -> Operand reg label
-    -> AsmT reg label m ()
-imul x y = liftF . Emit (Mul Signed x y) $ ()
-
-xor :: Monad m => Instr2 reg label m ()
-xor x y = liftF . Emit (Xor x y) $ ()
-
-inc :: Monad m => Instr1 reg label m ()
-inc v = liftF . Emit (Inc v) $ ()
-
-dec :: Monad m => Instr1 reg label m ()
-dec v = liftF . Emit (Dec v) $ ()
-
-push :: Monad m => Instr1 reg label m ()
-push v = liftF . Emit (Push v) $ ()
-
-pop :: Monad m => Instr1 reg label m ()
-pop v = liftF . Emit (Pop v) $ ()
-
-nop :: Monad m => Instr0 reg label m ()
-nop = liftF . Emit Nop $ ()
-
-syscall :: Monad m => Instr0 reg label m ()
-syscall = liftF . Emit Syscall $ ()
-
-int :: Monad m => Instr1 reg label m ()
-int v = liftF . Emit (Int v) $ ()
-
-cmp :: Monad m => Instr2 reg label m ()
-cmp x y = liftF . Emit (Cmp x y) $ ()
-
-test :: Monad m => Instr2 reg label m ()
-test x y = liftF . Emit (Test x y) $ ()
-
-sal :: Monad m => Instr2 reg label m ()
-sal x y = liftF . Emit (Sal x y) $ ()
-
-sar :: Monad m => Instr2 reg label m ()
-sar x y = liftF . Emit (Sar x y) $ ()
-
-jump :: Monad m => FlagCondition -> Instr1 reg label m ()
-jump v x = liftF . Emit (Jump v x) $ ()
-
-setc :: Monad m => FlagCondition -> Instr1 reg label m ()
-setc v x = liftF . Emit (Setc v x) $ ()
-
-neg1 :: Monad m => Instr1 reg label m ()
-neg1 v = liftF . Emit (Neg1 v) $ ()
-
-neg2 :: Monad m => Instr1 reg label m ()
-neg2 v = liftF . Emit (Neg2 v) $ ()
-
-cvt :: Monad m => SseType -> SseType -> Instr2 reg label m ()
-cvt s1 s2 x y = liftF . Emit (Cvt s1 s2 x y) $ ()
-
-idiv :: Monad m => Instr3 reg label m ()
-idiv x y z = liftF . Emit (Div Signed x y z) $ ()
-
-cqo :: Monad m => Instr2 reg label m ()
-cqo x y = liftF . Emit (Cqo x y) $ ()
-
-bwand :: Monad m => Instr2 reg label m ()
-bwand x y = liftF . Emit (And x y) $ ()
-
-bwor :: Monad m => Instr2 reg label m ()
-bwor x y = liftF . Emit (Or x y) $ ()
-
--- Pretty printers --
-
-instance Pretty reg => Pretty (AsmT reg Int Identity ()) where
-    pretty = flip evalState initial . iter f . ($> pure empty) where
-        initial :: Int
-        initial = 0
-
-        nextNum :: State Int Int
-        nextNum = do
-            n <- get
-            put $ n + 1
-            pure n
-
-        f :: AsmF Int (Operand reg Int) (State Int Doc) -> (State Int Doc)
-        f a = case a of
-            Emit instr next -> ($+$) <$> pure (prettyInstr instr) <*> next
-            NewLabel lf -> lf =<< nextNum
-            SetLabel i m -> ($+$) <$> pure (text "l" <> P.int i <> text ":") <*> m
-            Scratch _ m -> m
-            Prologue _ m -> m
-
-        opretty :: Pretty reg => Doc -> Operand reg Int -> Doc
-        opretty size op = case op of
-            Immediate imm -> case imm of
-                ImmI i -> P.int (fromIntegral i)
-                ImmF i -> P.double i
-            Register d -> case pretty <$> d of
-                Direct reg -> pretty reg
-                Indirect off -> size <+> prettyBrackets True (offsetp off)
-            Label i -> text "l" <> P.int i
-            Internal d -> case text <$> d of
-                Direct s -> size <+> s
-                Indirect off -> size <+> prettyBrackets True (offsetp off)
-            External d -> case text <$> d of
-                Direct s -> s
-                Indirect off -> size <+> prettyBrackets True (offsetp off)
-
-        offsetp off = case off of
-            Offset d r -> r <+> if d >= 0
-                then text "+" <+> P.int (fromIntegral d)
-                else text "-" <+> P.int (negate $ fromIntegral d)
-
-        opretty2 s1 o1 s2 o2 = opretty s1 o1 <> text "," <+> opretty s2 o2
-
-        mnep :: Pretty reg => String -> Doc -> Operand reg Int -> Doc
-        mnep t s o = text t <+> opretty s o
-
-        mnep2
-            :: Pretty reg
-            => String
-            -> Doc -> Operand reg Int
-            -> Doc -> Operand reg Int
-            -> Doc
-        mnep2 t s1 o1 s2 o2 = text t <+> opretty2 s1 o1 s2 o2
-
-        prettyCond :: FlagCondition -> Doc
-        prettyCond cond = text $ case cond of
-            Unconditionally -> error "prettyCond: unconditionally unsupported"
-            OnOverflow -> "o"
-            OnNoOverflow -> "no"
-            OnSign -> "s"
-            OnNoSign -> "ns"
-            OnEqual -> "e"
-            OnNotEqual -> "ne"
-            OnBelow sign -> case sign of
-                Signed -> "l"
-                Unsigned -> "b"
-            OnNotBelow sign -> case sign of
-                Signed -> "nl"
-                Unsigned -> "nb"
-            OnBelowOrEqual sign -> case sign of
-                Signed -> "le"
-                Unsigned -> "be"
-            OnAbove sign -> case sign of
-                Signed -> "g"
-                Unsigned -> "a"
-            OnParityEven -> "pe"
-            OnParityOdd -> "po"
-            OnCounterZero -> "cxz"
-
-        qword = text "QWORD"
-
-        prettyInstr :: Instruction (Operand reg Int) -> Doc
-        prettyInstr instr = case instr of
-            Ret -> text "ret"
-            Call o -> mnep "call" empty o
-            And o1 o2 -> mnep2 "and" qword o1 qword o2
-            Or o1 o2 -> mnep2 "or" qword o1 qword o2
-            Mov o1 o2 -> mnep2 "mov" qword o1 qword o2
-            Add o1 o2 -> mnep2 "add" qword o1 qword o2
-            Sub o1 o2 -> mnep2 "sub" qword o1 qword o2
-            Mul sign o1 o2 ->
-                let mnemonic = case sign of Signed -> "imul" ; Unsigned -> "mul" in
-                mnep2 mnemonic qword o1 qword o2
-            Xor o1 o2 -> mnep2 "xor" qword o1 qword o2
-            Inc o -> mnep "inc" qword o
-            Dec o -> mnep "dec" qword o
-            Push o -> mnep "push" qword o
-            Pop o -> mnep "pop" qword o
-            Nop -> text "nop"
-            Syscall -> text "syscall"
-            Int o -> mnep "int" qword o
-            Cmp o1 o2 -> mnep2 "cmp" qword o1 qword o2
-            Test o1 o2 -> mnep2 "test" qword o1 qword o2
-            Sal o1 o2 -> mnep2 "sal" qword o1 qword o2
-            Sar o1 o2 -> mnep2 "sar" qword o1 qword o2
-            Jump cond o -> (<+> opretty empty o) $ case cond of
-                Unconditionally -> text "jmp"
-                _ -> text "j" <> prettyCond cond
-            Setc cond o -> (<+> opretty empty o) $ case cond of
-                Unconditionally -> error "can't set byte unconditionally"
-                _ -> text "set" <> prettyCond cond
-            Neg1 o -> mnep "not" qword o
-            Neg2 o -> mnep "neg" qword o
-            Cvt t1 t2 o1 o2 ->
-                text "cvt" <> pretty t1 <> pretty t2 <+> opretty2 qword o1 qword o2
-            Div sign _ _ o -> (<+> opretty qword o) . text $ case sign of
-                Signed -> "idiv"
-                Unsigned -> "div"
-            Cqo _ _ -> text "cqo"
