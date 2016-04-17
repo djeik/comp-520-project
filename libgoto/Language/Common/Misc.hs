@@ -20,11 +20,13 @@ module Language.Common.Misc
 , enumerate
 , bun
 , bun'
+, whenM
   -- * Convenience re-exports
 , isJust
 , isNothing
 ) where
 
+import Control.Monad ( when )
 import Data.Functor.Foldable ( Fix(..) )
 import Data.Maybe ( isJust, isNothing )
 
@@ -50,6 +52,9 @@ unFix (Fix x) = x
 -- | Enumerates the elements of a list, starting at 1.
 enumerate :: [a] -> [(Int, a)]
 enumerate = zip [1..]
+
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM mb m = flip when m =<< mb
 
 -- | Near-dual of @nub@. Keeps only the elements of a list that have already
 -- been seen before in the list.
