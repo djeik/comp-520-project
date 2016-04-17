@@ -41,6 +41,7 @@ library
     Language.Common.Monad.Traverse
     Language.Common.Misc
     Language.Common.Pretty
+    Language.Cpp.Compile
     Language.GoLite
     Language.GoLite.Lexer
     Language.GoLite.Lexer.Core

@@ -2,10 +2,12 @@
 
 module Main where
 
+import Language.Cpp.Compile ( runCompiler )
 import qualified Language.GoLite as G
 import qualified Language.Vigil as V
 import Language.GoLite.Pretty hiding ( (<>) )
 import Language.GoLite.Syntax.SrcAnn
+import Language.GoLite.Syntax.Typecheck
 import Language.GoLite.Typecheck
 import Language.GoLite.Typecheck.Types
 import Language.X86.Codegen ( codegen )
@@ -50,7 +52,7 @@ data GotoCmd
     = Pretty
         { filename :: InputFile
         }
-    | RoundTrip
+    | Cpp
         { filename :: InputFile
         }
     deriving (Eq, Ord, Read, Show)
@@ -73,6 +75,18 @@ cmdParser
                 ) $
                 briefDesc <>
                 progDesc "Pretty-prints the input."
+            ) <>
+            command "cpp" (
+                info (
+                    Cpp <$> fmap parseInputFile (
+                        strArgument (
+                            metavar "[FILE]" <>
+                            value "-"
+                        )
+                    )
+                ) $
+                briefDesc <>
+                progDesc "Compiles the input file to C++."
             )
         ) <*>
         ( switch
@@ -102,85 +116,70 @@ cmdParser
 noNewLines :: String -> String
 noNewLines = foldr (\a b -> (if a == '\n' then ' ' else a) : b) []
 
+typecheckFile :: Bool -> InputFile -> IO (TySrcAnnPackage, TypecheckState)
+typecheckFile oneErr f = do
+    ex <- parseGoLiteFile f
+    case ex of
+        Left e -> do
+            hPutStrLn stderr $ show e
+            exitFailure
+        Right r -> do
+            case weedGoLiteProgram oneErr r of
+                Just es -> do
+                    hPutStrLn stderr $ renderGoLite (pretty es)
+                    exitFailure
+                Nothing -> do
+                    case runTypecheck (G.typecheckPackage r) of
+                        (Left fatal, _) -> do
+                            print fatal
+                            exitFailure
+                        (Right p, s) -> do
+                            case reverse $ sortBy (comparing typeErrorLocation) (_errors s) of
+                                [] -> do
+                                    pure (p, s)
+
+                                xs -> do
+                                    forM_ (if oneErr then [head xs] else xs) $ \er -> do
+                                        putStrLn (renderGoLite (pretty er))
+                                    exitFailure
+
+dumpSymbolTable :: InputFile -> TypecheckState -> IO ()
+dumpSymbolTable f s = withFile (show f -<.> "symtab") WriteMode $ \h ->
+    let ds = reverse $ dumpedScopes s in
+    forM_ ds $ \(ss, depth) ->
+        hPutStrLn h (renderGoLite $ nest (depth * 4) (pretty ss))
+
 goto :: Goto -> IO ()
 goto g =
     let oneErr = oneError g in
     let dumpSyms = dumpSymTab g in
     case cmd g of
         Pretty f -> do
-            ex <- parseGoLiteFile f
-            case ex of
-                Left e -> hPutStrLn stderr $ noNewLines $ show e
-                Right r -> do
-                    case weedGoLiteProgram oneErr r of
-                        Just es -> do
-                            hPutStrLn stderr $ renderGoLite (pretty es)
-                        Nothing -> do
-                            case runTypecheck (G.typecheckPackage r) of
-                                (Left fatal, _) -> print fatal
-                                (Right p, s) -> do
-                                    case reverse $ sortBy (comparing typeErrorLocation) (_errors s) of
-                                        [] -> case V.runSimplify
-                                                (_nextGid s + 1)
-                                                (V.simplifyPackage p) of
-                                            Left critical -> print critical
-                                            Right (strings, prog) -> do
-                                                when (dumpVigil g) $ do
-                                                    putStrLn $ renderGoLite $ pretty prog
-                                                    exitSuccess
-                                                case codegen strings prog of
-                                                    Right d ->
-                                                        putStrLn .
-                                                        render $
-                                                        d
-                                                    Left (d, e) -> do
-                                                        putStrLn "error:"
-                                                        print e
-                                                        putStrLn "virtual:"
-                                                        putStrLn (render d)
-                                        xs -> forM_ (if oneErr then [head xs] else xs) $ \er -> do
-                                                putStrLn (renderGoLite (pretty er))
+            (p, s) <- typecheckFile oneErr f
+            when (dumpSyms) $ dumpSymbolTable f s
+            case V.runSimplify (_nextGid s + 1) (V.simplifyPackage p) of
+                Left critical -> print critical *> exitFailure
+                Right (strings, prog) -> do
+                    when (dumpVigil g) $ do
+                        putStrLn $ renderGoLite $ pretty prog
+                        exitSuccess
+                    case codegen strings prog of
+                        Right d ->
+                            putStrLn .
+                            render $
+                            d
+                        Left (d, e) -> do
+                            putStrLn "error:"
+                            print e
+                            putStrLn "virtual assembly:"
+                            putStrLn (render d)
+                            exitFailure
 
-                                    when (dumpSyms)
-                                        (withFile (show f -<.> "symtab") WriteMode $ \h ->
-                                            let ds = reverse $ dumpedScopes s in
-                                            forM_ ds $ \(ss, depth) ->
-                                                hPutStrLn h (renderGoLite $ nest (depth * 4) (pretty ss)))
-        RoundTrip f -> do
-            ex <- parseGoLiteFile f
-            case ex of
-                Left e -> do
-                    putStrLn $ "failed to parse input program"
-                    putStrLn $ noNewLines $ show e
-                    exitFailure
-                Right r -> do
-                    case weedGoLiteProgram oneErr r of
-                        Just es -> hPutStrLn stderr $ renderGoLite (pretty es)
-                        Nothing -> do
-                            let s = renderGoLite (pretty r)
-                            case parseOnly G.packageP "<pretty>" s of
-                                Left e -> do
-                                    putStrLn $ "failed to parse pretty-printed program"
-                                    putStrLn $ noNewLines $ show e
-                                    putStrLn $ s
-                                    exitFailure
-                                Right r' -> case weedGoLiteProgram oneErr r of
-                                    Just es -> do
-                                        putStrLn $ "failed to weed pretty-printed program"
-                                        putStrLn $ renderGoLite (pretty es)
-                                        putStrLn $ s
-                                        exitFailure
-                                    Nothing -> do
-                                        let s' = renderGoLite (pretty r')
-                                        case s == s' of
-                                            True -> putStrLn "OK"
-                                            False -> do
-                                                putStrLn "Round-trip failed.\n"
-                                                putStrLn "First pretty-print:"
-                                                putStrLn s
-                                                putStrLn "\nSecond pretty-print:"
-                                                putStrLn s'
-                                                exitFailure
+        Cpp f -> do
+            (p, s) <- typecheckFile oneErr f
+            when (dumpSyms) $ dumpSymbolTable f s
+            let d = runCompiler p
+            putStrLn $ renderGoLite d
 
 weedGoLiteProgram :: Bool -> SrcAnnPackage -> Maybe G.WeederExceptions
 weedGoLiteProgram oneErr p =
