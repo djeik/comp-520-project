@@ -51,6 +51,9 @@ type TySrcAnnVarDecl
 type TySrcAnnFunDecl
     = FunDecl GlobalId TySrcAnnType (Maybe TySrcAnnType) TySrcAnnStatement
 
+type TySrcAnnTypeF
+    = SrcAnnTypeF
+
 -- | A fixed point of 'SrcAnnTypeF' with type and source position annotations.
 type TySrcAnnType
     = TySrcAnnFix SrcAnnTypeF
@@ -75,7 +78,11 @@ type TySrcAnnCaseHead
 
 -- | 'Declaration' with type and source position annotations.
 type TySrcAnnDeclaration
-    = Declaration SrcAnnTypeDecl TySrcAnnVarDecl
+    = Declaration TySrcAnnTypeDecl TySrcAnnVarDecl
+
+-- | 'TypeDecl' with type and source position annotations.
+type TySrcAnnTypeDecl
+    = TypeDecl SrcAnnIdent TySrcAnnType
 
 -- | 'ExprF' with type and source position annotations.
 type TySrcAnnExprF

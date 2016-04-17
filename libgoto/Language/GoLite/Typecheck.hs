@@ -69,7 +69,9 @@ nextGid (Ann a (Ident name)) ty orig = do
     pure Gid.GlobalId
         { gidTy = ty
         , gidNum = n
-        , gidOrigName = Ann a (symbolFromString $ mangleFuncName $ "gocode_" ++ name)
+        , gidOrigName = case unFix ty of
+            BuiltinType _ -> Ann a (symbolFromString $ mangleFuncName $ name)
+            _ -> Ann a (symbolFromString $ mangleFuncName $ "gocode_" ++ name)
         , gidOrigin = orig
         }
 
@@ -342,7 +344,7 @@ typecheckDecl d = case d of
     VarDecl varDeclBody -> VarDecl <$> typecheckVarDecl varDeclBody
 
 -- | Typechecks a source position-annotated 'TypeDecl'.
-typecheckTypeDecl :: SrcAnnTypeDecl -> Typecheck SrcAnnTypeDecl
+typecheckTypeDecl :: SrcAnnTypeDecl -> Typecheck TySrcAnnTypeDecl
 typecheckTypeDecl d = case d of
     TypeDeclBody si@(Ann a (Ident i)) ty -> do
         ty' <- canonicalize ty
@@ -350,7 +352,7 @@ typecheckTypeDecl d = case d of
             { symLocation = SourcePosition a
             , symType = aliasType si (fst (topAnn ty'))
             }
-        pure $ TypeDeclBody (Ann a (Ident i)) ty
+        pure $ TypeDeclBody (Ann a (Ident i)) ty'
 
 -- | Typechecks a source position-annotated 'VarDecl'.
 typecheckVarDecl :: SrcAnnVarDecl -> Typecheck TySrcAnnVarDecl

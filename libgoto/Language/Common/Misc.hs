@@ -21,6 +21,9 @@ module Language.Common.Misc
 , bun
 , bun'
 , whenM
+, sequence2
+, sequence3
+, fmap2
   -- * Convenience re-exports
 , isJust
 , isNothing
@@ -67,3 +70,16 @@ bun' in_ x = fst $ foldr (\c a -> ( if c `in_` (snd a) then c:(fst a) else fst a
                               , c:(snd a)))
                     ([], [])
                     x
+
+sequence2
+    :: (Monad m, Traversable t, Traversable t1)
+    => t (t1 (m a)) -> m (t (t1 a))
+sequence2 = sequence . fmap sequence
+
+sequence3
+    :: (Monad m, Traversable t, Traversable t1, Traversable t2)
+    => t (t1 (t2 (m a))) -> m (t (t1 (t2 a)))
+sequence3 = sequence2 . fmap (fmap sequence)
+
+fmap2 :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
+fmap2 f = fmap (fmap f)
