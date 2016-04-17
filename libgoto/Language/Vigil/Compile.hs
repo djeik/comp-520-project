@@ -815,7 +815,10 @@ compileLiteral (Ann _ lit) = case lit of
         pure (IntegerMode, t)
     FloatLit n -> do
         t <- Register . Direct <$> freshVirtualRegister FloatingMode Extended64
-        asm $ mov t $ Immediate (ImmF n)
+        asm $ do
+            pxor t t
+            mov rax $ Immediate (ImmF n)
+            movq t rax
         pure (FloatingMode, t)
     RuneLit n -> do
         t <- Register . Direct <$> freshVirtualRegister IntegerMode Extended64
