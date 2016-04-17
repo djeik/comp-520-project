@@ -25,6 +25,7 @@ import Language.Vigil.Simplify.Stmt
 import Language.Vigil.Syntax as V
 import Language.Vigil.Syntax.TyAnn
 import Language.Vigil.Types
+import Language.X86.Mangling
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -102,7 +103,11 @@ simplifyPackage (Package _ decls) = do
             ( ( Just $ V.VarDecl g
               , [Fix $ V.Assign
                   (Ann (gidTy g) $ ValRef $ IdentVal g)
-                  (Ann stringType $ V.InternalCall "from_cstr" [IdentValD gi])]
+                  (Ann stringType $ V.InternalCall
+                    (mangleFuncName "from_cstr")
+                    [IdentValD gi]
+                  )
+                ]
               )
             , (gi, str)
             )
@@ -114,7 +119,10 @@ simplifyPackage (Package _ decls) = do
     nis <- gets newDeclarations
     let nvs = map (swap . fmap V.VarDecl . swap) nis
     let fInit = V.FunDecl
-                { _funDeclName = artificialGlobalId (-1) "gocode_init" (funcType [] voidType)
+                { _funDeclName = artificialGlobalId
+                    (-1)
+                    (mangleFuncName "gocode_init")
+                    (funcType [] voidType)
                 , _funDeclArgs = []
                 , _funDeclVars = (map fst nvs)
                 , _funDeclBody = concat $ map snd vs'

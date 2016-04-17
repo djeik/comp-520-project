@@ -28,6 +28,7 @@ import Language.Vigil.Syntax as V
 import Language.Vigil.Syntax.Basic as V
 import Language.Vigil.Syntax.TyAnn as V
 import Language.Vigil.Types as V
+import Language.X86.Mangling
 
 import Language.Common.Pretty
 import Language.Common.Misc ( unFix )
@@ -307,12 +308,12 @@ simplifyExpr = annCata phi where
                     Right x -> do
                         let name = stringFromSymbol (gidOrigName x)
                         if gidTy i == untypedBoolType
-                            then if name == "gocode_true"
+                            then if name == mangleFuncName "gocode_true"
                                 then pure [
                                     Result . SimpleVal . V.Literal $
                                     Ann V.boolType (V.IntLit 1)
                                 ]
-                                else if name == "gocode_false"
+                                else if name == mangleFuncName "gocode_false"
                                 then pure [
                                     Result . SimpleVal . V.Literal $
                                     Ann V.boolType (V.IntLit 0)

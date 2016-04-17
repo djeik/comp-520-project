@@ -13,6 +13,7 @@ import Language.Vigil.Syntax.TyAnn
 import Language.Vigil.Syntax.Basic
 import Language.Vigil.Types
 import Language.X86.Core
+import Language.X86.Mangling ( mangleFuncName )
 import Language.X86.Virtual
 import Language.X86.Virtual.Registers
 
@@ -227,10 +228,10 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 asm $ case unFix ty of
                     IntType _ -> mov r o
                     FloatType _ -> undefined -- TODO
-                    StringType -> copy "deepcopy_array"
-                    ArrayType _ _ -> copy "deepcopy_array"
-                    SliceType _ -> copy "shallowcopy_slice"
-                    StructType _ -> copy "deepcopy_struct"
+                    StringType -> copy (mangleFuncName "deepcopy_array")
+                    ArrayType _ _ -> copy (mangleFuncName "deepcopy_array")
+                    SliceType _ -> copy (mangleFuncName "shallowcopy_slice")
+                    StructType _ -> copy (mangleFuncName "deepcopy_struct")
 
             Initialize i -> do
                 i' <- lookupIdent i Direct
@@ -243,10 +244,10 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                         asm $ case unFix $ gidTy i of
                                 IntType _ -> mov i' $ Immediate $ ImmI 0
                                 FloatType _ -> undefined -- TODO
-                                StringType -> cEx "new_array"
-                                ArrayType _ _ -> cEx "new_array"
-                                SliceType _ -> cEx "new_slice"
-                                StructType _ -> cEx "new_struct"
+                                StringType -> cEx (mangleFuncName "new_array")
+                                ArrayType _ _ -> cEx (mangleFuncName "new_array")
+                                SliceType _ -> cEx (mangleFuncName "new_slice")
+                                StructType _ -> cEx (mangleFuncName "new_struct")
 
             PrintStmt vs -> forM_ vs $ \(Ann ty v) -> do
                 o <- compileRef v
@@ -255,7 +256,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                 asm $ withScratch $ do
                     mov rdi (Immediate $ ImmI $ fromIntegral sty)
                     mov rsi o
-                    call (External . Direct $ "goprint")
+                    call (External . Direct $ mangleFuncName "goprint")
 
             ReturnStmt (Just (Ann _ ref)) -> do
                 r <- compileRef ref

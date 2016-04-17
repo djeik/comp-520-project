@@ -102,6 +102,7 @@ library
     Language.X86.HwAllocator
     Language.X86.HwTranslator
     Language.X86.Lifetime
+    Language.X86.Mangling
     Language.X86.Virtual
     Language.X86.Virtual.Registers
 

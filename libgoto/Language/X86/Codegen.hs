@@ -14,6 +14,7 @@ import Language.X86.Hardware
 import Language.X86.HwAllocator
 import Language.X86.HwTranslator
 import Language.X86.Lifetime
+import Language.X86.Mangling
 import Language.X86.Virtual
 
 import qualified Data.Map as M
@@ -47,6 +48,13 @@ allocateRegisters v
         lifetimeMap = computeLifetimes v
         pairings = allocate lifetimeMap
 
+globalLine = concat
+    [ "global "
+    , mangleFuncName "gocode_init"
+    , ", "
+    , mangleFuncName "gocode_main"
+    ]
+
 -- | Compile a type-annotated Vigil program into a full text file that can be
 -- assembled by nasm.
 codegen :: SimplifyState -> TyAnnProgram -> Either (Doc, CodegenError) Doc
@@ -65,7 +73,7 @@ codegen simSt (Program { _globals = globals, _funcs = funcs, _main = main }) = d
         text "BITS 64" $+$
         text "default rel" $+$
         vcat (map ((text "extern" <+>) . text) externs) $+$
-        text "global gocode_init, gocode_main" $+$
+        text globalLine $+$
         text "section .data" $+$ nest indentLevel (
             vcat (
                 map (uncurry genStr) (M.assocs $ strings simSt)
@@ -122,8 +130,25 @@ codegen simSt (Program { _globals = globals, _funcs = funcs, _main = main }) = d
                 (hcat $ punctuate comma $ map P.int $ tail $ deepSerializeType ty)
 
         externs :: [String]
-        externs = ["goprint", "from_cstr", "index_slice", "index_array",
-            "slice_slice", "slice_array", "golen_slice", "golen_array",
-            "goappend_slice", "concat_strings", "gocopy", "gocap", "gopanic",
-            "gomake", "deepcopy_struct", "deepcopy_array", "shallowcopy_slice",
-            "new_array", "new_slice", "new_struct"]
+        externs = map mangleFuncName
+            [ "goprint"
+            , "from_cstr"
+            , "index_slice"
+            , "index_array"
+            , "slice_slice"
+            , "slice_array"
+            , "golen_slice"
+            , "golen_array"
+            , "goappend_slice"
+            , "concat_strings"
+            , "gocopy"
+            , "gocap"
+            , "gopanic"
+            , "gomake"
+            , "deepcopy_struct"
+            , "deepcopy_array"
+            , "shallowcopy_slice"
+            , "new_array"
+            , "new_slice"
+            , "new_struct"
+            ]

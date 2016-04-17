@@ -27,6 +27,7 @@ import qualified Language.Common.GlobalId as Gid
 import Language.GoLite.Types ( symbolFromString, Symbol )
 import Language.Vigil.Syntax.Basic
 import Language.Vigil.Types
+import Language.X86.Mangling
 
 -- | The @Simplify@ monad is a traversal that cannot throw errors, and uses an
 -- internal state to keep track of the simplification process.
@@ -96,7 +97,8 @@ makeString str = do
     let g = Gid.GlobalId
             { Gid.gidNum = num
             , Gid.gidTy = stringType
-            , Gid.gidOrigName = symbolFromString $ "strlit" ++ show num
+            , Gid.gidOrigName
+                = symbolFromString $ mangleFuncName ("strlit" ++ show num)
             , Gid.gidOrigin = Gid.Local
             }
     recordString g str

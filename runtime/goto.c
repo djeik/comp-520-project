@@ -30,7 +30,7 @@ is, while the Go spec determines that it follows the IEEE-754 format.
 #include "goto.h"
 
 extern void gocode_main(void);
-extern void init(void);
+extern void gocode_init(void);
 
 /* Used by the print, println builtins. */
 void goprint(GOTYPE ty, void* par) {
