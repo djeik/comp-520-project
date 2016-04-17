@@ -1,3 +1,15 @@
+// 0
+// 8
+// 13
+// 17
+// 44
+// 53
+// 65
+// 66
+// 72
+// 79
+//.
+
 //we sort numbers using a heap
 package heapsort
 
@@ -94,5 +106,7 @@ func main(){
 
   var sorted []int
   sorted = getSortedList()
-  // sorted now contains a sorted list of our numbers
+  for i := 0 ; i < len(sorted) ; i++ {
+      println(sorted[i])
+  }
 }

@@ -1,5 +1,3 @@
-// Lucille's sqrt func //
-/* ------------------- */
 package main
 
 func sqrt(x float64) float64 {
@@ -11,4 +9,7 @@ func sqrt(x float64) float64 {
 		guess = 0.5 * (guess + quot)
 	}
 	return guess
+}
+
+func main() {
 }
