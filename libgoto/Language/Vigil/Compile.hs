@@ -231,7 +231,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                     StringType -> copy (mangleFuncName "deepcopy_array")
                     ArrayType _ _ -> copy (mangleFuncName "deepcopy_array")
                     SliceType _ -> copy (mangleFuncName "shallowcopy_slice")
-                    StructType _ -> copy (mangleFuncName "deepcopy_struct")
+                    StructType _ _ -> copy (mangleFuncName "deepcopy_struct")
 
             Initialize i -> do
                 i' <- lookupIdent i Direct
@@ -247,7 +247,7 @@ compileFunction decl = wrapFunction $ compileBody none $ _funDeclBody decl where
                                 StringType -> cEx (mangleFuncName "new_array")
                                 ArrayType _ _ -> cEx (mangleFuncName "new_array")
                                 SliceType _ -> cEx (mangleFuncName "new_slice")
-                                StructType _ -> cEx (mangleFuncName "new_struct")
+                                StructType _ _ -> cEx (mangleFuncName "new_struct")
 
             PrintStmt vs -> forM_ vs $ \(Ann ty v) -> do
                 o <- compileRef v
@@ -872,7 +872,7 @@ deepSerializeType = cata f where
         StringType -> [7, 1, serializeType $ Fix $ IntType I1]
         ArrayType n tyn -> 7:n:tyn
         SliceType tyn -> 8:tyn
-        StructType fields -> 9:(concat $ map snd fields)
+        StructType fields sz -> 9:(length fields):sz:(concat $ map snd fields)
         _ -> error "Type cannot be deep-serialized"
 
 -- | Computes an integer representation of a type
@@ -887,5 +887,5 @@ serializeType t = case unFix t of
     StringType -> 6
     ArrayType _ _ -> 7
     SliceType _ -> 8
-    StructType _ -> 9
+    StructType _ _ -> 9
     _ -> 0

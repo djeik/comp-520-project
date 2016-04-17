@@ -55,6 +55,7 @@ import qualified Language.Common.GlobalId as Gid
 import qualified Language.GoLite.Types as G
 
 import Data.Functor.Foldable ( Fix(..), cata )
+import Data.Either ( rights )
 
 -- | A storage requirement for an integer.
 data IStorage
@@ -98,6 +99,7 @@ data TypeF subTy
     | FloatType FStorage
     | StructType
         { structFields :: [(String, subTy)]
+        , structSize :: Int
         }
     | ArrayType Int subTy
     | SliceType subTy
@@ -119,7 +121,7 @@ instance Pretty Type where
     pretty (Fix t') = case t' of
         IntType n -> text "int" <> pretty n
         FloatType n -> text "float" <> pretty n
-        StructType fs -> text "struct_{"
+        StructType fs _ -> text "struct_{"
             <> hcat (punctuate comma (map (\(i, ty) -> text (i ++ ": ") <> pretty ty) fs))
             <> text "}"
         ArrayType i t -> text "[" <> text (show i) <> text "]" <> pretty t
@@ -164,8 +166,8 @@ intType = Fix . IntType
 floatType :: FStorage -> Type
 floatType = Fix . FloatType
 
-structType :: [(String, Type)] -> Type
-structType = Fix . StructType
+structType :: [(String, Type)] -> Int -> Type
+structType f = Fix . (StructType f)
 
 arrayType :: Int -> Type -> Type
 arrayType n = Fix . (ArrayType n)
@@ -213,8 +215,9 @@ reinterpretType = cata f where
         G.Array i m -> (arrayType i) <$> m
         G.Slice m -> sliceType <$> m
         G.Struct { G.structTypeFields = fields } ->
+            let totSz = sum $ rights $ map (fmap storageSize . snd) fields in
             let p = map (\(i, e) -> (G.stringFromSymbol $ bare i,) <$> e) fields in
-            structType <$> sequence p
+            (\x -> structType x totSz) <$> sequence p
         G.BuiltinType b -> pure $ builtinType b
 
         --(\i e -> (G.stringFromSymbol $ bare i , e))

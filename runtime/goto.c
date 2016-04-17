@@ -586,17 +586,19 @@ void new_deep_backing_array(go_array* a, int64_t type[]) {
     }
 }
 
+
 /* Recursively creates and initializes a struct. */
 go_struct* new_struct(int64_t type[]) {
     int consumed_was_0 = !gConsumed;
 
     /* By monitoring gConsumed around recursive calls, we figure out how those
     calls have progressed in the type array. This variable tracks this.*/
-    int64_t inner_consumption = 1;
+    int64_t inner_consumption = 2;
     go_struct* s = malloc(sizeof(go_struct));
     s->num_fields = type[0];
     s->types = malloc(sizeof(GOTYPE) * s->num_fields);
     s->offsets = malloc(sizeof(int64_t) * s->num_fields);
+    s->fields = malloc(type[1]);
 
     int64_t i = 0;
     int64_t old_consumed;

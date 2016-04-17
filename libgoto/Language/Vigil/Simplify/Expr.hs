@@ -156,7 +156,7 @@ simplifyExpr = annCata phi where
             case e' of
                 ((Result e''):es) -> do
                     id'' <- case typeFromSimple e'' of
-                        Fix (V.StructType fs) -> getFieldIEx (G.unIdent $ bare id') fs
+                        Fix (V.StructType fs _) -> getFieldIEx (G.unIdent $ bare id') fs
                         _ -> throwError $ InvariantViolation "Selector with non-struct selectee"
 
                     case e'' of
