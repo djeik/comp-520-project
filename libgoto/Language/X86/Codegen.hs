@@ -151,4 +151,5 @@ codegen simSt (Program { _globals = globals, _funcs = funcs, _main = main }) = d
             , "new_array"
             , "new_slice"
             , "new_struct"
+            , "struct_field"
             ]
