@@ -3,4 +3,7 @@
 /cabal.sandbox.config
 *.o
 *.asm
+*.aux
+*.log
+*.out
 *.cpp
