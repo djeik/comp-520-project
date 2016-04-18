@@ -11,6 +11,7 @@ import Language.GoLite.Syntax.SrcAnn
 import Language.GoLite.Syntax.Types as Syn
 import Language.GoLite.Syntax.Typecheck
 import Language.GoLite.Types as T
+import Language.X86.Mangling
 
 import Control.Monad.State
 import qualified Data.Map as M
@@ -66,10 +67,10 @@ compileCpp (Package (Ann _ (Ident packageName)) topLevelDecls) = do
         text "#include \"goto.hpp\"" $+$
         text "using namespace std;" $+$
         preamble $+$
-        text "bool gocode_true = true;" $+$
-        text "bool gocode_false = false;" $+$
+        text "bool" <+> text (mangleFuncName "gocode_true") <+> text "= true;" $+$
+        text "bool" <+> text (mangleFuncName "gocode_false") <+> text "= false;" $+$
         vcat (map ($ decided) decls) $+$
-        text "int main() { gocode_main(); }"
+        text "int main() {" <+> text (mangleFuncName "gocode_main") <> text "(); }"
 
 decideTypes :: [Type] -> Compiler (Doc, M.Map Type Doc)
 decideTypes = foldr phi (pure (empty, M.empty)) . enumerate where
