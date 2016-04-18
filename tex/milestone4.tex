@@ -15,7 +15,7 @@
 \section{Introduction}
 \label{sec:intro}
 
-Goto is our compiler for GoLite, a subset of the Go language. It is written in Haskell and targets x86-64 assembly respecting the System V application binary interface (ABI). Our reasons for these choices, and indeed the choice of writing a compiler at all, are both philosophical and practical. From a philosophical perspective, compilers are one of the most general and powerful abstractions one can think of: they are at the core a transformation from one structured data type to another. Compiler design is at the intersection of the theory of computation, algorithm design, programming languages and engineering. Furthermore, the techniques and material learned while building a compiler apply to a wide range of problems. It would thus be foolish to not take this opportunity to learn as much as we can on all the phases of compiler design.
+Goto is our compiler for GoLite, a subset of the Go language. It is written in Haskell and targets x86-64 assembly respecting the System V application binary interface (ABI) and C++. Our reasons for these choices, and indeed the choice of writing a compiler at all, are both philosophical and practical. From a philosophical perspective, compilers are one of the most general and powerful abstractions one can think of: they are at the core a transformation from one structured data type to another. Compiler design is at the intersection of the theory of computation, algorithm design, programming languages and engineering. Furthermore, the techniques and material learned while building a compiler apply to a wide range of problems. It would thus be foolish to not take this opportunity to learn as much as we can on all the phases of compiler design.
 
 On a more practical perspective, it is important to us to compile to a widely-used platform so that our code can run on as many machines as possible. This relates to the primary goal of compilers, which is to enable programmers to use abstractions and free themselves from minute hardware details in order to multiply the effect they can have on the world. 
 
@@ -69,7 +69,7 @@ As a two-person team, the communication overhead was greatly reduced and many ta
 	\hline
 	Simplify & Global identifier management, identifier renaming, IR type system & IR grammar, AST-to-IR conversion \\
 	\hline
-	Compile & Compilation of IR to virtual assembly, pretty-printing of hardware and virtual assembly & Register allocation, virtual-to-hardware translation, C runtime \\
+	Compile & Compilation of IR to virtual assembly, pretty-printing of hardware and virtual assembly, C++ code generator & Register allocation, virtual-to-hardware translation, C runtime \\
 	\hline 
 	\end{tabular}
 	\caption{Division of labor in team 04}
@@ -83,18 +83,18 @@ This section deals with the actual guts of the compiler and is as such much more
 
 \subsection{GoLite AST generation}
 \label{sec:ph_parse}
-The Haskell Parsec library brought the idea of monadic parser combinators into the mainstream and essentially pioneered this kind of parsing as an alternative to the more traditional lexer/parser generators. Rather than describe the grammar of the language to parse in a domain-specific language such as Sable, Parsec lets the programmer describe a parser in an intuitive embedded combinators that benefit from the full strength of Haskell. We are using a fork of Parsec called Megaparsec that includes even more advanced combinators that greatly facilitate the writing of certain kinds of common parsers (notably basic whitespace and token handling, as well as sequences of parsers).
+The Haskell Parsec library brought the idea of monadic parser combinators into the mainstream and essentially pioneered this kind of parsing as an alternative to the more traditional lexer/parser generators. Rather than describe the grammar of the language to parse in a domain-specific language such as Sable, Parsec lets the programmer describe a parser using intuitive \emph{embedded} combinators that benefit from the full strength of Haskell. We are using a fork of Parsec called Megaparsec that includes even more advanced combinators that greatly facilitate the writing of certain kinds of common parsers (notably basic whitespace and token handling, as well as sequences of parsers).
 
 We decided to write idiomatic Parsec code by having small, highly-combinable parsing functions (which we call parsers for short). Those were then put together to form the more complex statement, declaration and expression parsers. It is important to note here that the distinction between lexing and parsing is blurred here: our most basic combinators are still called ``parsers'', but perform very simple tasks such as consuming whitespace, or words, or various operator symbols. Parsec handles infinite lookahead and easy backtracking (in fact, some would say \emph{too} easy), which means our grammar is very straightforwardly specified as the code that parses a GoLite source file.
 
 In order to handle semicolon insertion properly, we decided to use a State/Exception monad (the \texttt{Semi} monad) and write various combinators to make our parsers work with this monad. The benefits of this approach are twofold. First, we do not have to modify the underlying source file, therefore preserving position information for error messages. Second, we can write our parsers in a mostly semicolon-agnostic way, and combine them with the \texttt{Semi} monad whenever actual handling is required. This was useful to handle some tricky cases, such as simple statements always requiring semicolons except in the post-iteration position of a for loop, or blocks always requiring semicolons except in the case of an if/else statement, or even comments triggering semicolon insertion.
 
-The result of this first pass is a source-annotated GoLite syntax tree. These source annotations are used in subsequent phases for error reporting. The first place where this occurs is of course the weeding phase, which deals with rejecting various classes of invalid programs. Since we have essentially the most powerful grammar possible (executable code), it is mostly a matter of convenience as to what ends up in the weeder checks vs. earlier parser checks. The general rule we used was that if it involved checking the state of more than one tree node at a time, it should go in the weeder. This divide is quite natural. For example, lvalue checks occur at the parser level, since they can be done entirely by looking at a parsed expression when building an assignment node. On the other hand, function termination analysis involves going down over potentially several paths of the tree to check that all of them end in a terminating statement (whose definition is actually quite complex and includes \href{https://golang.org/ref/spec#Terminating_statements}{eight different cases} in Go). Therefore, these checks occur in the weeder. The weeder is a catamorphism of the tree into a unit value; indeed, we are not interested in transforming the tree into anything, but simply in the state (i.e. potentially thrown errors) of the computation.
+The result of this first pass is a source-annotated GoLite syntax tree. These source annotations are used in subsequent phases for error reporting. The first place where this occurs is the weeding phase, which deals with rejecting various classes of invalid programs. Since we have essentially the most powerful grammar possible (executable code), it is mostly a matter of convenience as to what ends up in the weeder checks vs. earlier parser checks. The general rule we used was that if it involved checking the state of more than one tree node at a time, it should go in the weeder. This divide is quite natural. For example, lvalue checks occur at the parser level, since they can be done entirely by looking at a parsed expression when building an assignment node. On the other hand, function termination analysis involves going down over potentially several paths of the tree to check that all of them end in a terminating statement (whose definition is actually quite complex and includes \href{https://golang.org/ref/spec#Terminating_statements}{eight different cases} in Go). Therefore, these checks occur in the weeder. The weeder is a catamorphism of the tree into a unit value; indeed, we are not interested in transforming the tree into anything, but simply in the state (i.e. potentially thrown errors) of the computation.
 
 \subsection{Symbols and typechecking}
 \label{sec:ph_type}
 
-The typechecking phase is another stateful tree traversal, but which this time has a final value: a type-and-source-annotated syntax tree. In this phase, we build our symbol table and typecheck the program simultaneously, which can be done thanks to the fact that GoLite is quite simple and does not support mutual scopes (i.e. declarations are ordered). The symbol table is a standard cactus stack (a stack of hash tables, where the hash tables are standard-issue Haskell containers) which we keep in the state of the traversal. We have at our disposal several combinators, which allow us to transform any typechecking action by introducing a new scope around it, or performing symbol declarations. As we progress through the typechecking of the tree, we add more information to this symbol table, which is looked up whenever we need to typecheck expressions containing some kind of identifier.
+The typechecking phase is another stateful tree traversal, but which this time has a final value: a type-and-source-annotated syntax tree. In this phase, we build our symbol table and typecheck the program simultaneously, which can be done thanks to the fact that GoLite is quite simple and does not support mutual scopes (i.e. declarations are ordered). The symbol table is a standard cactus stack (a stack of dictionaries, where the dictionaries are standard-issue Haskell containers implemented as binary search trees) which we keep in the state of the traversal. We have at our disposal several combinators, which allow us to transform any typechecking action by introducing a new scope around it, or performing symbol declarations. As we progress through the typechecking of the tree, we add more information to this symbol table, which is looked up whenever we need to typecheck expressions containing some kind of identifier.
 
 We have a fixed-point datatype representing a GoLite type. In addition to the standard types, we keep track of type aliases (which have decidedly confusing typechecking rules), function types, as well as a host of properties which indicate which types can be used to perform which operations (e.g. is a type arithmetic, logical, printable, and so on).
 
@@ -106,7 +106,7 @@ Typechecking itself is a fairly routine tree traversal. A lot of very specific c
 
 Targeting x86-64 directly from GoLite is fraught with peril. This is why we have an intermediate representation called Vigil which is considerably simpler than GoLite and allows us to use a template-based approach to code generation. Vigil is a ``language'' in its own right, although its programs are not valid GoLite anymore and thus cannot be compiled by anything. However, it is quite simple to pretty-print them.
 
-The Vigil syntax is very nearly the same as \href{https://web.archive.org/web/20040308142632/http://www-acaps.cs.mcgill.ca/info/McCAT/public/intermediate.html#SIMPLE}{SIMPLE} with a few minor modifications for the GoLite use case. Much of the simplification process involves transforming expressions into a three-address form by inserting temporary variables strategically. At the statement level, some statements are entirely discarded (e.g. empty statements and type declarations), flattened (blocks) or moved around (e.g. declarations are moved to the top of a function declaration, initializer statements of if blocks are moved just before them, additional statements for temporaries are inserted, and so on).
+The Vigil syntax is very nearly the same as \href{https://web.archive.org/web/20040308142632/http://www-acaps.cs.mcgill.ca/info/McCAT/public/intermediate.html#SIMPLE}{SIMPLE} with a few minor modifications for the GoLite use case. Much of the simplification process involves transforming expressions into a three-address form by inserting temporary variables strategically. At the statement level, some statements are entirely discarded (e.g. empty statements and type declarations), flattened (blocks), or moved around (e.g. declarations are moved to the top of a function declaration, initializer statements of if blocks are moved just before them, additional statements for temporaries are inserted, and so on).
 
 Despite being called ``simplification'', the process of taking a source-and-type-annotated GoLite AST into a type-annotated Vigil AST is actually not that straightforward. The main issue is that expressions in Vigil are in three-address form, which means that complex expressions must be broken down and appropriate temporaries generated. The catamorphism over GoLite expressions thus returns a stack of ``expression results'', where the top of the stack is the final computation in the expression (the one which actually represents a value), while the lower elements of the stack represent temporaries. As the expression is simplified further and further, this stack is percolated up the tree, with every node potentially adding its own temporaries. This process is further confounded by the presence of short-circuiting operations: an expression like \texttt{a \&\& b} is really translated as an if statement which first evaluates \texttt{a}, and then evaluates \texttt{b} only if \texttt{a} is true. Since while we are simplifying an expression we do not output any sort of statements, we just keep track of all these intermediate results for later use.
 
@@ -122,9 +122,9 @@ Assembly generation is itself a multi-pass phase. We have the following transfor
 \subsubsection{Vigil to virtual assembly}
 \label{sec:vasm}
 
-We transform our Vigil AST into a free-monadic list representation of the assembly code. We use an assembly data type that abstracts over its operands (which are virtual at this stage) and label types. The compilation is template-based: every Vigil statement and expression is matched to a specific template, which is output as a value in the free monad. This assembly contains virtual registers. There is normally one virtual register per variable. Some instructions are output with fixed registers, meaning that they must access a specific register. This occurs for example in calls: we need to respect the System V ABI which specifies, amongst other things, which registers are used to pass which parameters.
+We transform our Vigil AST into a free monad representation of the assembly code. We use an assembly data type that abstracts over its operands (which are virtual at this stage) and label types. The compilation is template-based: every Vigil statement and expression is matched to a specific template, which is output as a value in the free monad. This assembly contains virtual registers. There is normally one virtual register per variable. Some instructions are output with fixed registers, meaning that they must access a specific register. This occurs for example in calls: we need to respect the System V ABI which specifies, amongst other things, which registers are used to pass which parameters.
 
-Special handling is done for managed data types (i.e. arrays, slices and structs). The runtime has several functions dedicated to using them, which means that they are treated mostly as opaque objects from the assembly point of view.
+Special handling is done for managed data types (i.e. arrays, slices and structs). The runtime has several functions dedicated to using them, which means that they are treated mostly as opaque integers (pointers) from the assembly point of view.
 
 A virtual register also carries information about the way it should be accessed, namely its size (low byte, high byte, word, double word, quad word) and kind (integer or floating-point). This information is used in the forthcoming passes.
 
@@ -142,7 +142,7 @@ Because we do essentially no data-flow analysis, we employ a very simple registe
 
 To perform the actual allocation, we also compute for every virtual register what are the other virtual registers that have overlapping lifetimes. This is the part of the compiler where we use state in the most direct manner: by declaring for every virtual register a memory cell (Haskell's version of a pointer, essentially) which contains its allocated hardware location (a hardware location being either a hardware register or a ``memory location'', the details of which are undefined at this point). This way, as we walk down the priority queue of lifetime intervals, allocating a register is immediately propagated to the conflict lists that we keep track of.
 
-For every virtual register, the following very simple decision procedure is ran. We first check if any of the hardware registers with the suitable access kind are available. If yes, we assign one of them to the virtual register. If no, we have to spill something to a memory location. The heuristic we choose is to spill the virtual register which lives the furthest in the future (which can be the virtual register we're trying to allocate something for).
+For every virtual register, the following very simple decision procedure is run. We first check if any of the hardware registers with the suitable access kind are available. If yes, we assign one of them to the virtual register. If no, we have to spill something to a memory location. The heuristic we choose is to spill the virtual register which lives the furthest in the future (which can be the virtual register we're trying to allocate something for).
 
 There are two registers which we never allocate: \texttt{rax} and \texttt{xmm0}. The reason for this is twofold. First, those registers are used for return values, so computing their lifetime could be difficult (given a series of calls, it's not clear which one of them returned the value into \texttt{rax} that we want to use now). Second, we need a scratch register in cases where an instruction involving two virtual registers sees both of those registers spilled. Indeed, in x86, memory~/ memory operations are disallowed. We thus need to guarantee that a register will always be available to convert those to a pair of instructions, one register~/ memory and the other memory~/ register.
 
@@ -156,16 +156,26 @@ The mapping is very routine and mostly involves translating the instruction oper
 
 \subsection{Hardware assembly to executable file}
 
-Given our hardware assembly, we can simply pretty-print it to a textual representation that YASM will accept. This involves generating some required boilerplate to interface with our runtime: our assembly file exports the functions \texttt{gocode\_main} and \texttt{init} which are called by the runtime, and imports all the runtime functions. The runtime is a monolithic C library that defines various functions for creating and using managed objects, and is not particularly interesting in and of itself.
+Given our hardware assembly, we can simply pretty-print it to a textual representation that YASM will accept. This involves generating some required boilerplate to interface with our runtime: our assembly file exports the functions \texttt{gocode\_main} and \texttt{gocode\_init} which are called by the runtime, and imports all the runtime functions. The runtime is a monolithic C library that defines various functions for creating and using managed objects, and is not particularly interesting in and of itself.
 
 This assembly file is then passed through YASM, which produces an object file. We link that against our runtime, which contains a main function that calls \texttt{init} then \texttt{gocode\_main}, to get an executable.
+
+\subsection{C++ code generation}
+
+At the last minute, in a last-ditch effort to get output that would be able to run at least our example programs from the last milestone, we implemented a C++ code generator. This code generator translates the typechecked GoLite AST directly into a C++ string.
+
+The traversal of the GoLite AST is done by a catamorphism as usual, but with some special considerations for the names of types that occur in the source code. Since we originally planned on targeting only x86, we paid little consideration to type declarations, since we recorded the types of variables \emph{in the variables themselves}. However, in order to generate correct C++ code, we must of course declare the structs that are used by the program.
+
+The guiding principle of the traversal is that we \emph{delay} deciding how to name types until the traversal is complete. This is achieved by having the traversal compute a \emph{function} that takes a map from \texttt{Type}s to strings at the same time as the map is built up. The reason we have to use this map is to guarantee that the same name is given to two instances of the same type (i.e. two anonymous structs with the same fields in the same order are given the same type name in the C++ code.) Once the traversal is complete and the both the map and the function are built up, we call the function with the map in order to produce the final output string.
+
+The implementation of the C++ runtime was very simple since we chose to implement Go slices with STL vectors, Go arrays as STL arrays, and Go strings as STL strings. All of these data types support a \texttt{size} method, for instance, so it was trivial to define a \texttt{len} template function in the runtime that simply invokes the \texttt{size} method of the object that it is given without concern for the exact type of the object.
 
 \subsection{Phase diagram}
 \begin{figure}[ht]
 \begin{center}
 \includegraphics[width=.6\textwidth]{diagram.png}
 \end{center}
-\caption{Phases of the goto compiler}
+\caption{Phases of the goto compiler to generate x86 code}
 \end{figure}
 
 \section{Example output}
@@ -296,17 +306,46 @@ section .text
         pop rbp
         ret
 \end{verbatim}
+
+\subsection{C++ code generator output}
+The output of our C++ code generator is extremely messy, given that it was cobbled together at the last minute. The extraneous typedef is the result of Go allowing complex types to be used anonymously. In particular, a struct can be used as the return value of a function without the struct previously being given a name with the `type` construct. Rather than introduce typedefs for anonymous structs as a special case, we simply create typedefs very liberally for pretty much every type encountered in the program.
+
+\begin{verbatim}
+// main
+#include <iostream>
+#include <memory>
+#include <array>
+#include <vector>
+#include <string>
+#include "goto.hpp"
+using namespace std;
+typedef bool type1;
+bool _gocode_true = true;
+bool _gocode_false = false;
+void _gocode_main()
+{
+    {
+        type1 _gocode_z = _gocode_true;
+        if (_gocode_z)
+        {
+            cout << boolalpha << _gocode_z << "\n";
+        }
+    };
+}
+int main() { _gocode_main(); }
+\end{verbatim}
 \section{Conclusion and future work}
 
-In terms of achieving the goal of learning as much as we could about compilers, we probably have done the most complete survey of the different phases of compiling that we could possibly have done in this amount of time. We used very few domain-specific helper libraries (Megaparsec being the main one) and went all the way to x86 generation, which gave us exposure to intermediate representations, register allocation and other considerations about instructions. We also achieved our goal of having a compiler that targeted a widely-used platform, and even managed to add some extra features (i.e. supporting the Go built-ins that are still semantically valid in GoLite). We learned a great deal about language interop at this lowest of levels.
+In terms of achieving the goal of learning as much as we could about compilers, we probably have done the most complete survey of the different phases of compiling that we could possibly have done in this amount of time. We used very few domain-specific helper libraries (Megaparsec being the main one) and went all the way to x86 generation, which gave us exposure to intermediate representations, register allocation and other considerations about instructions. We also learned a great deal about language interop at this lowest of levels. Overall, we think we learned that x86-64 assembly and the System V ABI are incredibly difficult to target, which explains the incompleteness of our native code generator. We both now have even more respect and admiration for the engineers who have built today's amazing compilers which until now we have taken for granted.
 
 There are however several aspects which we had to cut or scale back in order to finish. We did not end up generating our own ELF file; in hindsight, this would have given us massive street cred but would also have been a relatively pointless exercise seeing as knowledge the intricacies of the file format is not an especially transferable skill. We also had a much simpler register allocator than originally anticipated. This is mainly because we did not properly research the topic beforehand and did not realize that we would have to do dataflow analysis for anything but the simplest register allocator, which would have taken another milestone by itself.
 
 In terms of future work, we are therefore definitely interested in revisiting the post-typecheck phases. Some points that we consider are:
 \begin{itemize}
-\item Use the virtual assembly together with the Vigil representation to construct a basic-block graph of the program, to perform actual liveness analysis and allow us to do better register allocation;
-\item Implement mid-level optimizations at the Vigil stage (e.g. common subexpression simplification, function call inlining, loop invariant hoisting) and peephole optimizations at the hardware assembly stage (e.g. redundant \texttt{mov} elimination, lifetime merging)
-\item Extend our runtime to support garbage collection.
+    \item Getting the x86 code generator to fully work.
+    \item Use the virtual assembly together with the Vigil representation to construct a basic-block graph of the program, to perform actual liveness analysis and allow us to do better register allocation;
+    \item Implement mid-level optimizations at the Vigil stage (e.g. common subexpression simplification, function call inlining, loop invariant hoisting) and peephole optimizations at the hardware assembly stage (e.g. redundant \texttt{mov} elimination, lifetime merging)
+    \item Extend our runtime to support garbage collection.
 \end{itemize}
 
 Of course, all these are fairly large tasks which could take a long time to finish. In the end though, the exercise of writing a compiler in Haskell targeting assembly exposed us to a great deal of general and powerful concepts and strategies that apply not only to compilation, but also to the treatment and transformation of any form of structured data. That is perhaps the most unique and important aspect of this project.
