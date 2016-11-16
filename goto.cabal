@@ -16,7 +16,7 @@ cabal-version:       >=1.10
 
 source-repository head
   type: git
-  location: https://github.com/djeik/comp-520-project
+  location: https://github.com/tsani/comp-520-project
 
 library
   hs-source-dirs:      libgoto
